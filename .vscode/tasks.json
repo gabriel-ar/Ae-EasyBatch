@@ -1,0 +1,39 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "dev",
+			"label": "npm_dev",
+			"problemMatcher": {
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}"
+				],
+				"pattern": {
+					"regexp": "^\\s*at (?:new )?([^ ]+) \\(([^:]+):([0-9]+):([0-9]+)\\)$",
+					"file": 2,
+					"line": 3,
+					"column": 4
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^.*?VITE",
+					"endsPattern": "^.*?Local"
+				}
+			},
+			"isBackground": true
+		},
+		{
+			"type": "npm",
+			"script": "build",
+			"label": "npm_build"
+		},
+		{
+			"type": "npm",
+			"script": "preview",
+			"label": "npm_preview",
+			"problemMatcher": []
+		}
+	]
+}

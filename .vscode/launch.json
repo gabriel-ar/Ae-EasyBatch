@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "preLaunchTask": "npm_dev",
+            "type": "chrome",
+            "name": "Launch npm dev",
+            "request": "launch",
+            "url": "http://localhost:5173/",
+            "webRoot": "${workspaceFolder}/src",
+        },
+        {
+            "name": "Attach to Ae's CEF",
+            "type": "chrome",
+            "request": "attach",
+            "port": 8009,
+            "webRoot": "${workspaceFolder}/src",
+        },
+        {
+            "name": "Attatch to CEP Ae",
+            "type": "extendscript-debug",
+            "hostAppSpecifier": "aftereffects-25.0",
+            "request": "attach",
+        },
+        {
+            "type": "extendscript-debug",
+            "hostAppSpecifier": "aftereffects-25.0",
+            "name": "Launch in CEP Ae",
+            "request": "launch",
+        },
+    ]
+}

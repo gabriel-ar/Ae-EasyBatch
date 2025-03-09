@@ -1,0 +1,97 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-size: 14px;
+
+  color-scheme: dark;
+  color: var(--color-text);
+  background-color: var(--color-base);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --radius-form: 4px;
+
+  --padding-form: 5px 7px;
+
+  --color-text: rgba(255, 255, 255, 0.87);
+
+  --color-base: rgb(30, 30, 30);
+
+  --color-m1: rgba(0, 0, 0, 0.3);
+  --color-m2: rgba(0, 0, 0, 0.4);
+
+  --color-p1: rgba(255, 255, 255, 0.1);
+  --color-p2: rgba(255, 255, 255, 0.15);
+
+  --color-solid-m1: rgb(24, 24, 24);
+  --color-solid-m2: rgb(19, 19, 19);
+
+  --color-border-p1: rgba(255, 255, 255, 0.15);
+
+  --color-divider: rgba(0, 0, 0, 0.5);
+
+  --color-highlight: rgba(48, 79, 120, 1);
+
+}
+
+h3,h4{
+  margin: 0.5rem 0 0;
+}
+
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+button, input, select, textarea {
+  border-radius: var(--radius-form);
+
+  padding: var(--padding-form);
+  border: solid 1px var(--color-border-p1);
+  background-color: var(--color-m2);
+  color: white;
+}
+
+button:hover, select:hover, textarea:hover, input:hover{
+  background-color: var(--color-m1);
+  border: solid 1px var(--color-border-p1);
+  outline: none;
+}
+
+input:focus, button:focus, select:focus, textarea:focus{
+  outline: none;
+  border: solid 1px var(--color-highlight);
+}
+
+button svg{
+  vertical-align: middle;
+}
+
+select option{
+  background-color: rgba(0, 0, 0, 0.904);
+  color: rgb(255, 255, 255);
+}
+
+select option:focus{
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
