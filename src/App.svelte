@@ -662,12 +662,17 @@
                 {#if setts.tmpls[setts.sel_tmpl].columns[col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
                   <button
                     class="delete_col"
+                    data-tooltip="Setup alternate source"
+                    data-tt-pos="bottom-right"
                     onclick={() => {
                       SetupAlternateSource(col_i);
                     }}><Gear /></button
                   >
                 {/if}
-                <button class="delete_col" onclick={() => DeleteColumn(view_i)}
+                <button class="delete_col" 
+                             data-tooltip="Delete column"
+                    data-tt-pos="bottom-right"
+                onclick={() => DeleteColumn(view_i)}
                   ><Trash /></button
                 >
               </th>
@@ -678,13 +683,13 @@
           {#each setts.tmpls[setts.sel_tmpl].rows as row, row_i}
             <tr>
               <td
-                ><button class="delete_row" onclick={() => DeleteRow(row_i)}>
+                ><button class="delete_row" data-tooltip="Delete Row" data-tt-pos="top-right" onclick={() => DeleteRow(row_i)}>
                   <Trash />
                 </button>
-                <button class="delete_row" onclick={() => PreviewRow(row_i)}
+                <button class="delete_row" data-tooltip="Preview this row" data-tt-pos="top-right" onclick={() => PreviewRow(row_i)}
                   ><EyeOpen /></button
                 >
-                <button class="delete_row" onclick={() => SampleRow(row_i)}
+                <button class="delete_row" data-tooltip="Copy data from preview" data-tt-pos="top-right"  onclick={() => SampleRow(row_i)}
                   ><Crosshair2 /></button
                 >
               </td>
@@ -735,7 +740,7 @@
 
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
-      <h4>File Name Pattern</h4>
+      <h4>File Name Pattern<button class="info" data-tooltip="Generates the file name of every export depending on the pattern.">i</button></h4> 
       <textarea
         id="save_pattern_ta"
         spellcheck="false"

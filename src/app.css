@@ -81,6 +81,120 @@ select option:focus{
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+[data-tooltip]{
+  position:relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  background: rgba(0,0,0,0.7);
+
+  color: #fff;
+  padding:4px 2px;
+  min-width: 80px;
+  border-radius: 5px;
+  pointer-events: none;
+  padding: 4px 4px;
+  z-index:99;
+
+
+  font-size: 12px;
+  font-style: normal;
+  text-align: center;
+
+  opacity:0;
+  display: none;
+
+  animation: tooltip-show 1s linear;
+}
+
+[data-tooltip]:hover::after {
+  opacity:1;
+  display: block;
+}
+
+:not([data-tt-pos], .info)::after {
+  transform: translateX(-50%) translateY(-100%);
+  top: -6px;
+  left: 50%;
+}
+
+[data-tt-pos="top-left"]::after {
+    right: 0;
+    top: -6px;
+    transform: translateY(-100%);
+}
+
+[data-tt-pos="top-right"]::after {
+  left: 0;
+  top: -6px;
+  transform: translateY(-100%);
+}
+
+[data-tt-pos="middle-right"]::after {
+  left: 100%;
+  transform: translateX(6px) translateY(-50%);
+  top: 50%;
+}
+
+[data-tt-pos="middle-left"]::after {
+  right: 100%;
+  transform: translateX(-6px) translateY(-50%);
+  top: 50%;
+}
+
+[data-tt-pos="bottom-left"]::after {
+  right: 0;
+  bottom: -6px;
+  transform: translateY(100%);
+}
+
+[data-tt-pos="bottom-right"]::after {
+  left: 0;
+  bottom: -6px;
+  transform: translateY(100%);
+}
+
+@keyframes tooltip-show {
+  0% {
+    opacity: 0;
+  }
+  92% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+  
+}
+
+.info{
+  border-radius: 50%;
+  padding: 0;
+  display: inline;
+  font-size: 9px;
+  width: 17px;
+  aspect-ratio: 1;
+  font-style: italic;
+
+  margin-left: 4px;
+
+  vertical-align: text-bottom;
+}
+
+.info[data-tooltip]:focus::after {
+  animation: none;
+  opacity:1;
+  display: block;
+}
+
+.info:not([data-tt-pos])::after {
+  left: 0;
+  bottom: -6px;
+  transform: translateY(100%);
+}
+
 
 
 @media (prefers-color-scheme: light) {

@@ -18,7 +18,7 @@
     <Extension Id="com.settools.templator.panel">
       <DispatchInfo>
         <Resources>
-          <MainPath>./index.html</MainPath>
+          <MainPath>./dev.html</MainPath>
           <ScriptPath>./host/index.jsx</ScriptPath>
           <CEFCommandLine>
             <Parameter>--allow-file-access-from-files</Parameter>

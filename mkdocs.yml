@@ -1,0 +1,6 @@
+site_name: Ae Automator Documentation
+site_url: https://gabriel-ar.github.io/Ae-Automator/
+theme:
+  name: material
+  palette:
+    scheme: slate

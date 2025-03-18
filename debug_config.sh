@@ -1,3 +1,4 @@
+# Enable debug mode for Adobe CC extensions
 defaults write com.adobe.CSXS.11 PlayerDebugMode 1
 defaults write com.adobe.CSXS.11 LogLevel 6
 

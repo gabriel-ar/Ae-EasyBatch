@@ -1,6 +1,9 @@
-# Templator
+# {EXT NAME}
 The After Effects template automator.
 
-This extension allows you to make better use of your Motion Graphics templates and create data driven batch renders.
+Batch render a template in After Effects, given data in form of a table.
 
-Lets say you have a lower third template, with two customizable fields, Top Text and Bottom Text. With our extension, you could load a `.csv` file with colums named 'Top Text' and 'Bottom Text', matching with hundreds of rows of data and create a render for each row. Then, to save the files, you can decide a pattern where it creates the file name with the vales of Top Text and Bottom Text, that way making every file unique and easy to find.
+### Simple Use Case
+You have a lower third template, with two customizable fields, *Top Text* and *Bottom Text*. With our extension, you could load a `.csv` table file with colums named *'Top Text'* and *'Bottom Text'*, coontaining hundreds of rows. The extension allows you to create a render per row. For the file names of the renders, you can decide on a pattern. The extension could use the text in `Top Text` or `Bottom Tex` to name the file, or  you can create a custom increment.
+
+Check out the Getting Started tutorial for all the possibilities.
