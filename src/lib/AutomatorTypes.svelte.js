@@ -445,7 +445,9 @@ class Template {
     //Match columns by name
     this.columns.forEach((col) => {
       let tmpl_col = data.values.find((val) => val.name === col.cont_name);
-      if (tmpl_col !== undefined) {
+
+      //TODO: Ignoring text documents because After Effects is returning the value of the original template comp and not the current value;
+      if (tmpl_col !== undefined && col.type !== Column.PropertyValueType.TEXT_DOCUMENT) {
         col.values[row_i] = tmpl_col.value;
       }
     });

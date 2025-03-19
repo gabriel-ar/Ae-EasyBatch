@@ -8,6 +8,7 @@
   import { onMount, setContext } from "svelte";
 
   import {
+  Camera,
     Crosshair2,
     EyeOpen,
     Gear,
@@ -410,6 +411,49 @@
     });
   }
 
+  function RenderSingleRow(row_i){
+    l.debug('RedenrSingleRow called with row index:', row_i);
+
+    //Trim the temlate to contain only the modified row
+
+    //TODO this is a hack, find a better way to do this
+    let send_templ = Template.FromJson(JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])));
+    send_templ.ResolveSavePaths();
+
+    for (let col of send_templ.columns) {
+      col.values = [col.values[row_i]];
+    }
+  
+    send_templ.ResolveAltSrcPaths();
+    send_templ.save_paths = [send_templ.save_paths[row_i]];
+    send_templ.generate_names = [send_templ.generate_names[row_i]];
+
+    let string_templt = JSON.stringify(send_templ);
+    l.debug("Rendering:", string_templt);
+
+    cep.Eval(
+      `BatchRender('${string_templt}', "${setts.render_comps_folder}")`,
+      function (s_result) {
+        /**@type {BatchRenderResult}*/
+        let result;
+
+        try {
+          result = JSON.parse(s_result);
+        } catch (e) {
+          l.error("Failed to parse batch render result in RenderSingleRow: ", s_result);
+          return;
+        }
+
+        if (result.success == false) {
+          l.error("Failed to batch render in RenderSingleRow", result.error_obj);
+          return;
+        } else {
+          l.debug(`Batch Render Started in Render Single Row`);
+        }
+      }
+    );
+  }
+
   function BatchRender() {
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
     setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
@@ -691,6 +735,9 @@
                 >
                 <button class="delete_row" data-tooltip="Copy data from preview" data-tt-pos="top-right"  onclick={() => SampleRow(row_i)}
                   ><Crosshair2 /></button
+                >
+                <button class="delete_row" data-tooltip="Render this row" data-tt-pos="top-right"  onclick={() => RenderSingleRow(row_i)}
+                  ><Camera/></button
                 >
               </td>
               {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
