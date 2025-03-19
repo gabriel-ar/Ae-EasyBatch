@@ -639,6 +639,10 @@ function _ApplyTemplProps(layer, template, row_i) {
  */
 
 function _ImportFootageItem(path, proj_folder) {
+    //Update the Folder.current global so that relative paths can be solved
+    if (app.project.file !== null)
+      Folder.current = new Folder(app.project.file.path);
+
   //Check or create a folder in the project to organize the replaceable files
   var folder;
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
@@ -825,12 +829,13 @@ function _QueueComp(comp, path, render_preset, output_preset) {
       throw new Error("@_Render: Could not create folder at path: " + path);
   }
 
+  //Update the Folder.current global so that relative paths can be solved
+  if (app.project.file !== null)
+    Folder.current = new Folder(app.project.file.path);
+
   //Set the output file name
   var output_file = new File(path);
   om.file = output_file;
-
-  //var om_setts = om.getSettings();
-  // var render_setts = rq_item.getSettings();
 }
 
 function GatherRenderTemplates() {
@@ -859,8 +864,17 @@ function GatherRenderTemplates() {
   return JSON.stringify(result);
 }
 
-function SelectFolder() {
-  return Folder.selectDialog("Select a folder");
+function SelectFolder() {  
+  var folder = Folder.selectDialog("Select a folder");
+  if (folder != null) {
+    if (app.project.file !== null) {
+      var base_path = app.project.file.path;
+      return folder.getRelativeURI(base_path);
+    } else {
+      return folder.fsName;
+    }
+  }
+  return null;
 }
 
 function ImportFile() {
