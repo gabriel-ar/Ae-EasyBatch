@@ -9,7 +9,7 @@ class CSAdapter {
     SystemPath = {
         EXTENSION: 'extension',
     }
-
+    
     // @ts-ignore
     cep = window.__adobe_cep__;
     
@@ -48,6 +48,12 @@ class CSAdapter {
     GetHostEnvironment(){
         return this.cep.getHostEnvironment();
     }
+
+    OpenURLInDefaultBrowser(url) {
+        // @ts-ignore
+        cep.util.openURLInDefaultBrowser(url)
+    }
+
 }
 
 export default CSAdapter;
