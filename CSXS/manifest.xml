@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'standalone="no"?>
-<ExtensionManifest ExtensionBundleId="com.settools.templator" ExtensionBundleName="Ae Templator" ExtensionBundleVersion="1.0.0" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ExtensionManifest ExtensionBundleId="com.settools.easybatch" ExtensionBundleName="Ae easybatch" ExtensionBundleVersion="1.0.0" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.settools.templator.panel" Version="1.0.0" />
+    <Extension Id="com.settools.easybatch.panel" Version="1.0.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -15,7 +15,7 @@
     </RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>
-    <Extension Id="com.settools.templator.panel">
+    <Extension Id="com.settools.easybatch.panel">
       <DispatchInfo>
         <Resources>
           <MainPath>./dev.html</MainPath>
@@ -32,7 +32,7 @@
         </Lifecycle>
         <UI>
           <Type>Panel</Type>
-          <Menu>Templator</Menu>
+          <Menu>EasyBatch</Menu>
           <Geometry>
             <Size>
               <Height>500</Height>

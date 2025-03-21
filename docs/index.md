@@ -1,4 +1,4 @@
-# {EXT NAME}
+# Easy Batch
 The After Effects template automator.
 
 Batch render a template in After Effects, given data in form of a table.

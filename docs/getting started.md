@@ -13,7 +13,7 @@
 4. Drag the properties that you would like to make editable from the composition to the Motion Graphics panel. **Important:** Make sure to assign a relevant and unique name. The extension will not properly recognize a template with repeated property names.
 
 #### B. Setup the Extension
-5. Open the extension in `Window` > `Extensions` > `{EXT NAME}`
+5. Open the extension in `Window` > `Extensions` > `EasyBatch`
 6. In the dropdown in the top bar, select your template. If you don't see it, use the reload button at the left of the top bar. If you still don't see the template, make sure it has at least one property.
 7. In the `Data` tab you will be able to see a table with at least one column matching a property from your template. To add more columns use the `Add Columns` button at the bottom of the extension. Add columns for as manny properties you wish. In order to change what property is displayed on that column, use the dropdown menu on the header (first row) of the column. The choice of columns and order doesn't affect the data that's applied to the template.
 8. Start adding data to the table. Each row will become a separate render. The following property types can be edited in the extension:

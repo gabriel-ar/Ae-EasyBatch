@@ -1,4 +1,4 @@
-# Templator
+# Easy Batch
 The After Effects Template Automator
 
 This extension provides automation tools to batch render and generate projects based on datasets, either imported from CSV files or created on the extension.
