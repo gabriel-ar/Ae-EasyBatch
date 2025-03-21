@@ -682,7 +682,7 @@
 
   <div class="header_reload">
     <button onclick={F_Reload} class="delete_col"><Update /></button>
-    <button class="delete_col" onclick={()=>cep.OpenURLInDefaultBrowser("https://gabriel-ar.github.io/Ae-Automator/")}><QuestionMark /></button>
+    <button class="delete_col" onclick={()=>cep.OpenURLInDefaultBrowser("https://gabriel-ar.github.io/Ae-EasyBatch/")}><QuestionMark /></button>
   </div>
 </header>
 
