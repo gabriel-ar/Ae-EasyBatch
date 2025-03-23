@@ -1,12 +1,18 @@
 {
     "configurations": [
+
         {
-            "preLaunchTask": "npm_dev",
-            "type": "chrome",
-            "name": "Launch npm dev",
+            "name": "NPM Run Dev",
             "request": "launch",
-            "url": "http://localhost:5173/",
-            "webRoot": "${workspaceFolder}/src",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ],
+            "runtimeExecutable": "npm",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
         },
         {
             "name": "Attach to Ae's CEF",
