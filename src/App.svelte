@@ -8,7 +8,7 @@
   import { onMount, setContext } from "svelte";
 
   import {
-  Camera,
+    Camera,
     Crosshair2,
     EyeOpen,
     Gear,
@@ -35,9 +35,9 @@
   import PropInput from "./lib/PropInput.svelte";
   import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
   import Dropdown from "./lib/Dropdown.svelte";
-  import Logger from './lib/Logger.mjs';
+  import Logger from "./lib/Logger.mjs";
 
-  const l = new Logger('warn', null, 'App');
+  const l = new Logger("warn", null, "App");
   setContext("logger", l);
 
   let cep = new CSAdapter();
@@ -54,7 +54,7 @@
 
   async function StartupSequence() {
     let n_tmpls = await GetTemplates();
-    l.debug('StartupSequence called with templates:', n_tmpls);
+    l.debug("StartupSequence called with templates:", n_tmpls);
 
     no_templs = n_tmpls.length == 0;
     if (no_templs) return;
@@ -64,13 +64,13 @@
         l.warn(`Settings not found, creating new ones`);
         return new Settings();
       } else {
-        l.error('StartupSequence-> GetSettings error:', e);
+        l.error("StartupSequence-> GetSettings error:", e);
         return;
       }
     });
 
     let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
-      l.error('StartupSequence-> GetRenderSettsTempls error:', e);
+      l.error("StartupSequence-> GetRenderSettsTempls error:", e);
       return;
     });
 
@@ -94,7 +94,7 @@
     return new Promise((resolve, reject) => {
       cep.Eval("GetTemplates()", function (s_result) {
         try {
-          l.debug('GetTemplates Eval result:', s_result);
+          l.debug("GetTemplates Eval result:", s_result);
           /**@type {GetTmplsResult}*/
           let result = JSON.parse(s_result);
 
@@ -106,7 +106,7 @@
             resolve(result.tmpls);
           }
         } catch (e) {
-          l.error('GetTemplates error:', e, s_result);
+          l.error("GetTemplates error:", e, s_result);
           reject(e);
         }
       });
@@ -116,7 +116,7 @@
   function GetSettings() {
     return new Promise((resolve, reject) => {
       cep.Eval(`LoadSettings()`, function (s_result) {
-        l.debug('GetSettings Eval result:', s_result);
+        l.debug("GetSettings Eval result:", s_result);
 
         /**@type {GetSettsResult} */
         let result;
@@ -171,7 +171,7 @@
     request.setts = setts;
     request.is_new = is_new;
 
-    l.debug('SaveSettings called with request:', request);
+    l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
     cep.Eval(`SaveSettings('${s_request}')`, function (s_result) {
@@ -212,7 +212,7 @@
     setts = new Settings();
     setts.sel_tmpl = 0;
     setts = setts;
-    l.debug('ResetSettings called');
+    l.debug("ResetSettings called");
     SaveSettings(true);
     setTimeout(() => window.location.reload(), 1000);
   }
@@ -225,7 +225,7 @@
       return;
     }
 
-    l.debug('IsSameProject called with project ID:', setts.id);
+    l.debug("IsSameProject called with project ID:", setts.id);
     cep.Eval(`IsSameProject("${setts.id}")`, function (s_result) {
       /**@type {IsSameProjectResult} */
       let result;
@@ -244,9 +244,7 @@
         return;
       } else {
         if (result.same_project === false) {
-          l.warn(
-            `Different project ID @IsSameProject, reloading settings`
-          );
+          l.warn(`Different project ID @IsSameProject, reloading settings`);
           StartupSequence();
         }
       }
@@ -308,7 +306,7 @@
 
   async function F_Reload() {
     let n_tmpls = await GetTemplates().catch((e) => {
-      l.error('F_Reload GetTemplates error:', e);
+      l.error("F_Reload GetTemplates error:", e);
       return;
     });
 
@@ -328,40 +326,40 @@
 
     setts.UpdateTemplates(n_tmpls);
     setts = setts;
-    l.debug('F_Reload called with templates:', n_tmpls);
+    l.debug("F_Reload called with templates:", n_tmpls);
   }
 
   function Test() {
-    l.error('Test called');
-    l.warn('Test called for warning');
+    l.error("Test called");
+    l.warn("Test called for warning");
   }
 
   function AddRow() {
     setts.tmpls[setts.sel_tmpl].AddRow();
     setts = setts;
-    l.debug('AddRow called');
+    l.debug("AddRow called");
   }
 
   function AddColumn() {
     setts.tmpls[setts.sel_tmpl].AddColumn();
     setts = setts;
-    l.debug('AddColumn called');
+    l.debug("AddColumn called");
   }
 
   function DeleteRow(row_i) {
     setts.tmpls[setts.sel_tmpl].DeleteRow(row_i);
     setts = setts;
-    l.debug('DeleteRow called with row index:', row_i);
+    l.debug("DeleteRow called with row index:", row_i);
   }
 
   function DeleteColumn(col_i) {
     setts.tmpls[setts.sel_tmpl].DeleteColumn(col_i);
     setts = setts;
-    l.debug('DeleteColumn called with column index:', col_i);
+    l.debug("DeleteColumn called with column index:", col_i);
   }
 
   function PreviewRow(row_i, live = false) {
-    l.debug('PreviewRow called with row index:', row_i, 'and live:', live);
+    l.debug("PreviewRow called with row index:", row_i, "and live:", live);
     if (!setts.auto_preview && live) return;
 
     if (!setts.auto_preview) live = false;
@@ -369,11 +367,13 @@
     //Trim the temlate to contain only the modified row
 
     //TODO this is a hack, find a better way to do this
-    let send_templ = Template.FromJson(JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])));
+    let send_templ = Template.FromJson(
+      JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])),
+    );
     for (let col of send_templ.columns) {
       col.values = [col.values[row_i]];
     }
-  
+
     send_templ.ResolveAltSrcPaths();
     send_templ.save_paths = [send_templ.save_paths[0]];
     send_templ.generate_names = [send_templ.generate_names[0]];
@@ -381,12 +381,9 @@
     let s_templt = JSON.stringify(send_templ);
     l.debug(`Previewing Row:`, s_templt, row_i, live);
 
-    cep.Eval(
-      `PreviewRow('${s_templt}', ${0}, ${live})`,
-      function (s_result) {
-        l.debug(`Preview Row Result`, s_result);
-      }
-    );
+    cep.Eval(`PreviewRow('${s_templt}', ${0}, ${live})`, function (s_result) {
+      l.debug(`Preview Row Result`, s_result);
+    });
   }
 
   /**
@@ -395,7 +392,7 @@
    */
   function SampleRow(row_i) {
     let s_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug('SampleRow called with row index:', row_i);
+    l.debug("SampleRow called with row index:", row_i);
 
     cep.Eval(`GetCurrentValues('${s_templt}')`, function (s_result) {
       l.debug(`Sample Row Result: ${s_result}`);
@@ -413,19 +410,21 @@
     });
   }
 
-  function RenderSingleRow(row_i){
-    l.debug('RedenrSingleRow called with row index:', row_i);
+  function RenderSingleRow(row_i) {
+    l.debug("RedenrSingleRow called with row index:", row_i);
 
     //Trim the temlate to contain only the modified row
 
     //TODO this is a hack, find a better way to do this
-    let send_templ = Template.FromJson(JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])));
+    let send_templ = Template.FromJson(
+      JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])),
+    );
     send_templ.ResolveSavePaths();
 
     for (let col of send_templ.columns) {
       col.values = [col.values[row_i]];
     }
-  
+
     send_templ.ResolveAltSrcPaths();
     send_templ.save_paths = [send_templ.save_paths[row_i]];
     send_templ.generate_names = [send_templ.generate_names[row_i]];
@@ -442,27 +441,34 @@
         try {
           result = JSON.parse(s_result);
         } catch (e) {
-          l.error("Failed to parse batch render result in RenderSingleRow: ", s_result);
+          l.error(
+            "Failed to parse batch render result in RenderSingleRow: ",
+            s_result,
+          );
           return;
         }
 
         if (result.success == false) {
-          l.error("Failed to batch render in RenderSingleRow", result.error_obj);
+          l.error(
+            "Failed to batch render in RenderSingleRow",
+            result.error_obj,
+          );
           return;
         } else {
           l.debug(`Batch Render Started in Render Single Row`);
         }
-      }
+      },
     );
   }
 
+  let render_errors = [];
   function BatchRender() {
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
     setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
 
     let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug('BatchRender called');
+    l.debug("BatchRender called");
     l.log("Rendering:", string_templt);
 
     cep.Eval(
@@ -483,8 +489,12 @@
           return;
         } else {
           l.debug(`Batch Render Started`);
+          if (result.errors !== undefined && result.errors.length > 0) {
+            l.warn(`Batch Render Errors`, result.errors);
+            render_errors = result.errors;
+          }
         }
-      }
+      },
     );
   }
 
@@ -493,7 +503,7 @@
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
 
     let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug('BatchGenerate called');
+    l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
     cep.Eval(`BatchGenerate('${string_templt}')`, function (s_result) {
@@ -520,7 +530,7 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    l.debug('SelectBasePath called');
+    l.debug("SelectBasePath called");
     cep.Eval(`SelectFolder()`, function (result) {
       if (result == "null") return;
 
@@ -595,7 +605,7 @@
       pattern;
 
     setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].ResolveAltSrcPaths(
-      setts.tmpls[setts.sel_tmpl].columns
+      setts.tmpls[setts.sel_tmpl].columns,
     );
   }
 
@@ -603,7 +613,7 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function ImportCSV() {
-    l.debug('ImportCSV called');
+    l.debug("ImportCSV called");
     cep.Eval(`ImportFile()`, function (result) {
       if (result === "null") return;
 
@@ -617,7 +627,7 @@
 
   function ExportCSV() {
     let content = setts.tmpls[setts.sel_tmpl].MakeCSV();
-    l.debug('ExportCSV called');
+    l.debug("ExportCSV called");
     //URL encode the content
     content = encodeURIComponent(content);
 
@@ -628,7 +638,7 @@
 
   function SaveJSON() {
     let content = JSON.stringify(setts);
-    l.debug('SaveJSON called');
+    l.debug("SaveJSON called");
     //URL encode the content
     content = encodeURIComponent(content);
 
@@ -638,7 +648,7 @@
   }
 
   function LoadJSON() {
-    l.debug('LoadJSON called');
+    l.debug("LoadJSON called");
     cep.Eval(`ImportFile()`, function (result) {
       if (result === "null") return;
 
@@ -682,7 +692,13 @@
 
   <div class="header_reload">
     <button onclick={F_Reload} class="delete_col"><Update /></button>
-    <button class="delete_col" onclick={()=>cep.OpenURLInDefaultBrowser("https://gabriel-ar.github.io/Ae-EasyBatch/")}><QuestionMark /></button>
+    <button
+      class="delete_col"
+      onclick={() =>
+        cep.OpenURLInDefaultBrowser(
+          "https://gabriel-ar.github.io/Ae-EasyBatch/",
+        )}><QuestionMark /></button
+    >
   </div>
 </header>
 
@@ -699,10 +715,10 @@
                 <Dropdown
                   variant="discrete"
                   options={setts.tmpls[setts.sel_tmpl].columns.map((col) =>
-                    setts.tmpls[setts.sel_tmpl].columns.indexOf(col)
+                    setts.tmpls[setts.sel_tmpl].columns.indexOf(col),
                   )}
-                  labels={setts.tmpls[setts.sel_tmpl].columns.map((col) =>
-                    col.cont_name
+                  labels={setts.tmpls[setts.sel_tmpl].columns.map(
+                    (col) => col.cont_name,
                   )}
                   bind:value={setts.tmpls[setts.sel_tmpl].table_cols[view_i]}
                 />
@@ -716,11 +732,11 @@
                     }}><Gear /></button
                   >
                 {/if}
-                <button class="delete_col" 
-                             data-tooltip="Delete column"
-                    data-tt-pos="bottom-right"
-                onclick={() => DeleteColumn(view_i)}
-                  ><Trash /></button
+                <button
+                  class="delete_col"
+                  data-tooltip="Delete column"
+                  data-tt-pos="bottom-right"
+                  onclick={() => DeleteColumn(view_i)}><Trash /></button
                 >
               </th>
             {/each}
@@ -730,21 +746,41 @@
           {#each setts.tmpls[setts.sel_tmpl].rows as row, row_i}
             <tr>
               <td
-                ><button class="delete_row" data-tooltip="Delete Row" data-tt-pos="top-right" onclick={() => DeleteRow(row_i)}>
+                ><button
+                  class="delete_row"
+                  data-tooltip="Delete Row"
+                  data-tt-pos="top-right"
+                  onclick={() => DeleteRow(row_i)}
+                >
                   <Trash />
                 </button>
-                <button class="delete_row" data-tooltip="Preview this row" data-tt-pos="top-right" onclick={() => PreviewRow(row_i)}
-                  ><EyeOpen /></button
+                <button
+                  class="delete_row"
+                  data-tooltip="Preview this row"
+                  data-tt-pos="top-right"
+                  onclick={() => PreviewRow(row_i)}><EyeOpen /></button
                 >
-                <button class="delete_row" data-tooltip="Copy data from preview" data-tt-pos="top-right"  onclick={() => SampleRow(row_i)}
-                  ><Crosshair2 /></button
+                <button
+                  class="delete_row"
+                  data-tooltip="Copy data from preview"
+                  data-tt-pos="top-right"
+                  onclick={() => SampleRow(row_i)}><Crosshair2 /></button
                 >
-                <button class="delete_row" data-tooltip="Render this row" data-tt-pos="top-right"  onclick={() => RenderSingleRow(row_i)}
-                  ><Camera/></button
+                <button
+                  class="delete_row"
+                  data-tooltip="Render this row"
+                  data-tt-pos="top-right"
+                  onclick={() => RenderSingleRow(row_i)}><Camera /></button
                 >
               </td>
               {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
-                <td class={{"table_cell" : (setts.tmpls[setts.sel_tmpl].columns[td_col_i].type !== Column.PropertyValueType.SRC_ALTERNATE)}}>
+                <td
+                  class={{
+                    table_cell:
+                      setts.tmpls[setts.sel_tmpl].columns[td_col_i].type !==
+                      Column.PropertyValueType.SRC_ALTERNATE,
+                  }}
+                >
                   <PropInput
                     bind:value={
                       setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
@@ -781,7 +817,7 @@
     <span
       >Mode:
       <Dropdown
-      variant="discrete"
+        variant="discrete"
         labels={["Render", "Generate Projects"]}
         options={["render", "generate"]}
         bind:value={setts.out_mode}
@@ -790,7 +826,13 @@
 
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
-      <h4>File Name Pattern<button class="info" data-tooltip="Generates the file name of every export depending on the pattern.">i</button></h4> 
+      <h4>
+        File Name Pattern<button
+          class="info"
+          data-tooltip="Generates the file name of every export depending on the pattern."
+          >i</button
+        >
+      </h4>
       <textarea
         id="save_pattern_ta"
         spellcheck="false"
@@ -834,10 +876,10 @@
 
         <Dropdown
           labels={render_setts_templs.render_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN")
+            (templ) => !templ.startsWith("_HIDDEN"),
           )}
           options={render_setts_templs.render_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN")
+            (templ) => !templ.startsWith("_HIDDEN"),
           )}
           bind:value={setts.tmpls[setts.sel_tmpl].render_settings_templ}
         />
@@ -847,16 +889,22 @@
         <label for="sel_render_out_module">Output Module Template</label>
         <Dropdown
           labels={render_setts_templs.output_modules_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN")
+            (templ) => !templ.startsWith("_HIDDEN"),
           )}
           options={render_setts_templs.output_modules_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN")
+            (templ) => !templ.startsWith("_HIDDEN"),
           )}
           bind:value={setts.tmpls[setts.sel_tmpl].render_output_module_templ}
         />
       </div>
 
       <button onclick={BatchRender}>Start Batch Render</button>
+
+      <div class="render_errors">
+        {#each render_errors as error}
+          <div>{error}</div>
+        {/each}
+      </div>
     {:else if setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 

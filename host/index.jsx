@@ -250,7 +250,7 @@ function LoadSettings() {
 
 function SaveSettings(s_request) {
   //Escape new lines
-  var s_request = s_request.replaceAll(/\r?\n|\r/g, "\\n");
+  var s_request = _EscapeJSON(s_request);;
 
   /**@type {SaveSettingsResults} */
   var response = {};
@@ -425,7 +425,7 @@ function _AdaptCompToTempl(render_comp, templ_comp) {
  * @param {number} row_i
  */
 function PreviewRow(s_template, row_i, is_auto_prev) {
-  var s_template = s_template.replaceAll(/\r?\n|\r/g, "\\n");
+  var s_template = _EscapeJSON(str_template);
   if (is_auto_prev === undefined) {
     is_auto_prev = false;
   }
@@ -689,7 +689,7 @@ function _ImportFootageItem(path, proj_folder) {
 }
 
 function BatchRender(str_template, folder) {
-  str_template = str_template.replaceAll(/\r?\n|\r/g, "\\n");
+  str_template = _EscapeJSON(str_template);
 
   /** @type {BatchRenderResult} */
   var result = { errors: [] };
@@ -759,7 +759,7 @@ function BatchRender(str_template, folder) {
 }
 
 function BatchGenerate(str_template) {
-  str_template = str_template.replaceAll(/\r?\n|\r/g, "\\n");
+  str_template = _EscapeJSON(str_template);
   /** @type {BatchGenerateResult} */
   var result = { errors: [] };
 
@@ -836,8 +836,13 @@ function _QueueComp(comp, path, render_preset, output_preset) {
   //Make sure the directory exists
   var folder = new Folder(folder_path);
   if (!folder.exists) {
-    if (!folder.create())
-      throw new Error("@_Render: Could not create folder at path: " + path);
+    if (!folder.create()) {
+      if (folder.error !== null)
+        throw new Error(folder.error);
+      else
+        throw new Error("@_Render: Could not create folder at path: " + path);
+    }
+
   }
 
   //Update the Folder.current global so that relative paths can be solved
@@ -850,7 +855,7 @@ function _QueueComp(comp, path, render_preset, output_preset) {
 }
 
 function GatherRenderTemplates() {
-  
+
   //Per the documnetation we can only gather the templates once an item is in the render queue
 
   /**@type {RenderSettsResults}*/
@@ -908,9 +913,13 @@ function ExportFile(content) {
   file.close();
 }
 
+function _EscapeJSON(str) {
+  return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
+}
+
 // polyfills
 Object.create = function (o) {
-  function F() {}
+  function F() { }
   F.prototype = o;
   return new F();
 };
@@ -926,6 +935,6 @@ var ResponseError = function (message, reasons) {
 extend(ResponseError, Error); // B inherits A's prototype
 
 // polyfill for replaceAll
-String.prototype.replaceAll = function(target, replacement) {
+String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };

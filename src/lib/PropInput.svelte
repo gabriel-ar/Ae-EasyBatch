@@ -59,7 +59,7 @@
       let b = Math.round(value[2] * 255);
 
       hex_color = ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-      l.debug('UpdateColorHex called with value:', value);
+      //l.debug('UpdateColorHex called with value:', value);
     } catch (e) {
       l.error(e);
     }

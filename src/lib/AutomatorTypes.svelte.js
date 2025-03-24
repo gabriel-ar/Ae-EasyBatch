@@ -149,7 +149,14 @@ class Template {
     //Add the new columns to the template
     new_cols.forEach((new_col) => {
       this.columns.push(new_col);
+
+      let new_val = Column.ValidateValues("", new_col.type);
+
+      //Fill the new column with empty values
+      new_col.values = new Array(this.rows.length).fill(new_val);
     });
+
+
 
     //Find the columns that are in the old template but not in the new one
     let old_cols = this.columns.filter((old_col) => {
@@ -170,7 +177,7 @@ class Template {
       );
     });
 
-    //Update the columns with the new data
+    //Update the existing columns with the new data
     same_cols.forEach((old_col) => {
       let new_col = new_template.columns.find(
         (new_col) => new_col.cont_name === old_col.cont_name
