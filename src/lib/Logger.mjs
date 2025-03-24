@@ -11,7 +11,7 @@ class Logger {
     constructor(logLevel = 'info', logFilePath = null, prefix = '') {
         this.logLevel = logLevel;
         this.prefix = prefix;
-        const defaultLogDir = path.join(os.homedir(), 'Documents', 'TemplatorLogs');
+        const defaultLogDir = path.join(os.homedir(), 'Documents', 'EssyBatchLogs');
         const defaultLogFileName = `${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
         this.logFilePath = logFilePath || path.join(defaultLogDir, defaultLogFileName);
         this.logLevels = ['error', 'warn', 'info', 'debug'];

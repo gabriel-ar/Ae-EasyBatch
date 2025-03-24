@@ -22,7 +22,7 @@
       sel_label = value;
       labels = options;
     }
-    l.debug('Effect triggered with value:', value, 'and labels:', labels);
+    //l.debug('Effect triggered with value:', value, 'and labels:', labels);
   });
 </script>
 

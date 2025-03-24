@@ -59,7 +59,7 @@
     
     $effect(() => {
         UpdatePreview(pattern, base_path);
-        l.debug('Effect triggered: UpdatePreview');
+        //l.debug('Effect triggered: UpdatePreview');
     });
     
     function UpdatePreview(dummy, dummy2){

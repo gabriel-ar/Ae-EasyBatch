@@ -25,7 +25,7 @@
       } else {
         src_alt_val = value;
       }
-      l.debug('SRC_ALTERNATE effect triggered with value:', value);
+      //l.debug('SRC_ALTERNATE effect triggered with value:', value);
     }
   });
 
@@ -41,7 +41,7 @@
   $effect(() => {
     if (type === Column.PropertyValueType.COLOR) {
       UpdateColorHex(value);
-      l.debug('COLOR effect triggered with value:', value);
+      //l.debug('COLOR effect triggered with value:', value);
     }
   });
   /**

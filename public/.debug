@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionList>
-    <Extension Id="com.settools.templator.panel">
+    <Extension Id="com.settools.easybatch.panel">
         <HostList>
             <Host Name="AEFT" Port="8009"/>
         </HostList>

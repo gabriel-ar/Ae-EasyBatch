@@ -249,32 +249,37 @@ function LoadSettings() {
 }
 
 function SaveSettings(s_request) {
-  // load the XMPlibrary as an ExtendScript ExternalObject
-
-  /** @type {SaveSettsRequest}*/
-  var request = JSON.parse(s_request);
-
-  var str_setts = JSON.stringify(request.setts);
+  //Escape new lines
+  var s_request = s_request.replaceAll(/\r?\n|\r/g, "\\n");
 
   /**@type {SaveSettingsResults} */
   var response = {};
-
-  //If this is the default project, we will not save the settings
-  if (!_HasTemplates()) {
-    throw new ResponseError("No templates found in the project", {
-      no_templates: true,
-    });
-  }
-
-  var setts_id = _SettingsId();
-
-  if (!request.is_new && (setts_id !== null && setts_id !== request.setts.id)) {
-    throw new ResponseError("The settings in the project have a different ID", {
-      id_mismatch: true,
-    });
-  }
-
   try {
+    // load the XMPlibrary as an ExtendScript ExternalObject
+
+    /** @type {SaveSettsRequest}*/
+    var request = JSON.parse(s_request);
+
+    var str_setts = JSON.stringify(request.setts);
+
+    //If this is the default project, we will not save the settings
+    if (!_HasTemplates()) {
+      throw new ResponseError("No templates found in the project", {
+        no_templates: true,
+      });
+    }
+
+    var setts_id = _SettingsId();
+
+    if (!request.is_new && setts_id !== null && setts_id !== request.setts.id) {
+      throw new ResponseError(
+        "The settings in the project have a different ID",
+        {
+          id_mismatch: true,
+        }
+      );
+    }
+
     if (ExternalObject.AdobeXMPScript === undefined) {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
@@ -307,11 +312,10 @@ function IsSameProject(proj_id) {
 
     if (read_id === null || read_id === undefined) {
       response.same_project = false;
-    }else if (read_id === proj_id) {
+    } else if (read_id === proj_id) {
       response.same_project = true;
-    }
-    else {
-      response.same_project = false
+    } else {
+      response.same_project = false;
     }
 
     return JSON.stringify(response);
@@ -421,6 +425,7 @@ function _AdaptCompToTempl(render_comp, templ_comp) {
  * @param {number} row_i
  */
 function PreviewRow(s_template, row_i, is_auto_prev) {
+  var s_template = s_template.replaceAll(/\r?\n|\r/g, "\\n");
   if (is_auto_prev === undefined) {
     is_auto_prev = false;
   }
@@ -502,7 +507,7 @@ function GetCurrentValues(s_template) {
     var templ = JSON.parse(s_template);
 
     //Add a layer with the template composition to the render comp
-    var avl_templ =  null;
+    var avl_templ = null;
 
     //Find the layer referencing the template
     for (var i_layer = 1; i_layer <= render_comp.numLayers; i_layer++) {
@@ -515,7 +520,10 @@ function GetCurrentValues(s_template) {
 
     if (avl_templ === null) {
       //TODO: create the layer
-      throw new ResponseError("@GetCurrentValues: Layer referencing the tamplate not found", {not_found: true});
+      throw new ResponseError(
+        "@GetCurrentValues: Layer referencing the tamplate not found",
+        { not_found: true }
+      );
     }
 
     //Go through the Essential Properties and extract the values
@@ -639,9 +647,9 @@ function _ApplyTemplProps(layer, template, row_i) {
  */
 
 function _ImportFootageItem(path, proj_folder) {
-    //Update the Folder.current global so that relative paths can be solved
-    if (app.project.file !== null)
-      Folder.current = new Folder(app.project.file.path);
+  //Update the Folder.current global so that relative paths can be solved
+  if (app.project.file !== null)
+    Folder.current = new Folder(app.project.file.path);
 
   //Check or create a folder in the project to organize the replaceable files
   var folder;
@@ -681,6 +689,8 @@ function _ImportFootageItem(path, proj_folder) {
 }
 
 function BatchRender(str_template, folder) {
+  str_template = str_template.replaceAll(/\r?\n|\r/g, "\\n");
+
   /** @type {BatchRenderResult} */
   var result = { errors: [] };
 
@@ -749,6 +759,7 @@ function BatchRender(str_template, folder) {
 }
 
 function BatchGenerate(str_template) {
+  str_template = str_template.replaceAll(/\r?\n|\r/g, "\\n");
   /** @type {BatchGenerateResult} */
   var result = { errors: [] };
 
@@ -839,6 +850,7 @@ function _QueueComp(comp, path, render_preset, output_preset) {
 }
 
 function GatherRenderTemplates() {
+  
   //Per the documnetation we can only gather the templates once an item is in the render queue
 
   /**@type {RenderSettsResults}*/
@@ -864,7 +876,7 @@ function GatherRenderTemplates() {
   return JSON.stringify(result);
 }
 
-function SelectFolder() {  
+function SelectFolder() {
   var folder = Folder.selectDialog("Select a folder");
   if (folder != null) {
     if (app.project.file !== null) {
@@ -912,3 +924,8 @@ var ResponseError = function (message, reasons) {
   Error.call(this, message);
 };
 extend(ResponseError, Error); // B inherits A's prototype
+
+// polyfill for replaceAll
+String.prototype.replaceAll = function(target, replacement) {
+  return this.split(target).join(replacement);
+};
