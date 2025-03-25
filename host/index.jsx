@@ -425,7 +425,7 @@ function _AdaptCompToTempl(render_comp, templ_comp) {
  * @param {number} row_i
  */
 function PreviewRow(s_template, row_i, is_auto_prev) {
-  var s_template = _EscapeJSON(str_template);
+  var s_template = _EscapeJSON(s_template);
   if (is_auto_prev === undefined) {
     is_auto_prev = false;
   }
