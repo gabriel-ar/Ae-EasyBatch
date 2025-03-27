@@ -462,10 +462,13 @@
   }
 
   let render_errors = [];
+
   function BatchRender() {
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
     setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
+
+    render_errors = [];
 
     let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
     l.debug("BatchRender called");
@@ -491,8 +494,20 @@
           l.debug(`Batch Render Started`);
           if (result.errors !== undefined && result.errors.length > 0) {
             l.warn(`Batch Render Errors`, result.errors);
-            render_errors = result.errors;
+
+            render_errors = result.errors.map((e) => {
+              if (e.message !== undefined) {
+                return e.row + " " + e.message;
+              } else {
+                return e;
+              }}
+            );
+
+
+            l.debug(`Batch Render Errors`, render_errors);
           }
+          
+          
         }
       },
     );
@@ -900,11 +915,15 @@
 
       <button onclick={BatchRender}>Start Batch Render</button>
 
-      <div class="render_errors">
-        {#each render_errors as error}
-          <div>{error}</div>
-        {/each}
-      </div>
+      {#if render_errors.length > 0}
+        <div class="render_msgs">
+          <h4>Errors</h4>
+          {#each render_errors as error}
+            <div>{error}</div>
+          {/each}
+        </div>
+      {/if}
+
     {:else if setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 
