@@ -666,12 +666,14 @@ function _ImportFootageItem(path, proj_folder) {
   }
 
   //Check if the footage item exists in the project
+    var import_file = new File(path.replaceAll("\\\\", "/"));
+
 
   var repl_f_item;
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var proj_item = app.project.item(i_items);
     if (proj_item instanceof FootageItem && proj_item.file !== null) {
-      if (proj_item.file.fullName == path) {
+      if (proj_item.file.fullName == import_file.fullName) {
         return proj_item;
       }
     }
@@ -679,8 +681,8 @@ function _ImportFootageItem(path, proj_folder) {
 
   if (repl_f_item === undefined) {
     //Import the file
-    var file = new File(path);
-    var import_opt = new ImportOptions(file);
+
+    var import_opt = new ImportOptions(import_file);
     repl_f_item = app.project.importFile(import_opt);
     repl_f_item.parentFolder = folder;
   }
@@ -842,7 +844,6 @@ function _QueueComp(comp, path, render_preset, output_preset) {
       else
         throw new Error("@_Render: Could not create folder at path: " + path);
     }
-
   }
 
   //Update the Folder.current global so that relative paths can be solved

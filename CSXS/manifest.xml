@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'standalone="no"?>
+<?xml version='1.0' encoding='UTF-8' standalone="no"?>
 <ExtensionManifest ExtensionBundleId="com.settools.easybatch" ExtensionBundleName="Ae easybatch" ExtensionBundleVersion="1.0.0" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
     <Extension Id="com.settools.easybatch.panel" Version="1.0.0" />
