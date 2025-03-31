@@ -27,27 +27,30 @@
 
 7. In the `Data` tab you will be able to see a table with at least one column matching a property from your template. 
 
-    To add more columns use the `Add Columns` button at the bottom of the extension (in green). Add columns for as manny properties you wish. In order to change what property is displayed on that column, use the dropdown menu on the header of the column (in yellow). The choice of columns and order doesn't affect the data that's applied to the template.
+    To add more columns use the `Add Columns` button at the bottom of the extension (in green). Add columns for as many properties you wish. In order to change what property is displayed on that column, use the dropdown menu on the header of the column (in yellow). The choice of columns and order doesn't affect the data that's applied to the template.
 
     ![Screenshot of the template selection dropdown](assets/ss_data_tab.png)
 
 8. To preview the template with the data, use the eye button on each row (blue).
 
 9. Start adding data to the table. Each row will become a separate render. The following property types can be edited in the extension:
-    - Numbers: Yoou can drag the axis (Eg. x) left and right and will increment or decrement the number.
+    - Numbers: You can drag the axis (Eg. x) left and right and will increment or decrement the number.
     - Colors: Click on the color box to open the color picker or copy the hex code in the text box below.
     - Text: Just click the textbox and edit.
-    - Images/Videos/Repleacebles: You can either select these one by one, or you can give the expention a pattern to find these files.
+    - Images/Videos/Replaceables: You can either select these one by one, or you can give the extension a pattern to find these files.
 
 #### C. Export
-9. Go to the `Export` tab on the    top bar.
-10. Select the mode. You can either create renders, or you can genererate compositions with the updated values. This feature could be useful if the project will edited by other withouth access to the extension.
-11. The `File Path/Name Pattern` defines the pattern that the extension will use to name the exported files. This pattern can also create folders.
-    - For starters, click on `Select Base Path`, for now, this will be the folder that holds all our renders.
+9. Go to the `Output` tab on the top bar.
+
+![Screenshot of the Export tab](assets/ss_output_tab_hl.png)
+
+10. Select the mode (in green). You can either create renders, or you can generate compositions with the updated values. The `Generate` feature could be useful if the project will edited by others without access to the extension.
+11. The `File Path/Name Pattern` (in red) defines the pattern that the extension will use to name the exported files. This pattern can also create folders.
+    - Click on `Select Base Path`, for now, this will be the folder that holds all our renders.
     - In the dropdown to the left of the `Add Field` button, select `Base Path`. Now click on `Add Field`. This will add {base_path} to the pattern.
     - Check the `Preview` section below, the `{base_path}` field on the pattern has been replaced by the path you selected.
-    - Other fields availble are `Increment`, `Template name`, `Index` and every property from your template. Meaning that you can use the date of every row to name the render file.
+    - Other fields available are `Increment`, `Template name`, `Index` and every property from your template. Meaning that you can use the date of every row to name the render file.
     - To get started you could use something like `{base_path}/mytemplate_{index}.mov`
-12. In order to set the render settings you need to use a template. Choose a template for the render settings and output module.
+12. In order to set the render settings you need to use a template. Choose a template for the render settings and output module (in blue).
 13. Whenever you're ready hit `Render`
 

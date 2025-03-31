@@ -833,7 +833,7 @@
       >Mode:
       <Dropdown
         variant="discrete"
-        labels={["Render", "Generate Projects"]}
+        labels={["Render", "Generate Comps"]}
         options={["render", "generate"]}
         bind:value={setts.out_mode}
       />
