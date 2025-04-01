@@ -33,14 +33,14 @@ It will replace `{template_name}` with the name of the template (surprise!!!), i
 It will replace `{row_number}` with the current row index. If you have 20 renders, the first one will be `0` and the last one `19`.
 
 ##### Field: Increment
-It will generate an increment. `{increment:0000}` will  be replaced with `0000` for the first row, and with `0001` for the following row. The increment keeps the leading 0s, and you can determine how many of them to place. Also, you can determine the starting number: `{increment:050}` will be replaced with `050` and in the next render will become `051`.
+It will generate an increment. `{increment:0000}` will  be replaced with `0000` for the first row, and with `0001` for the following row. The increment keeps as many leading 0s as you determine. Also, you can set the starting number: `{increment:050}` will be replaced with `050` and in the next render will become `051`.
 
 ##### Field: *Custom*
 You can also add the values of any template property as part of the pattern. In the case of the screenshot above `{Tricode Home}` will be replaced with `PAL` as this is the value of the column Tricode Home for the first row. For every consecutive row (and therefore render), this will be updated to match the value of Tricode Home for that row.
 
 !!! note "Backslashes in Windows"
 
-    Beware, in both Windows and Mac, you should be using forward slashed to define directories.
+    Beware, in both Windows and Mac, you should be using forward slashes to separate directories.
 
 #### Render Settings
 
