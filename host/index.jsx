@@ -19,7 +19,7 @@ This file is the CEP side of the app. The javascript app will make requests thro
 
 //ImportFile();
 
-//_ImportFootageItem(test_repleaceable_import);
+//_ImportFootageItem(test_replaceable_import);
 
 //var result = $.colorPicker(-1);
 
@@ -110,7 +110,7 @@ function GetTemplates() {
               : templ_prop.value;
           var t_type = templ_prop.propertyValueType;
 
-          //Check if the property is a replaceble and change the type so the client handles it correctly
+          //Check if the property is a replaceable and change the type so the client handles it correctly
           if (
             templ_prop.canSetAlternateSource &&
             templ_prop.matchName === "ADBE Layer Source Alternate"
@@ -454,7 +454,7 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
       throw new Error("@PreviewRow: Template composition not found");
     }
 
-    //Check if the preview composition has a layer referenceing the template
+    //Check if the preview composition has a layer referencing the template
     //Otherwise add it and adapt the properties
 
     for (var i_layer = 1; i_layer <= render_comp.numLayers; i_layer++) {
@@ -521,7 +521,7 @@ function GetCurrentValues(s_template) {
     if (avl_templ === null) {
       //TODO: create the layer
       throw new ResponseError(
-        "@GetCurrentValues: Layer referencing the tamplate not found",
+        "@GetCurrentValues: Layer referencing the template not found",
         { not_found: true }
       );
     }
@@ -553,7 +553,7 @@ function GetCurrentValues(s_template) {
 }
 
 /**
- * Replce the values in the Essential Properties of a layer
+ * Replace the values in the Essential Properties of a layer
  * with the values in the corresponding row of the template.
  * @param {*} layer
  * @param {Template} template
@@ -666,7 +666,7 @@ function _ImportFootageItem(path, proj_folder) {
   }
 
   //Check if the footage item exists in the project
-    var import_file = new File(path.replaceAll("\\\\", "/"));
+  var import_file = new File(path.replaceAll("\\\\", "/"));
 
 
   var repl_f_item;
@@ -748,7 +748,7 @@ function BatchRender(str_template, folder) {
     } //loop template rows
 
     //Start the render queue
-    app.project.renderQueue.render();
+    app.project.renderQueue.renderAsync();
 
     result.success = true;
     return JSON.stringify(result);
@@ -857,7 +857,7 @@ function _QueueComp(comp, path, render_preset, output_preset) {
 
 function GatherRenderTemplates() {
 
-  //Per the documnetation we can only gather the templates once an item is in the render queue
+  //Per the documentation we can only gather the templates once an item is in the render queue
 
   /**@type {RenderSettsResults}*/
   var result = {};
@@ -882,8 +882,21 @@ function GatherRenderTemplates() {
   return JSON.stringify(result);
 }
 
-function SelectFolder() {
-  var folder = Folder.selectDialog("Select a folder");
+function SelectFolder(default_path) {
+
+  var folder;
+
+  //Setup the default path for the folder selection dialog
+  if (default_path === undefined && app.project.file === null) {
+    default_path = Folder.desktop.path;
+  } else if (!Folder(default_path).exists) {
+    default_path = app.project.file.path;
+  }
+
+
+  folder = new Folder(default_path);
+  folder = folder.selectDlg();
+
   if (folder != null) {
     if (app.project.file !== null) {
       var base_path = app.project.file.path;
