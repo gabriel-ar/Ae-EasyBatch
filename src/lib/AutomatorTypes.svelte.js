@@ -135,7 +135,7 @@ class Template {
   }
 
   /**
-   * Uppdates the columns of the template stored in settings with the new template
+   * Updates the columns of the template stored in settings with the new template
    * @param {Template} new_template
    */
   Update(new_template) {
@@ -148,15 +148,19 @@ class Template {
 
     //Add the new columns to the template
     new_cols.forEach((new_col) => {
-      this.columns.push(new_col);
-
-      let new_val = Column.ValidateValues("", new_col.type);
 
       //Fill the new column with empty values
-      new_col.values = new Array(this.rows.length).fill(new_val);
+      //Not using fill() method because it copies the objects by reference
+
+      let base_val = new_col.values[0] || Column.ValidateValue("", new_col.type);
+
+      new_col.values = new Array(this.rows.length);
+      this.rows.forEach((row, i) => {
+        new_col.values[i] = Object.assign({}, base_val);
+      });
+
+      this.columns.push(new_col);
     });
-
-
 
     //Find the columns that are in the old template but not in the new one
     let old_cols = this.columns.filter((old_col) => {
@@ -184,6 +188,13 @@ class Template {
       );
       old_col.Update(new_col);
     });
+
+    //Make sure that the table view columns are referencing an existing column
+    this.table_cols = this.table_cols.filter((col_i) => {
+      return this.columns[col_i] !== undefined;
+    });
+
+    this.rows = this.#AsRows();
   }
 
   /**
@@ -230,7 +241,7 @@ class Template {
   generate_names = [];
 
   /**
-   * When importing footage to fulfill a repleaceble, we place it in this folder
+   * When importing footage to fulfill a replaceable, we place it in this folder
    */
   imported_footage_folder = "~Imported by Automator";
 
@@ -240,7 +251,7 @@ class Template {
   gen_comps_folder = "~Generated Comps";
 
   /**
-   * The user is able to costumize the columns shown in the Data tab.
+   * The user is able to customize the columns shown in the Data tab.
    * This array what columns are shown in the Data view.
    */
   table_cols = [0];
@@ -249,9 +260,9 @@ class Template {
    * Resolves the save path for the output a given row
    */
   ResolveSavePath(pattern, index) {
-    pattern = pattern.replace("{base_path}", this.base_path);
-    pattern = pattern.replace("{row_number}", index);
-    pattern = pattern.replace("{template_name}", this.name);
+    pattern = pattern.replaceAll("{base_path}", this.base_path);
+    pattern = pattern.replaceAll("{row_number}", index);
+    pattern = pattern.replaceAll("{template_name}", this.name);
 
     //Replace the increment pattern
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
@@ -264,7 +275,7 @@ class Template {
     });
 
     for (let i_col in this.columns) {
-      pattern = pattern.replace(
+      pattern = pattern.replaceAll(
         `{${this.columns[i_col].cont_name}}`,
         this.columns[i_col].values[index]
       );
@@ -330,9 +341,9 @@ class Template {
     let last_row = this.#AsRows().pop();
 
     for (let col in this.columns) {
-        this.columns[col].values.push(
-            Column.ValidateValues(last_row[col], this.columns[col].type)
-        );
+      this.columns[col].values.push(
+        Column.ValidateValue(last_row[col], this.columns[col].type)
+      );
     }
 
     this.rows = this.#AsRows();
@@ -417,7 +428,7 @@ class Template {
 
       if (col_i !== -1) {
         tmpl_col.values = csv_rows.map((csv_row) => {
-          return Column.ValidateValues(csv_row[col_i], tmpl_col.type);
+          return Column.ValidateValue(csv_row[col_i], tmpl_col.type);
         });
       }
     });
@@ -479,7 +490,7 @@ class Column {
   cont_name;
 
   /**
-   * Type of the controller/propperty/column
+   * Type of the controller/property/column
    * @type {PropTypeType}
    */
   type;
@@ -563,7 +574,7 @@ class Column {
     }
   }
 
-  static ValidateValues(value, type) {
+  static ValidateValue(value, type) {
     switch (type) {
       case Column.PropertyValueType.TEXT_DOCUMENT:
         if (value === undefined || typeof value !== "string") {

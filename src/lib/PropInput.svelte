@@ -123,12 +123,12 @@
     }
 
     change_timeout = setTimeout(CallChange, 700);
-    l.debug('DebounceChange called with value:', value);
+    //l.debug('DebounceChange called with value:', value);
   }
 
   function CallChange() {
     if (onchange !== undefined) onchange(value);
-    l.debug('CallChange called with value:', value);
+    //l.debug('CallChange called with value:', value);
   }
 
   //NUMERIC SLIDER FUNCTIONS
@@ -154,7 +154,7 @@
 
     window.addEventListener("mouseup", DragPropMU);
     window.addEventListener("mousemove", Dragging);
-    l.debug('DragPropMD called with event:', event, 'and index:', index);
+    //l.debug('DragPropMD called with event:', event, 'and index:', index);
   }
 
   function DragPropMU(event) {
@@ -164,7 +164,7 @@
     window.removeEventListener("mousemove", Dragging);
 
     DebounceChange();
-    l.debug('DragPropMU called with event:', event);
+    //l.debug('DragPropMU called with event:', event);
   }
 
   function Dragging(event) {
@@ -179,7 +179,7 @@
     } else {
       value = new_value;
     }
-    l.debug('Dragging called with event:', event);
+    //l.debug('Dragging called with event:', event);
   }
 </script>
 
