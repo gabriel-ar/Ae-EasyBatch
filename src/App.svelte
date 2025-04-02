@@ -1,6 +1,6 @@
 <script>
   /**
-  This is a CEP app for After Effects that procides the user with automation tools for mograph templates.
+  This is a CEP app for After Effects that proceeds the user with automation tools for mograph templates.
   The user can either use a table or an external CSV file to populate the template. Each row in the table or CSV file will be used to populate a single instance of the template.
   */
 
@@ -364,7 +364,7 @@
 
     if (!setts.auto_preview) live = false;
 
-    //Trim the temlate to contain only the modified row
+    //Trim the template to contain only the modified row
 
     //TODO this is a hack, find a better way to do this
     let send_templ = Template.FromJson(
@@ -411,9 +411,9 @@
   }
 
   function RenderSingleRow(row_i) {
-    l.debug("RedenrSingleRow called with row index:", row_i);
+    l.debug("RenderSingleRow called with row index:", row_i);
 
-    //Trim the temlate to contain only the modified row
+    //Trim the template to contain only the modified row
 
     //TODO this is a hack, find a better way to do this
     let send_templ = Template.FromJson(
@@ -613,7 +613,7 @@
     alt_src_modal_col = col_i;
   }
 
-  function AletSrcModalClosed(base_path, pattern) {
+  function AlertSrcModalClosed(base_path, pattern) {
     setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].alt_src_base =
       base_path;
     setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].alt_src_pattern =
@@ -1014,7 +1014,7 @@
     bind:show={show_alt_src_modal}
     tmpl={setts.tmpls[setts.sel_tmpl]}
     col_i={alt_src_modal_col}
-    onclose={AletSrcModalClosed}
+    onclose={AlertSrcModalClosed}
   />
 {/if}
 

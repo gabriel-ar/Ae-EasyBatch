@@ -4,14 +4,23 @@
         "autoplay",
         "CSXS",
         "easybatch",
+        "mdata",
         "mograph",
         "mytemplate",
+        "papaparse",
+        "Plibrary",
+        "Pmetadata",
         "Replaceables",
         "RGBA",
+        "settools",
         "singlefile",
         "subfolders",
         "templ",
         "templs",
-        "Tricode"
+        "templt",
+        "tmpl",
+        "tmpls",
+        "Tricode",
+        "unparse"
     ]
 }
