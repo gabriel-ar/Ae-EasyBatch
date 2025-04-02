@@ -6,6 +6,10 @@ class CSAdapter {
    */
   SystemPath = {
     EXTENSION: "extension",
+    COMMON_FILES: "commonFiles",
+    MY_DOCUMENTS: "myDocuments",
+    USER_DATA: "userData",
+    HOST_APPLICATION: "hostApplication",
   };
 
   // @ts-ignore
@@ -38,7 +42,6 @@ class CSAdapter {
     console.log("Loading .jsx in: " + path);
     return this.Eval(`$.evalFile("${path}")`);
   }
-
 
   GetHostEnvironment() {
     return this.a_cep.getHostEnvironment();
@@ -84,7 +87,6 @@ class CSAdapter {
    * @param {string} initial_folder 
    * @returns {Promise<string|null>} The selected file path or null if the user cancels the dialog.
    */
-
 async OpenFileDialog(initial_folder) {
 
     let i_folder = initial_folder || "";
@@ -107,9 +109,15 @@ async OpenFileDialog(initial_folder) {
   });
 }
 
-
-
-
+/**
+ * 
+ * @param {SystemPath} pathType 
+ */
+GetSystemPath(pathType)
+{
+    var path = decodeURI(this.a_cep.getSystemPath(pathType));
+    return path.replace("file:///", "").replace("file://", "");
+};
 }
 
 
