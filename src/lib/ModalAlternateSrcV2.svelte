@@ -44,16 +44,14 @@
     * Selects a folder to save the files to and adds it to the save pattern
     */
     function SelectBasePath(){
-        let cep = new CSAdapter();
-        
-        cep.Eval(`SelectFolder()`, function (result) {
-            if(result == "null") return;
-            
-            //URL decode the result
-            result = decodeURIComponent(result);
+        let csa = new CSAdapter();
+
+        csa.OpenFolderDialog(base_path).then((result) => {
+            if(result === null) return;
             
             base_path = result;
         });
+        
         l.debug('SelectBasePath called');
     }
     

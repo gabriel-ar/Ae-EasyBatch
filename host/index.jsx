@@ -882,6 +882,32 @@ function GatherRenderTemplates() {
   return JSON.stringify(result);
 }
 
+function GetRelativeFolderPath(path) {
+  var folder = new Folder(decodeURIComponent(path));
+  if (folder.exists) {
+    if (app.project.file !== null) {
+      var base_path = app.project.file.path;
+      return folder.getRelativeURI(base_path);
+    } else {
+      return folder.fsName;
+    }
+  }
+  return null;
+}
+
+function GetRelativeFilePath(path) {
+  var file = new File(path);
+  if (file.exists) {
+    if (app.project.file !== null) {
+      var base_path = app.project.file.path;
+      return file.getRelativeURI(base_path);
+    } else {
+      return file.fsName;
+    }
+  }
+  return null;
+}
+
 function SelectFolder(default_path) {
 
   var folder;

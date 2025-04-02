@@ -40,7 +40,7 @@
   const l = new Logger("warn", null, "App");
   setContext("logger", l);
 
-  let cep = new CSAdapter();
+  let csa = new CSAdapter();
 
   let setts = new Settings();
 
@@ -92,7 +92,7 @@
 
   function GetTemplates() {
     return new Promise((resolve, reject) => {
-      cep.Eval("GetTemplates()", function (s_result) {
+      csa.Eval("GetTemplates()", function (s_result) {
         try {
           l.debug("GetTemplates Eval result:", s_result);
           /**@type {GetTmplsResult}*/
@@ -115,7 +115,7 @@
 
   function GetSettings() {
     return new Promise((resolve, reject) => {
-      cep.Eval(`LoadSettings()`, function (s_result) {
+      csa.Eval(`LoadSettings()`, function (s_result) {
         l.debug("GetSettings Eval result:", s_result);
 
         /**@type {GetSettsResult} */
@@ -174,7 +174,7 @@
     l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
-    cep.Eval(`SaveSettings('${s_request}')`, function (s_result) {
+    csa.Eval(`SaveSettings('${s_request}')`, function (s_result) {
       /**@type {SaveSettingsResults}*/
       let result;
 
@@ -226,7 +226,7 @@
     }
 
     l.debug("IsSameProject called with project ID:", setts.id);
-    cep.Eval(`IsSameProject("${setts.id}")`, function (s_result) {
+    csa.Eval(`IsSameProject("${setts.id}")`, function (s_result) {
       /**@type {IsSameProjectResult} */
       let result;
 
@@ -281,7 +281,7 @@
 
   function GetRenderSettsTempls() {
     return new Promise((resolve, reject) => {
-      cep.Eval(`GatherRenderTemplates()`, function (s_result) {
+      csa.Eval(`GatherRenderTemplates()`, function (s_result) {
         /**@type {RenderSettsResults}*/
         let result;
 
@@ -381,7 +381,7 @@
     let s_templt = JSON.stringify(send_templ);
     l.debug(`Previewing Row:`, s_templt, row_i, live);
 
-    cep.Eval(`PreviewRow('${s_templt}', ${0}, ${live})`, function (s_result) {
+    csa.Eval(`PreviewRow('${s_templt}', ${0}, ${live})`, function (s_result) {
       l.debug(`Preview Row Result`, s_result);
     });
   }
@@ -394,7 +394,7 @@
     let s_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
     l.debug("SampleRow called with row index:", row_i);
 
-    cep.Eval(`GetCurrentValues('${s_templt}')`, function (s_result) {
+    csa.Eval(`GetCurrentValues('${s_templt}')`, function (s_result) {
       l.debug(`Sample Row Result: ${s_result}`);
 
       let result;
@@ -432,7 +432,7 @@
     let string_templt = JSON.stringify(send_templ);
     l.debug("Rendering:", string_templt);
 
-    cep.Eval(
+    csa.Eval(
       `BatchRender('${string_templt}', "${setts.render_comps_folder}")`,
       function (s_result) {
         /**@type {BatchRenderResult}*/
@@ -474,7 +474,7 @@
     l.debug("BatchRender called");
     l.log("Rendering:", string_templt);
 
-    cep.Eval(
+    csa.Eval(
       `BatchRender('${string_templt}', "${setts.render_comps_folder}")`,
       function (s_result) {
         /**@type {BatchRenderResult}*/
@@ -521,7 +521,7 @@
     l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
-    cep.Eval(`BatchGenerate('${string_templt}')`, function (s_result) {
+    csa.Eval(`BatchGenerate('${string_templt}')`, function (s_result) {
       /**@type {BatchGenerateResult}*/
       let result;
 
@@ -544,13 +544,12 @@
   /**
    * Selects a folder to save the files to and adds it to the save pattern
    */
-  function SelectBasePath() {
+  function SelRenderBasePath() {
     l.debug("SelectBasePath called");
-    cep.Eval(`SelectFolder()`, function (result) {
-      if (result == "null") return;
+    let initial_folder = setts.tmpls[setts.sel_tmpl].base_path || "";
 
-      //URL decode the result
-      result = decodeURIComponent(result);
+    csa.OpenFolderDialog(initial_folder).then((result) => {
+      if (result === null) return;
 
       setts.tmpls[setts.sel_tmpl].base_path = result;
     });
@@ -629,7 +628,7 @@
    */
   function ImportCSV() {
     l.debug("ImportCSV called");
-    cep.Eval(`ImportFile()`, function (result) {
+    csa.Eval(`ImportFile()`, function (result) {
       if (result === "null") return;
 
       let decoded = decodeURIComponent(result);
@@ -646,7 +645,7 @@
     //URL encode the content
     content = encodeURIComponent(content);
 
-    cep.Eval(`ExportFile('${content}')`, function (result) {
+    csa.Eval(`ExportFile('${content}')`, function (result) {
       if (result == "null") return;
     });
   }
@@ -657,14 +656,14 @@
     //URL encode the content
     content = encodeURIComponent(content);
 
-    cep.Eval(`ExportFile('${content}')`, function (result) {
+    csa.Eval(`ExportFile('${content}')`, function (result) {
       if (result == "null") return;
     });
   }
 
   function LoadJSON() {
     l.debug("LoadJSON called");
-    cep.Eval(`ImportFile()`, function (result) {
+    csa.Eval(`ImportFile()`, function (result) {
       if (result === "null") return;
 
       let decoded = decodeURIComponent(result);
@@ -710,7 +709,7 @@
     <button
       class="delete_col"
       onclick={() =>
-        cep.OpenURLInDefaultBrowser(
+        csa.OpenURLInDefaultBrowser(
           "https://gabriel-ar.github.io/Ae-EasyBatch/",
         )}><QuestionMark /></button
     >
@@ -855,7 +854,7 @@
       ></textarea>
 
       <div>
-        <button onclick={SelectBasePath}>Pick Base Path</button>
+        <button onclick={SelRenderBasePath}>Pick Base Path</button>
 
         <button style="margin-left: 15px;" onclick={AddField}>Add Field</button>
 

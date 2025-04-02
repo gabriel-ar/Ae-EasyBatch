@@ -1,5 +1,6 @@
 import papa from "papaparse";
 import { GetCurrentValuesResults } from "./Messaging.mjs";
+import "./ces.t.ts"
 
 class Settings {
   constructor() {
@@ -10,7 +11,8 @@ class Settings {
    * @param {Settings | Object} json
    */
   FromJson(json) {
-    Object.assign(this, json);
+
+    Object.assign(this, json);    
 
     this.tmpls = [];
 
@@ -255,6 +257,19 @@ class Template {
    * This array what columns are shown in the Data view.
    */
   table_cols = [0];
+
+
+  /**Used to remember the last path of the Save File dialogues, per catrgories */
+  import_file_lasts={
+    csv_folder: null,
+    config_folder: null,
+  }
+
+  /**Used to remember the last path of the Open File dialogues, per categories */
+  save_file_lasts={
+    csv_folder: null,
+    config_folder: null,
+  }
 
   /**
    * Resolves the save path for the output a given row
