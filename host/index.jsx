@@ -882,6 +882,32 @@ function GatherRenderTemplates() {
   return JSON.stringify(result);
 }
 
+function PickColorFromPreview(startValue){
+
+  if(!startValue || startValue.length != 3){
+    startValue = [1, 1, 1]; // default value
+  }
+
+  var prev_comp = _SetupTemplatePreviewComp(false);
+
+  prev_comp.openInViewer();
+
+  //add a null
+  var null_layer = prev_comp.layers.addNull();
+
+  var cc = null_layer.property("ADBE Effect Parade").addProperty("ADBE Color Control");
+  var color_prop = cc.property("ADBE Color Control-0001");
+
+  color_prop.setValue(startValue);
+  color_prop.selected = true;
+
+  app.executeCommand(2240); // Edit the color value, therefore show the color picker
+  var res_value = color_prop.value;
+  null_layer.remove();
+
+return JSON.stringify(res_value);
+}
+
 function GetRelativeFolderPath(path) {
   var folder = new Folder(decodeURIComponent(path));
   if (folder.exists) {

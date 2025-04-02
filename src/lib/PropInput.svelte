@@ -2,6 +2,8 @@
   import { getContext } from "svelte";
   import { Column } from "./AutomatorTypes.svelte";
   import Logger from './Logger.mjs';
+  import EyeDropper from "../assets/EyeDropper.svelte";
+  import CSAdapter from "./CSAdapter.mjs";
 
   const l = getContext("logger") || new Logger('warn', null, 'Dropdown');
 
@@ -112,6 +114,28 @@
     l.debug('PromptColor called');
   }
 
+  /**
+   * Adds a null layer to the preview composition, with a color effect applied
+   * Then triggers the edit value menu command
+   */
+  function DropperPicker(){
+
+    let current_col = JSON.stringify([value[0], value[1], value[2]]);
+
+    let csa = new CSAdapter();
+    csa.Eval(`PickColorFromPreview(${current_col})`, (result) => {
+
+      try {
+        result = JSON.parse(result);
+      } catch (e) {
+        l.error(e);
+        return;
+      }
+
+      value = result;
+    });
+  }
+
   //ON CHANGE CALLBACK
 
   let change_timeout;
@@ -211,6 +235,9 @@
     onclick={PromptColor}
     aria-label="Select Color"
   ></button>
+  <button style="width: 22px;" data-variant="discrete" onclick={DropperPicker}>
+    <EyeDropper/>
+  </button>
   <div>
     #<input
       value={hex_color}

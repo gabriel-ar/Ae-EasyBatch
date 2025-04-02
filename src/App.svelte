@@ -330,8 +330,7 @@
   }
 
   function Test() {
-    l.error("Test called");
-    l.warn("Test called for warning");
+
   }
 
   function AddRow() {

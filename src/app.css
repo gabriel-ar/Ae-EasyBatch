@@ -57,6 +57,13 @@ button, input, select, textarea {
   color: white;
 }
 
+button[data-variant="discrete"]{
+  background-color: transparent;
+  border-color: transparent;
+  padding: 3px;
+  vertical-align: middle;
+}
+
 button:hover, select:hover, textarea:hover, input:hover{
   background-color: var(--color-m1);
   border: solid 1px var(--color-border-p1);
@@ -66,6 +73,12 @@ button:hover, select:hover, textarea:hover, input:hover{
 input:focus, button:focus, select:focus, textarea:focus{
   outline: none;
   border: solid 1px var(--color-highlight);
+}
+
+button[data-variant="discrete"]:hover{
+  cursor: pointer;
+  border-color: transparent;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 button svg{
