@@ -37,10 +37,10 @@
   import Dropdown from "./lib/Dropdown.svelte";
   import Logger from "./lib/Logger.mjs";
 
+  let csa = new CSAdapter();
+
   const l = new Logger("warn", null, "App");
   setContext("logger", l);
-
-  let csa = new CSAdapter();
 
   let setts = new Settings();
 
