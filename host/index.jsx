@@ -250,7 +250,7 @@ function LoadSettings() {
 
 function SaveSettings(s_request) {
   //Escape new lines
-  var s_request = _EscapeJSON(s_request);;
+  var s_request = _EscapeJSON(s_request);
 
   /**@type {SaveSettingsResults} */
   var response = {};
@@ -668,7 +668,6 @@ function _ImportFootageItem(path, proj_folder) {
   //Check if the footage item exists in the project
   var import_file = new File(path.replaceAll("\\\\", "/"));
 
-
   var repl_f_item;
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var proj_item = app.project.item(i_items);
@@ -822,6 +821,10 @@ function BatchGenerate(str_template) {
 }
 
 function _QueueComp(comp, path, render_preset, output_preset) {
+  //Update the Folder.current global so that relative paths can be solved
+  if (app.project.file !== null)
+    Folder.current = new Folder(app.project.file.path);
+
   //Create a new render queue item
   var rq_item = app.project.renderQueue.items.add(comp);
 
@@ -839,16 +842,13 @@ function _QueueComp(comp, path, render_preset, output_preset) {
   var folder = new Folder(folder_path);
   if (!folder.exists) {
     if (!folder.create()) {
-      if (folder.error !== null)
-        throw new Error(folder.error);
+      if (folder.error !== null) throw new Error(folder.error);
       else
-        throw new Error("@_Render: Could not create folder at path: " + path);
+        throw new Error(
+          "@_QueueComp: Could not create folder at path: " + path
+        );
     }
   }
-
-  //Update the Folder.current global so that relative paths can be solved
-  if (app.project.file !== null)
-    Folder.current = new Folder(app.project.file.path);
 
   //Set the output file name
   var output_file = new File(path);
@@ -856,7 +856,6 @@ function _QueueComp(comp, path, render_preset, output_preset) {
 }
 
 function GatherRenderTemplates() {
-
   //Per the documentation we can only gather the templates once an item is in the render queue
 
   /**@type {RenderSettsResults}*/
@@ -882,9 +881,8 @@ function GatherRenderTemplates() {
   return JSON.stringify(result);
 }
 
-function PickColorFromPreview(startValue){
-
-  if(!startValue || startValue.length != 3){
+function PickColorFromPreview(startValue) {
+  if (!startValue || startValue.length != 3) {
     startValue = [1, 1, 1]; // default value
   }
 
@@ -895,7 +893,9 @@ function PickColorFromPreview(startValue){
   //add a null
   var null_layer = prev_comp.layers.addNull();
 
-  var cc = null_layer.property("ADBE Effect Parade").addProperty("ADBE Color Control");
+  var cc = null_layer
+    .property("ADBE Effect Parade")
+    .addProperty("ADBE Color Control");
   var color_prop = cc.property("ADBE Color Control-0001");
 
   color_prop.setValue(startValue);
@@ -905,7 +905,7 @@ function PickColorFromPreview(startValue){
   var res_value = color_prop.value;
   null_layer.remove();
 
-return JSON.stringify(res_value);
+  return JSON.stringify(res_value);
 }
 
 function GetRelativeFolderPath(path) {
@@ -935,7 +935,6 @@ function GetRelativeFilePath(path) {
 }
 
 function SelectFolder(default_path) {
-
   var folder;
 
   //Setup the default path for the folder selection dialog
@@ -944,7 +943,6 @@ function SelectFolder(default_path) {
   } else if (!Folder(default_path).exists) {
     default_path = app.project.file.path;
   }
-
 
   folder = new Folder(default_path);
   folder = folder.selectDlg();
@@ -985,7 +983,7 @@ function _EscapeJSON(str) {
 
 // polyfills
 Object.create = function (o) {
-  function F() { }
+  function F() {}
   F.prototype = o;
   return new F();
 };
