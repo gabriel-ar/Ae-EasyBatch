@@ -4,7 +4,7 @@ class CSAdapter {
   /**
    * @enum {string}
    */
-  SystemPath = {
+ static SystemPath = {
     EXTENSION: "extension",
     COMMON_FILES: "commonFiles",
     MY_DOCUMENTS: "myDocuments",
@@ -38,7 +38,7 @@ class CSAdapter {
    */
   LoadFile(name) {
     let path =
-      this.a_cep.getSystemPath(this.SystemPath.EXTENSION) + "/host/" + name;
+      this.a_cep.getSystemPath(CSAdapter.SystemPath.EXTENSION) + "/host/" + name;
     console.log("Loading .jsx in: " + path);
     return this.Eval(`$.evalFile("${path}")`);
   }
@@ -119,7 +119,5 @@ GetSystemPath(pathType)
     return path.replace("file:///", "").replace("file://", "");
 };
 }
-
-
 
 export default CSAdapter;

@@ -1,6 +1,7 @@
 import papa from "papaparse";
 import { GetCurrentValuesResults } from "./Messaging.mjs";
 import "./ces.t.ts"
+import Logger from "./Logger.mjs";
 
 class Settings {
   constructor() {
@@ -85,6 +86,8 @@ class Settings {
   sel_tmpl = -1;
 
   active_tab = "data";
+
+  log_level = Logger.Levels.Warn;
 
   /**
    * When the user Batch Renders, the intermediate compositions used to render are stored here

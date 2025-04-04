@@ -4,7 +4,7 @@
     import { getContext, onMount } from "svelte";
     import Logger from './Logger.mjs';
 
-    const l = getContext("logger") || new Logger('warn', null, 'Dropdown');
+    const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'ModalAlternateSrcV2');
 
     let {show = $bindable(false),
         tmpl,
