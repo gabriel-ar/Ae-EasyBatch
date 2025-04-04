@@ -3,8 +3,8 @@
   import Logger from './Logger.mjs';
   import { getContext } from "svelte";
 
-  const l = getContext("logger") || new Logger('warn', null, 'Dropdown');
-  let { value = $bindable(), options, labels, variant = "" } = $props();
+  const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'Dropdown');
+  let { value = $bindable(), options, labels, variant = "", style="", style_list="" } = $props();
 
   let sel_label = $state();
 
@@ -26,11 +26,11 @@
   });
 </script>
 
-<div class={["dropdown", variant]}>
+<div class={["dropdown", variant]} style={style}>
   <button class="dropbtn">{sel_label}<ChevronDown 
     style="vertical-align:middle; margin-left: 5px;" />
 </button>
-  <div class="dropdown-content">
+  <div class="dropdown-content"  style={style_list}>
     {#each options as option, opt_i}
       <button onclick={(e) => Selected(e, option, opt_i)}>{labels[opt_i]}</button>
     {/each}

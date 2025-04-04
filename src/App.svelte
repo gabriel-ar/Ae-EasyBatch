@@ -37,16 +37,23 @@
   import Dropdown from "./lib/Dropdown.svelte";
   import Logger from "./lib/Logger.mjs";
 
-  let csa = new CSAdapter();
-
-  const l = new Logger("warn", null, "App");
+  const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
+
+  let csa = new CSAdapter();
 
   let setts = new Settings();
 
   let no_templs = false;
 
   let false_blur = false;
+
+
+  //Update the log level of the logger when the settings changes
+  $:{
+    l.log_lvl = setts.log_level;
+    setContext("logger", l);
+  }
 
   onMount(() => {
     StartupSequence();
@@ -67,6 +74,7 @@
         l.error("StartupSequence-> GetSettings error:", e);
         return;
       }
+
     });
 
     let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
@@ -330,7 +338,7 @@
   }
 
   function Test() {
-
+    l.error("Test called");
   }
 
   function AddRow() {
@@ -994,6 +1002,17 @@
       Automatically preview when changing values
       <input type="checkbox" bind:checked={setts.auto_preview} />
     </label>
+
+    <label for="in_imported_folder"
+      >Log Level
+    </label>
+
+    <Dropdown
+      style_list="text-transform: capitalize;"
+      labels={Object.entries(Logger.Levels).map(([key, val]) => val + " - " + key)}
+      options={Object.entries(Logger.Levels).map(([key, val]) => val)}
+      bind:value={setts.log_level}
+    />
 
     <div>
       <button onclick={Test}>Go</button>

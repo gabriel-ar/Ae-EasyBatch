@@ -5,7 +5,7 @@
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "./CSAdapter.mjs";
 
-  const l = getContext("logger") || new Logger('warn', null, 'Dropdown');
+  const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'PropInput');
 
   /** @type {{ value: any, type:any, onchange?: function(value):void}}*/
   let { value = $bindable(), type, onchange } = $props();
