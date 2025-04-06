@@ -67,6 +67,8 @@ class Settings {
     });
   }
 
+  static version = "0.1.1";
+
   /**
    * Stores data from Essential GFXs templates that have automated data
    * @type {Array<Template>}
