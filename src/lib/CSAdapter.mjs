@@ -1,3 +1,5 @@
+import "./cep_node.t";
+
 class CSAdapter {
   constructor() {}
 
@@ -33,6 +35,16 @@ class CSAdapter {
 
     return this.a_cep.evalScript(script, callback);
   }
+
+
+  async EvalA(script) {
+    return new Promise((resolve, reject) => {
+      this.Eval(script, (result) => {
+        resolve(result);
+      });
+    });
+  }
+
   /**
    * Loads a jsx file in the CPE environment
    */
@@ -56,28 +68,47 @@ class CSAdapter {
    * @param {string} initial_folder 
    * @returns {Promise<string|null>} The selected folder path or null if the user cancels the dialog.
    */
-  async OpenFolderDialog(initial_folder) {
-    let i_folder = initial_folder || "";
+  async OpenFolderDialog(initial_folder="") {
+  
+    if(initial_folder !== "" && initial_folder !== undefined && initial_folder !== null) {
+      let proj_folder = await this.EvalA(`app.project.file.parent.fsName`);
+      
+      let path = cep_node.require("path");
+      initial_folder = path.join(proj_folder, initial_folder);
+    }
 
+    console.log("Initial folder: " + initial_folder);
+    
     let res = cep.fs.showOpenDialogEx(
       false,
       true,
       "Select Base Path",
-      i_folder
+      initial_folder
     );
 
     if (res.data[0] !== undefined && res.data[0] !== null) {
+
+      console.log("Selected folder: " + res.data[0]);
+
+      let rel_path = await this.EvalA(
+        `GetRelativeFolderPath("${encodeURIComponent(res.data[0])}")`
+      );
+
+      console.log("Relative path: " + rel_path);
+
+
+
       return new Promise((resolve, reject) => {
-        this.Eval(
-          `GetRelativeFolderPath("${encodeURIComponent(res.data[0])}")`,
-          (res) => {
-            resolve(decodeURIComponent(res));
-          }
-        );
+        if (rel_path !== undefined && rel_path !== null) {
+          resolve(decodeURIComponent(rel_path));
+        }
+        else {
+          reject(null);
+        }
       });
-    }else {
+    }else{
       return new Promise((resolve, reject) => {
-        resolve(null);
+        reject(null);
       });
     }
   }

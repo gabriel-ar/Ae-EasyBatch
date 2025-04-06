@@ -45,14 +45,12 @@
     */
     function SelectBasePath(){
         let csa = new CSAdapter();
-
+        
         csa.OpenFolderDialog(base_path).then((result) => {
             if(result === null) return;
             
             base_path = result;
         });
-        
-        l.debug('SelectBasePath called');
     }
     
     $effect(() => {
