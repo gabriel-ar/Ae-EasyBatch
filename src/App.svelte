@@ -25,24 +25,16 @@
     Column,
     type DepCompSetts,
     type Comp,
-  } from "./lib/Settings.ts";
+  } from "./lib/Settings";
 
-  import {
-    BatchRenderResult,
-    RenderSettsResults,
-    SaveSettingsResults,
-    GetSettsResult,
-    GetTmplsResult,
-    BatchGenerateResult,
-    SaveSettsRequest,
-    IsSameProjectResult,
-  } from "./lib/Messaging.mjs";
+  import Logger from "./lib/Logger";
+
+  import { SaveSettsRequest } from "./lib/Messaging";
 
   import PropInput from "./lib/PropInput.svelte";
   import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
   import ModalFilePattern from "./lib/ModalDepFilePattern.svelte";
   import Dropdown from "./lib/Dropdown.svelte";
-  import Logger from "./lib/Logger.ts";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -65,7 +57,6 @@
 
   onMount(() => {
     StartupSequence();
-    
   });
 
   async function StartupSequence() {
@@ -487,7 +478,7 @@
 
     let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
     l.debug("BatchRender called");
-    l.log("Rendering:", string_templt);
+    l.log("Rendering:", setts.tmpls[setts.sel_tmpl]);
 
     csa.Eval(
       `BatchRender('${string_templt}', "${setts.render_comps_folder}")`,
@@ -557,7 +548,7 @@
     l.debug("BatchOneToMany called");
 
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
-   // setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
+    // setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
     setts.tmpls[setts.sel_tmpl].ResolveSavePathDeps();
 
@@ -567,43 +558,37 @@
     l.debug("BatchOneToMany called");
     l.log("Rendering:", string_templt);
 
-    csa.Eval(
-      `BatchRenderDepComps('${string_templt}')`,
-      function (s_result) {
-        /**@type {BatchRenderResult}*/
-        let result;
+    csa.Eval(`BatchRenderDepComps('${string_templt}')`, function (s_result) {
+      /**@type {BatchRenderResult}*/
+      let result;
 
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error("Failed to parse OtM render result", s_result);
-          return;
+      try {
+        result = JSON.parse(s_result);
+      } catch (e) {
+        l.error("Failed to parse OtM render result", s_result);
+        return;
+      }
+
+      if (result.success == false) {
+        l.error("Failed to render OtM", result.error_obj);
+        return;
+      } else {
+        l.debug(`OtM Render Started`);
+        if (result.errors !== undefined && result.errors.length > 0) {
+          l.warn(`OtM Render Errors`, result.errors);
+
+          render_errors = result.errors.map((e) => {
+            if (e.message !== undefined) {
+              return e.row + " " + e.message;
+            } else {
+              return e;
+            }
+          });
+
+          l.debug(`OtM Render Errors`, render_errors);
         }
-
-        if (result.success == false) {
-          l.error("Failed to render OtM", result.error_obj);
-          return;
-        } else {
-          l.debug(`OtM Render Started`);
-          if (result.errors !== undefined && result.errors.length > 0) {
-            l.warn(`OtM Render Errors`, result.errors);
-
-            render_errors = result.errors.map((e) => {
-              if (e.message !== undefined) {
-                return e.row + " " + e.message;
-              } else {
-                return e;
-              }
-            });
-
-            l.debug(`OtM Render Errors`, render_errors);
-          }
-        }
-      },
-    );
-
-
-
+      }
+    });
   }
 
   /**
@@ -709,7 +694,6 @@
 
   let edit_dep_comp_id;
   function DepFilePatternModalOpen(dep_comp_id) {
-
     edit_dep_comp_id = dep_comp_id;
 
     m_file_pattern.Open(
@@ -720,7 +704,6 @@
   }
 
   function DepFilePatternModalClosed(base_path, pattern) {
-
     setts.tmpls[setts.sel_tmpl].dep_config[edit_dep_comp_id].save_pattern =
       pattern;
 
@@ -951,13 +934,20 @@
           >i</button
         >
       </h4>
+
       <textarea
         id="save_pattern_ta"
         spellcheck="false"
         bind:value={setts.tmpls[setts.sel_tmpl].save_pattern}
       ></textarea>
 
-      <div>
+      <div class="setting">
+        <span>Preview:</span>
+        <span class="out_prev">{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span
+        >
+      </div>
+
+      <div class="setting">
         <button onclick={SelRenderBasePath}>Pick Base Path</button>
 
         <Dropdown
@@ -982,15 +972,9 @@
         <button onclick={AddField}>Add Field</button>
       </div>
 
-      <div class="out_prev_cont">
-        <span>Preview:</span>
-        <span class="out_prev">{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span
-        >
-      </div>
-
       <h4>Render Settings</h4>
 
-      <div>
+      <div class="setting">
         <label for="sel_render_setts_templ">Render Settings Template</label>
 
         <Dropdown
@@ -1004,7 +988,7 @@
         />
       </div>
 
-      <div>
+      <div class="setting">
         <label for="sel_render_out_module">Output Module Template</label>
         <Dropdown
           labels={render_setts_templs.output_modules_templs.filter(
@@ -1017,7 +1001,7 @@
         />
       </div>
 
-      <button onclick={BatchRender}>Start Batch Render</button>
+      <button class="setting" onclick={BatchRender}>Start Batch Render</button>
 
       {#if render_errors.length > 0}
         <div class="render_msgs">
@@ -1037,70 +1021,91 @@
         bind:value={setts.tmpls[setts.sel_tmpl].generate_pattern}
       ></textarea>
 
-      <div>
-        <button style="" onclick={AddField_Gen}>Add Field</button>
-        <Dropdown
-          labels={[
-            "Template Name",
-            "Row Number",
-            "Increment",
-            ...setts.tmpls[setts.sel_tmpl].columns.map((col) => col.cont_name),
-          ]}
-          options={[
-            "template_name",
-            "row_number",
-            "increment:0000",
-            ...setts.tmpls[setts.sel_tmpl].columns.map((col) => col.cont_name),
-          ]}
-          bind:value={sel_add_field_gen}
-        />
-      </div>
-
-      <div class="out_prev_cont">
+      <div class="setting">
         <span>Preview:</span>
         <span class="out_prev"
           >{setts.tmpls[setts.sel_tmpl].generate_names[0]}</span
         >
       </div>
 
-      <label for="in_imported_folder">Generated Comps Folder Name </label>
-      <input
-        id="in_gen_folder"
-        type="text"
-        bind:value={setts.tmpls[setts.sel_tmpl].gen_comps_folder}
-      />
+      <div class="setting">
+        <div>
+          <button onclick={AddField_Gen}>Add Field</button>
+          <Dropdown
+            labels={[
+              "Template Name",
+              "Row Number",
+              "Increment",
+              ...setts.tmpls[setts.sel_tmpl].columns.map(
+                (col) => col.cont_name,
+              ),
+            ]}
+            options={[
+              "template_name",
+              "row_number",
+              "increment:0000",
+              ...setts.tmpls[setts.sel_tmpl].columns.map(
+                (col) => col.cont_name,
+              ),
+            ]}
+            bind:value={sel_add_field_gen}
+          />
+        </div>
+      </div>
 
-      <button onclick={BatchGenerate}>Generate Projects</button>
+      <div class="setting">
+        <label for="in_imported_folder">Generated Comps Folder Name </label>
+        <input
+          id="in_gen_folder"
+          type="text"
+          bind:value={setts.tmpls[setts.sel_tmpl].gen_comps_folder}
+        />
+      </div>
+
+      <button class="setting" onclick={BatchGenerate}>Generate Projects</button>
     {:else if setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
       <h4>Common Base Path</h4>
-      <button onclick={SelRenderBasePath}>Choose Folder...</button>
-      <span>{setts.tmpls[setts.sel_tmpl].base_path}</span>
+
+      <div class="setting">
+        <span>{setts.tmpls[setts.sel_tmpl].base_path}</span>
+        <div><button onclick={SelRenderBasePath}>Choose Folder...</button></div>
+      </div>
 
       {#each setts.tmpls[setts.sel_tmpl].dep_comps as dc}
         <div class="out_sub_render">
-          <h4>{dc.name}</h4>
-          <h5 style="margin: 0;">File Pattern</h5>
+          <input
+            type="checkbox"
+            style="margin: 5px 5px 3px 0;"
+            bind:checked={setts.tmpls[setts.sel_tmpl].dep_config[dc.id].enabled}
+          />
+          <h4 style="display: inline;">{dc.name}</h4>
 
-          <div class="out_prev_cont">
-            <span>Preview:</span>
-            <span class="out_prev"
-              >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id.toString()]
-                .save_path}</span
-            >
+          <div class="setting">
+            <h5>
+              File Pattern: {setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
+                .save_pattern}
+            </h5>
+
+            <div>
+              <span>Preview:</span>
+              <span class="out_prev"
+                >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id].save_path}</span
+              >
+            </div>
             <button
-              class="delete_row"
+              style="margin-top: 5px;"
               data-tooltip="Edit file pattern"
               data-tt-pos="top-right"
               onclick={() => DepFilePatternModalOpen(dc.id)}
-              >Edit Pattern<Gear /></button
+              >Edit Pattern <Gear /></button
             >
           </div>
 
           <h5>Render Settings</h5>
 
-          <div>
+          <div class="setting">
             <label for="sel_render_setts_templ">Render Settings Template</label>
             <Dropdown
               labels={render_setts_templs.render_templs.filter(
@@ -1115,7 +1120,7 @@
             />
           </div>
 
-          <div>
+          <div class="setting">
             <label for="sel_render_out_module">Output Module Template</label>
             <Dropdown
               labels={render_setts_templs.output_modules_templs.filter(
@@ -1134,39 +1139,42 @@
       {/each}
 
       <!-- <button onclick={BatchGenerate}>Generate Projects</button> -->
-      <button
-        onclick={BatchOneToMany}
-        >Batch One to Many</button
-      >
+      <button onclick={BatchOneToMany}>Batch One to Many</button>
     {/if}
   </main>
 {:else if setts.active_tab == "settings"}
-  <main>
-    <label for="in_imported_folder"
-      >Imported Footage Folder Name
-      <br /><span class="sett_label_note">Per template</span>
-    </label>
-    <input
-      id="in_gen_folder"
-      type="text"
-      bind:value={setts.tmpls[setts.sel_tmpl].imported_footage_folder}
-    />
+  <main class="settings">
+    <div class="setting">
+      <label for="in_imported_folder"
+        >Imported Footage Folder Name
+        <br /><span class="sett_label_note">Per template</span>
+      </label>
+      <input
+        id="in_gen_folder"
+        type="text"
+        bind:value={setts.tmpls[setts.sel_tmpl].imported_footage_folder}
+      />
+    </div>
 
-    <label for="in_imported_folder"
-      >Template Comps Render Folder Name
-      <br /><span class="sett_label_note">Global</span>
-    </label>
-    <input
-      id="in_gen_folder"
-      type="text"
-      bind:value={setts.render_comps_folder}
-    />
+    <div class="setting">
+      <label for="in_imported_folder"
+        >Template Comps Render Folder Name
+        <br /><span class="sett_label_note">Global</span>
+      </label>
+      <input
+        id="in_gen_folder"
+        type="text"
+        bind:value={setts.render_comps_folder}
+      />
+    </div>
 
+    <div class="setting">
     <label for="in_imported_folder">
       Automatically preview when changing values
       <input type="checkbox" bind:checked={setts.auto_preview} />
-    </label>
+    </label></div>
 
+    <div class="row">
     <label for="in_imported_folder">Log Level </label>
 
     <Dropdown
@@ -1176,16 +1184,12 @@
       )}
       options={Object.entries(Logger.Levels).map(([key, val]) => val)}
       bind:value={setts.log_level}
-    />
+    /> </div>
 
-    <div>
-      <button onclick={Test}>Go</button>
-      <button onclick={ResetSettings}>Reset Settings</button>
-    </div>
-
-    <div>
+    <div class="row">
       <button onclick={LoadJSON}>Load Config as JSON</button>
       <button onclick={SaveJSON}>Save Config as JSON</button>
+      <button onclick={ResetSettings}>Reset Settings</button>
     </div>
   </main>
 {/if}
@@ -1354,12 +1358,36 @@
     background-color: rgba(255, 255, 255, 0.1);
   }
 
-  #save_pattern_ta {
-    resize: vertical;
-  }
+  /*/////OUTPUT/////*/
 
   .output textarea {
     min-height: 1.5em;
+    resize: vertical;
+  }
+
+  .output .setting {
+    margin: 2px 0 8px 0;
+  }
+
+  .output h5 {
+    font-size: 1rem;
+    margin: 10px 0 2px 0;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .output h4 {
+    font-size: 1.1rem;
+    margin: 13px 0 2px 0;
+  }
+
+  .output label,
+  .output span {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .output label {
+    margin: 0 5px 0 0;
   }
 
   /* .output h3 {
@@ -1372,14 +1400,27 @@
   }
 
   .out_sub_render {
-    padding: 10px 0;
+    padding: 8px 0 8px 0;
 
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .out_sub_render h4,
-  .out_sub_render h5 {
-    margin: 0.4rem 0 0.2rem 0;
+  .settings .setting {
+    display: flex;
+    flex-direction: column;
+    margin: 2px 0 8px 0;
+  }
+
+  .settings .setting label {
+    margin: 0 0 5px 0;
+  }
+
+  .settings .row {
+    margin: 2px 0 8px 0;
+  }
+
+  .settings .row > label {
+    margin: 0 5px 0 0;
   }
 
   .sett_label_note {

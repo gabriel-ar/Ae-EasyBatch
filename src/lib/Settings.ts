@@ -1,5 +1,5 @@
 import papa from "papaparse";
-import { GetCurrentValuesResults } from "./Messaging.mjs";
+import { type SaveSettsRequest } from "./Messaging";
 import "./ces.t.ts"
 import Logger from "./Logger.js";
 
@@ -244,6 +244,7 @@ class Template {
       //Add the new composition to the settings with id as key
       this.dep_config[new_dc.id.toString()] = {
         id: new_dc.id,
+        enabled: true,
         render_setts_templ: "",
         render_out_module_templ: "",
         save_pattern: "",
@@ -784,6 +785,7 @@ type Comp = {
  */
 type DepCompSetts = {
   id: string;
+  enabled: boolean;
   render_setts_templ: string;
   render_out_module_templ: string;
   save_pattern: string;
