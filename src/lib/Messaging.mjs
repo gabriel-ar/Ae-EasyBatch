@@ -1,4 +1,4 @@
-import { Settings } from "./AutomatorTypes.svelte";
+import { Settings, Template } from "./Settings.ts"
 
 /**
  * @typedef {{reasons:{id_mismatch?:boolean, not_found?:boolean, no_templates?:boolean }}} ResponseErrorBase
@@ -39,7 +39,7 @@ class GetSettsResult extends Result {
 
 class GetTmplsResult extends Result {
   /**Stringified JSON of a `Template` array
-   * @type {Object[]} */
+   * @type {Template[]} */
   tmpls = [];
 }
 

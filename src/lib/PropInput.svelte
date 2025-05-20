@@ -1,7 +1,7 @@
 <script>
   import { getContext } from "svelte";
-  import { Column } from "./AutomatorTypes.svelte";
-  import Logger from './Logger.mjs';
+  import { Column } from "./Settings";
+  import Logger from './Logger.ts';
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "./CSAdapter.mjs";
 

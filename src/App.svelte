@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
   This is a CEP app for After Effects that proceeds the user with automation tools for mograph templates.
   The user can either use a table or an external CSV file to populate the template. Each row in the table or CSV file will be used to populate a single instance of the template.
@@ -19,7 +19,13 @@
     Update,
   } from "radix-icons-svelte";
 
-  import { Settings, Template, Column } from "./lib/AutomatorTypes.svelte.js";
+  import {
+    Settings,
+    Template,
+    Column,
+    type DepCompSetts,
+    type Comp,
+  } from "./lib/Settings.ts";
 
   import {
     BatchRenderResult,
@@ -34,8 +40,9 @@
 
   import PropInput from "./lib/PropInput.svelte";
   import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
+  import ModalFilePattern from "./lib/ModalDepFilePattern.svelte";
   import Dropdown from "./lib/Dropdown.svelte";
-  import Logger from "./lib/Logger.mjs";
+  import Logger from "./lib/Logger.ts";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -48,19 +55,21 @@
 
   let false_blur = false;
 
+  let m_file_pattern: ModalFilePattern;
 
   //Update the log level of the logger when the settings changes
-  $:{
+  $: {
     l.log_lvl = setts.log_level;
     setContext("logger", l);
   }
 
   onMount(() => {
     StartupSequence();
+    
   });
 
   async function StartupSequence() {
-    let n_tmpls = await GetTemplates();
+    let n_tmpls = (await GetTemplates()) as Template[];
     l.debug("StartupSequence called with templates:", n_tmpls);
 
     no_templs = n_tmpls.length == 0;
@@ -74,7 +83,6 @@
         l.error("StartupSequence-> GetSettings error:", e);
         return;
       }
-
     });
 
     let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
@@ -98,7 +106,7 @@
     };
   }
 
-  function GetTemplates() {
+  function GetTemplates(): Promise<Template[]> {
     return new Promise((resolve, reject) => {
       csa.Eval("GetTemplates()", function (s_result) {
         try {
@@ -121,7 +129,7 @@
     });
   }
 
-  function GetSettings() {
+  function GetSettings(): Promise<Settings> {
     return new Promise((resolve, reject) => {
       csa.Eval(`LoadSettings()`, function (s_result) {
         l.debug("GetSettings Eval result:", s_result);
@@ -267,13 +275,13 @@
       //Check if there's any template selected, otherwise just select the first one
 
       if (setts.tmpls[setts.sel_tmpl] !== undefined) {
-        if (setts.tmpls[setts.sel_tmpl].render_settings_templ == "") {
-          setts.tmpls[setts.sel_tmpl].render_settings_templ =
+        if (setts.tmpls[setts.sel_tmpl].render_setts_templ == "") {
+          setts.tmpls[setts.sel_tmpl].render_setts_templ =
             render_setts_templs.render_templs[0];
         }
 
-        if (setts.tmpls[setts.sel_tmpl].render_output_module_templ == "") {
-          setts.tmpls[setts.sel_tmpl].render_output_module_templ =
+        if (setts.tmpls[setts.sel_tmpl].render_out_module_templ == "") {
+          setts.tmpls[setts.sel_tmpl].render_out_module_templ =
             render_setts_templs.output_modules_templs[0];
         }
       }
@@ -313,10 +321,10 @@
   }
 
   async function F_Reload() {
-    let n_tmpls = await GetTemplates().catch((e) => {
+    let n_tmpls = (await GetTemplates().catch((e) => {
       l.error("F_Reload GetTemplates error:", e);
       return;
-    });
+    })) as Template[];
 
     if (n_tmpls.length == 0) {
       no_templs = true;
@@ -507,14 +515,11 @@
                 return e.row + " " + e.message;
               } else {
                 return e;
-              }}
-            );
-
+              }
+            });
 
             l.debug(`Batch Render Errors`, render_errors);
           }
-          
-          
         }
       },
     );
@@ -548,6 +553,59 @@
     });
   }
 
+  function BatchOneToMany() {
+    l.debug("BatchOneToMany called");
+
+    setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
+   // setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
+    setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
+    setts.tmpls[setts.sel_tmpl].ResolveSavePathDeps();
+
+    render_errors = [];
+
+    let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
+    l.debug("BatchOneToMany called");
+    l.log("Rendering:", string_templt);
+
+    csa.Eval(
+      `BatchRenderDepComps('${string_templt}')`,
+      function (s_result) {
+        /**@type {BatchRenderResult}*/
+        let result;
+
+        try {
+          result = JSON.parse(s_result);
+        } catch (e) {
+          l.error("Failed to parse OtM render result", s_result);
+          return;
+        }
+
+        if (result.success == false) {
+          l.error("Failed to render OtM", result.error_obj);
+          return;
+        } else {
+          l.debug(`OtM Render Started`);
+          if (result.errors !== undefined && result.errors.length > 0) {
+            l.warn(`OtM Render Errors`, result.errors);
+
+            render_errors = result.errors.map((e) => {
+              if (e.message !== undefined) {
+                return e.row + " " + e.message;
+              } else {
+                return e;
+              }
+            });
+
+            l.debug(`OtM Render Errors`, render_errors);
+          }
+        }
+      },
+    );
+
+
+
+  }
+
   /**
    * Selects a folder to save the files to and adds it to the save pattern
    */
@@ -575,14 +633,33 @@
 
   let sel_add_field = "base_path";
   function AddField() {
-    /**@type {HTMLTextAreaElement}*/
-    let save_pattern_ta = document.querySelector("#save_pattern_ta");
+    let save_pattern_ta: HTMLTextAreaElement =
+      document.querySelector("#save_pattern_ta");
 
     let cursor_pos = save_pattern_ta.selectionStart;
     let old_val = setts.tmpls[setts.sel_tmpl].save_pattern;
 
     //Insert the selected field at the cursor position
     setts.tmpls[setts.sel_tmpl].save_pattern =
+      old_val.slice(0, cursor_pos) +
+      `{${sel_add_field}}` +
+      old_val.slice(cursor_pos);
+  }
+
+  function AddField_Dep(dep_comps_s: DepCompSetts) {
+    let pattern_ta: HTMLTextAreaElement = document.querySelector(
+      `[data-dc-pattern="${dep_comps_s.id}"]`,
+    );
+
+    console.log(pattern_ta);
+    console.log(dep_comps_s);
+
+    let cursor_pos = pattern_ta.selectionStart;
+    let old_val =
+      setts.tmpls[setts.sel_tmpl].dep_config[dep_comps_s.id].save_pattern;
+
+    //Insert the selected field at the cursor position
+    setts.tmpls[setts.sel_tmpl].dep_config[dep_comps_s.id].save_pattern =
       old_val.slice(0, cursor_pos) +
       `{${sel_add_field}}` +
       old_val.slice(cursor_pos);
@@ -598,8 +675,8 @@
 
   let sel_add_field_gen = "row_number";
   function AddField_Gen() {
-    /**@type {HTMLTextAreaElement}*/
-    let pattern_ta = document.querySelector("#generate_proj_ta");
+    let pattern_ta: HTMLTextAreaElement =
+      document.querySelector("#generate_proj_ta");
 
     let cursor_pos = pattern_ta.selectionStart;
     let old_val = setts.tmpls[setts.sel_tmpl].generate_pattern;
@@ -628,6 +705,26 @@
     setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].ResolveAltSrcPaths(
       setts.tmpls[setts.sel_tmpl].columns,
     );
+  }
+
+  let edit_dep_comp_id;
+  function DepFilePatternModalOpen(dep_comp_id) {
+
+    edit_dep_comp_id = dep_comp_id;
+
+    m_file_pattern.Open(
+      setts.tmpls[setts.sel_tmpl],
+      dep_comp_id,
+      DepFilePatternModalClosed,
+    );
+  }
+
+  function DepFilePatternModalClosed(base_path, pattern) {
+
+    setts.tmpls[setts.sel_tmpl].dep_config[edit_dep_comp_id].save_pattern =
+      pattern;
+
+    setts.tmpls[setts.sel_tmpl].ResolveSavePathFirstDeps(0);
   }
 
   /**
@@ -839,8 +936,8 @@
       >Mode:
       <Dropdown
         variant="discrete"
-        labels={["Render", "Generate Comps"]}
-        options={["render", "generate"]}
+        labels={["Render", "One to Many", "Generate Comps"]}
+        options={["render", "dependant", "generate"]}
         bind:value={setts.out_mode}
       />
     </span>
@@ -863,9 +960,8 @@
       <div>
         <button onclick={SelRenderBasePath}>Pick Base Path</button>
 
-        <button style="margin-left: 15px;" onclick={AddField}>Add Field</button>
-
         <Dropdown
+          style={"margin-left: 15px;"}
           labels={[
             "Base Path",
             "Template Name",
@@ -882,6 +978,8 @@
           ]}
           bind:value={sel_add_field}
         />
+
+        <button onclick={AddField}>Add Field</button>
       </div>
 
       <div class="out_prev_cont">
@@ -902,7 +1000,7 @@
           options={render_setts_templs.render_templs.filter(
             (templ) => !templ.startsWith("_HIDDEN"),
           )}
-          bind:value={setts.tmpls[setts.sel_tmpl].render_settings_templ}
+          bind:value={setts.tmpls[setts.sel_tmpl].render_setts_templ}
         />
       </div>
 
@@ -915,7 +1013,7 @@
           options={render_setts_templs.output_modules_templs.filter(
             (templ) => !templ.startsWith("_HIDDEN"),
           )}
-          bind:value={setts.tmpls[setts.sel_tmpl].render_output_module_templ}
+          bind:value={setts.tmpls[setts.sel_tmpl].render_out_module_templ}
         />
       </div>
 
@@ -929,7 +1027,6 @@
           {/each}
         </div>
       {/if}
-
     {:else if setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 
@@ -974,6 +1071,73 @@
       />
 
       <button onclick={BatchGenerate}>Generate Projects</button>
+    {:else if setts.out_mode === "dependant"}
+      <!-- MODE: DEPENDANT -->
+
+      <h4>Common Base Path</h4>
+      <button onclick={SelRenderBasePath}>Choose Folder...</button>
+      <span>{setts.tmpls[setts.sel_tmpl].base_path}</span>
+
+      {#each setts.tmpls[setts.sel_tmpl].dep_comps as dc}
+        <div class="out_sub_render">
+          <h4>{dc.name}</h4>
+          <h5 style="margin: 0;">File Pattern</h5>
+
+          <div class="out_prev_cont">
+            <span>Preview:</span>
+            <span class="out_prev"
+              >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id.toString()]
+                .save_path}</span
+            >
+            <button
+              class="delete_row"
+              data-tooltip="Edit file pattern"
+              data-tt-pos="top-right"
+              onclick={() => DepFilePatternModalOpen(dc.id)}
+              >Edit Pattern<Gear /></button
+            >
+          </div>
+
+          <h5>Render Settings</h5>
+
+          <div>
+            <label for="sel_render_setts_templ">Render Settings Template</label>
+            <Dropdown
+              labels={render_setts_templs.render_templs.filter(
+                (templ) => !templ.startsWith("_HIDDEN"),
+              )}
+              options={render_setts_templs.render_templs.filter(
+                (templ) => !templ.startsWith("_HIDDEN"),
+              )}
+              bind:value={
+                setts.tmpls[setts.sel_tmpl].dep_config[dc.id].render_setts_templ
+              }
+            />
+          </div>
+
+          <div>
+            <label for="sel_render_out_module">Output Module Template</label>
+            <Dropdown
+              labels={render_setts_templs.output_modules_templs.filter(
+                (templ) => !templ.startsWith("_HIDDEN"),
+              )}
+              options={render_setts_templs.output_modules_templs.filter(
+                (templ) => !templ.startsWith("_HIDDEN"),
+              )}
+              bind:value={
+                setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
+                  .render_out_module_templ
+              }
+            />
+          </div>
+        </div>
+      {/each}
+
+      <!-- <button onclick={BatchGenerate}>Generate Projects</button> -->
+      <button
+        onclick={BatchOneToMany}
+        >Batch One to Many</button
+      >
     {/if}
   </main>
 {:else if setts.active_tab == "settings"}
@@ -1003,13 +1167,13 @@
       <input type="checkbox" bind:checked={setts.auto_preview} />
     </label>
 
-    <label for="in_imported_folder"
-      >Log Level
-    </label>
+    <label for="in_imported_folder">Log Level </label>
 
     <Dropdown
       style_list="text-transform: capitalize;"
-      labels={Object.entries(Logger.Levels).map(([key, val]) => val + " - " + key)}
+      labels={Object.entries(Logger.Levels).map(
+        ([key, val]) => val + " - " + key,
+      )}
       options={Object.entries(Logger.Levels).map(([key, val]) => val)}
       bind:value={setts.log_level}
     />
@@ -1034,6 +1198,8 @@
     onclose={AlertSrcModalClosed}
   />
 {/if}
+
+<ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
 
 {#if no_templs}
   <div class="fs_no_tmpls">
@@ -1132,7 +1298,7 @@
   main {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    /*gap: 1rem;*/
 
     padding: 10px 10px;
 
@@ -1203,6 +1369,17 @@
   .out_prev {
     color: rgba(255, 255, 255, 0.6);
     word-break: break-all;
+  }
+
+  .out_sub_render {
+    padding: 10px 0;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .out_sub_render h4,
+  .out_sub_render h5 {
+    margin: 0.4rem 0 0.2rem 0;
   }
 
   .sett_label_note {

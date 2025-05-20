@@ -1,8 +1,8 @@
 <script>
-    import {Template} from "./AutomatorTypes.svelte"
+    import {Template} from "./Settings.ts"
     import CSAdapter from "./CSAdapter.mjs";
     import { getContext, onMount } from "svelte";
-    import Logger from './Logger.mjs';
+    import Logger from './Logger.ts';
 
     const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'ModalAlternateSrcV2');
 

@@ -24,9 +24,11 @@ This file is the CEP side of the app. The javascript app will make requests thro
 //var result = $.colorPicker(-1);
 
 /**
- * @typedef {import('../src/lib/AutomatorTypes.svelte.js').Settings} Settings
- * @typedef {import('../src/lib/AutomatorTypes.svelte.js').Template} Template
- * @typedef {import('../src/lib/AutomatorTypes.svelte.js').Column} Column
+ * @typedef {import('../src/lib/Settings.js').Settings} Settings
+ * @typedef {import('../src/lib/Settings.js').Template} Template
+ * @typedef {import('../src/lib/Settings.js').Column} Column
+ * @typedef {import('../src/lib/Settings.js').Comp} Comp
+ * @typedef {import('../src/lib/Settings.js').DepCompSetts} DepCompSetts
  * @typedef {import('../src/lib/Messaging.mjs').GetSettsResult} GetSettsResult
  * @typedef {import('../src/lib/Messaging.mjs').SaveSettingsResults} SaveSettingsResults
  * @typedef {import('../src/lib/Messaging.mjs').BatchRenderResult} BatchRenderResult
@@ -37,7 +39,6 @@ This file is the CEP side of the app. The javascript app will make requests thro
  * @typedef {import('../src/lib/Messaging.mjs').PreviewRowResult} PreviewRowResult
  * @typedef {import('../src/lib/Messaging.mjs').SaveSettsRequest} SaveSettsRequest
  * @typedef {import('../src/lib/Messaging.mjs').IsSameProjectResult} IsSameProjectResult
- *
  */
 
 function _HasTemplates() {
@@ -125,6 +126,8 @@ function GetTemplates() {
             val = val.text;
           }
 
+
+
           cols.push({
             cont_name: templ_prop.name,
             type: t_type,
@@ -132,10 +135,14 @@ function GetTemplates() {
           });
         }
 
+        //Finally check if the composition is included in other compositions
+        var deps = _GetDependentComps(templ_comp);
+
         out_tmpls.push({
           comp: templ_comp.name,
           name: templ_comp.motionGraphicsTemplateName,
           columns: cols,
+          dep_comps: deps,
         });
 
         av_templ_comp.remove();
@@ -151,6 +158,36 @@ function GetTemplates() {
     result.error_obj.source = "index.jsx @ GetTemplates";
     return JSON.stringify(result);
   }
+}
+
+/**
+ * Checks if the given composition is included on other compositions
+ * @returns {DependentComps}
+*/
+function _GetDependentComps(parent_comp) {
+
+  /**@type {Comp[]} */
+  var deps = [];
+
+  //Iterate over all items in the project
+  //and check if its a composition
+  for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
+    var item = app.project.item(i_items);
+
+    //Avoid the own composition and the template preview comp
+    if (item instanceof CompItem && item.id !== parent_comp.id && item.name !== "TemplatePreview") {
+
+      //Iterate over layers of the comp to see if the layer source is the parent comp
+      for (var i_layer = 1; i_layer <= item.numLayers; i_layer++) {
+        var layer = item.layer(i_layer);
+        if (layer.source === parent_comp) {
+          deps.push({ name: item.name, id: item.id });
+        }
+      }
+    }
+  }
+
+  return deps;
 }
 
 function ExtractPropTypesNames() {
@@ -381,7 +418,7 @@ function _CreateTemplateRenderComp(
     }
   }
 
-  if (folder == undefined) {
+  if (folder === undefined) {
     //Create the folder to store the render compositions
     folder = app.project.items.addFolder(proj_folder);
   }
@@ -553,13 +590,18 @@ function GetCurrentValues(s_template) {
 }
 
 /**
- * Replace the values in the Essential Properties of a layer
+ * Replaces the values in the Essential Properties of a layer
  * with the values in the corresponding row of the template.
  * @param {*} layer
  * @param {Template} template
  * @param {number} row_i
+ * @param {boolean} replace_orgs Instead of replacing the values of the EP in the layers, will replace the values of the original properties
  */
-function _ApplyTemplProps(layer, template, row_i) {
+function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
+  if (replace_orgs === undefined) {
+    replace_orgs = false;
+  }
+
   //Access the Essential Properties of the layer and chance the values to the template data
   var e_props = layer.essentialProperty;
 
@@ -570,10 +612,12 @@ function _ApplyTemplProps(layer, template, row_i) {
     //find the column that matches the prop name
     for (var i_col = 0; i_col < template.columns.length; i_col++) {
       var col = template.columns[i_col];
+
+      //Check if the column name matches the property name
       if (col.cont_name == templ_prop.name) {
         //set the value of the prop to the first value in the column
 
-        //Replaceable/Alt Source
+        //REPLACEABLE / ALT SOURCE
         if (
           templ_prop.canSetAlternateSource &&
           templ_prop.matchName === "ADBE Layer Source Alternate"
@@ -613,32 +657,42 @@ function _ApplyTemplProps(layer, template, row_i) {
           break;
         }
 
-        //Text
+        //TEXT
         else if (
           templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
         ) {
-          if (templ_prop.value.text === col.values[row_i]) {
-            break;
-          } else {
-            templ_prop.setValue(col.values[row_i]);
-            break;
-          }
-        }
-
-        //Color / Position / Scale / Rotation
-        else {
           //Check if is different from the current value
-          if (templ_prop.value == col.values[row_i]) {
+          if ((!replace_orgs && templ_prop.value.text === col.values[row_i]) || (replace_orgs && templ_prop.essentialPropertySource.value.text === col.values[row_i])) {
             break;
           }
 
-          templ_prop.setValue(col.values[row_i]);
+          if (replace_orgs)
+            templ_prop.essentialPropertySource.setValue(col.values[row_i]);
+          else
+            templ_prop.setValue(col.values[row_i]);
+
           break;
         }
-      }
+
+        //COLOR / POSITION / SCALE / ROTATION
+        else {
+          //Check if is different from the current value
+          if ((templ_prop.value == col.values[row_i] && !replace_orgs) || (replace_orgs && templ_prop.essentialPropertySource.value == col.values[row_i])) {
+            break;
+          }
+
+          if (replace_orgs)
+            templ_prop.essentialPropertySource.setValue(col.values[row_i]);
+          else
+            templ_prop.setValue(col.values[row_i]);
+
+          break;
+        }
+      }//if names match
     }
   }
 }
+
 
 /**
  * Given a path to a file, import it into the project and return the FootageItem
@@ -738,8 +792,8 @@ function BatchRender(str_template, folder) {
         _QueueComp(
           render_comp,
           tmpl_data.save_paths[i_row],
-          tmpl_data.render_settings_templ,
-          tmpl_data.render_output_module_templ
+          tmpl_data.render_setts_templ,
+          tmpl_data.render_out_module_templ
         );
       } catch (e) {
         result.errors.push({ message: e.message, row: i_row });
@@ -853,6 +907,15 @@ function _QueueComp(comp, path, render_preset, output_preset) {
   //Set the output file name
   var output_file = new File(path);
   om.file = output_file;
+
+  return rq_item;
+}
+
+function _ClearRenderQueue() {
+  //delete all items in the render queue
+  for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
+    app.project.renderQueue.item(i).remove();
+  }
 }
 
 function GatherRenderTemplates() {
@@ -981,9 +1044,176 @@ function _EscapeJSON(str) {
   return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
 }
 
+
+///DEPENDANT COMPOSITIONS///
+
+/**@type {Template} */
+var dep_render_tmpl;
+
+/**@type {number} */
+var dep_render_row = 0;
+
+/**Layer used to get essential props and original props*/
+var props_layer = null;
+
+var dep_comps = [];
+
+var last_render_queue_item = null;
+
+function BatchRenderDepComps(str_template) {
+  str_template = _EscapeJSON(str_template);
+
+  /** @type {BatchRenderResult} */
+  var result = { errors: [] };
+
+  try {
+    /** @type {Template}*/
+    dep_render_tmpl = JSON.parse(str_template);
+
+    dep_comps = [];
+
+    //Add the template composition to the render comp as a layer
+    //to get essential properties and though those access the original properties
+    var temp_comp = _SetupTemplatePreviewComp(true);
+
+    //Find the composition referenced by the template in the project
+    var templ_comp;
+    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
+      var item = app.project.item(i_items);
+      if (item instanceof CompItem && item.name == dep_render_tmpl.comp) {
+        templ_comp = item;
+        break;
+      }
+    }
+
+    if (templ_comp == undefined)
+      throw new Error("@BatchRender: Template composition not found");
+
+    //_AdaptCompToTempl(temp_comp, templ_comp);
+
+    //Add the template composition to the render comp as a layer to find the essential properties
+    props_layer = temp_comp.layers.add(templ_comp);
+
+    //Find dependent compositions
+    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
+      var item = app.project.item(i_items);
+
+      //Avoid the own composition and the template preview comp
+      if (item instanceof CompItem && item.id !== templ_comp.id && item.name !== "TemplatePreview") {
+
+        //Iterate over layers of the comp to see if the layer source is the parent comp
+        for (var i_layer = 1; i_layer <= item.numLayers; i_layer++) {
+          var layer = item.layer(i_layer);
+          if (layer.source === templ_comp) {
+            dep_comps.push(item);
+          }
+        }
+      }
+    }
+
+    //Clean the render queue
+    for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
+      app.project.renderQueue.item(i).remove();
+    }
+
+    RenderNextRowDeps();
+
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "index.jsx @ BatchRenderDepComps";
+    return JSON.stringify(result);
+  }
+}
+
+function RenderFinishDeps() {
+  if (last_render_queue_item === null) return;
+
+  if (last_render_queue_item.status !== RQItemStatus.DONE) return
+
+  //Check if there are more rows to render
+  if (dep_render_row < dep_render_tmpl.rows.length - 1) {
+    dep_render_row++;
+
+    last_render_queue_item = null;
+    app.setTimeout(function () {
+      RenderNextRowDeps();
+    }, 500);
+  }
+}
+
+/**
+ * Renders a single row of the template's dependent compositions.
+ * The function replaces the values directly on the master composition
+ *  (the composition that defines the template) and queues the dependent compositions.
+ * One all the dependent compositions are queued, the function sets up a render finish callback to itself. The starts the render queue.
+ */
+function RenderNextRowDeps() {
+
+  //Loop through the properties and set the values
+  _ApplyTemplProps(props_layer, dep_render_tmpl, dep_render_row, true);
+
+  //Add the dependent compositions to the render queue
+  for (var i = 0; i < dep_comps.length; i++) {
+
+    //Find the configuration of the dep composition to get the render settings and the path
+
+    /**@type {DepCompSetts} */
+    var dep_config = null;
+    if (dep_render_tmpl.dep_config[dep_comps[i].id] !== undefined) {
+      dep_config = dep_render_tmpl.dep_config[dep_comps[i].id];
+    }
+
+    if (dep_config === null) {
+      throw new Error(
+        "@RenderNextRowDeps: Dependent composition configuration not found"
+      );
+    }
+
+    var rq_item = _QueueComp(
+      dep_comps[i],
+      dep_config.save_paths[dep_render_row],
+      dep_config.render_setts_templ,
+      dep_config.render_out_module_templ
+    );
+
+    //If the last dep comp, add a callback to the render finish
+    if (i === dep_comps.length - 1) {
+
+      //var last = app.project.renderQueue.item(app.project.renderQueue.numItems - 1);
+      rq_item.onStatusChanged = RenderFinishDeps;
+
+      last_render_queue_item = rq_item;
+
+      ////MEDIA ENCODER EXPERIMENT
+
+      // if (app.project.renderQueue.canQueueInAME) {
+      //   app.project.renderQueue.queueInAME(false);
+      // } else {
+      //   throw new Error("Media Encoder not available");
+      // }
+
+      // _ClearRenderQueue();
+
+      // if (dep_render_row < dep_render_tmpl.rows.length - 1) {
+      //   dep_render_row++;
+
+      //   RenderNextRowDeps();
+      // }
+
+    }
+  }
+
+
+  //Start the render queue
+  //app.project.renderQueue.renderAsync();
+
+  app.project.renderQueue.render();
+}
+
 // polyfills
 Object.create = function (o) {
-  function F() {}
+  function F() { }
   F.prototype = o;
   return new F();
 };
