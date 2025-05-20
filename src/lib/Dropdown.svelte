@@ -1,6 +1,6 @@
 <script>
   import { ChevronDown } from "radix-icons-svelte";
-  import Logger from './Logger.mjs';
+  import Logger from './Logger.ts';
   import { getContext } from "svelte";
 
   const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'Dropdown');
