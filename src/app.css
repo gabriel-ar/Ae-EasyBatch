@@ -18,6 +18,7 @@
   --padding-form: 5px 7px;
 
   --color-text: rgba(255, 255, 255, 0.87);
+  --color-text-disabled: rgba(255, 255, 255, 0.5);
 
   --color-base: rgb(30, 30, 30);
 

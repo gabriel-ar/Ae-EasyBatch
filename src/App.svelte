@@ -1122,7 +1122,12 @@
 
           <div class="setting">
             <label for="sel_render_out_module">Output Module Template</label>
+
             <Dropdown
+              variant={setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
+                .single_frame
+                ? "disabled"
+                : ""}
               labels={render_setts_templs.output_modules_templs.filter(
                 (templ) => !templ.startsWith("_HIDDEN"),
               )}
@@ -1132,6 +1137,16 @@
               bind:value={
                 setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
                   .render_out_module_templ
+              }
+            />
+          </div>
+
+          <div class="setting">
+            <label for="sel_render_out_module">As Single Frame PNG</label>
+            <input
+              type="checkbox"
+              bind:checked={
+                setts.tmpls[setts.sel_tmpl].dep_config[dc.id].single_frame
               }
             />
           </div>
@@ -1169,22 +1184,24 @@
     </div>
 
     <div class="setting">
-    <label for="in_imported_folder">
-      Automatically preview when changing values
-      <input type="checkbox" bind:checked={setts.auto_preview} />
-    </label></div>
+      <label for="in_imported_folder">
+        Automatically preview when changing values
+        <input type="checkbox" bind:checked={setts.auto_preview} />
+      </label>
+    </div>
 
     <div class="row">
-    <label for="in_imported_folder">Log Level </label>
+      <label for="in_imported_folder">Log Level </label>
 
-    <Dropdown
-      style_list="text-transform: capitalize;"
-      labels={Object.entries(Logger.Levels).map(
-        ([key, val]) => val + " - " + key,
-      )}
-      options={Object.entries(Logger.Levels).map(([key, val]) => val)}
-      bind:value={setts.log_level}
-    /> </div>
+      <Dropdown
+        style_list="text-transform: capitalize;"
+        labels={Object.entries(Logger.Levels).map(
+          ([key, val]) => val + " - " + key,
+        )}
+        options={Object.entries(Logger.Levels).map(([key, val]) => val)}
+        bind:value={setts.log_level}
+      />
+    </div>
 
     <div class="row">
       <button onclick={LoadJSON}>Load Config as JSON</button>

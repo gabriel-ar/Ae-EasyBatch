@@ -24,21 +24,21 @@ This file is the CEP side of the app. The javascript app will make requests thro
 //var result = $.colorPicker(-1);
 
 /**
- * @typedef {import('../src/lib/Settings.js').Settings} Settings
- * @typedef {import('../src/lib/Settings.js').Template} Template
- * @typedef {import('../src/lib/Settings.js').Column} Column
- * @typedef {import('../src/lib/Settings.js').Comp} Comp
- * @typedef {import('../src/lib/Settings.js').DepCompSetts} DepCompSetts
- * @typedef {import('../src/lib/Messaging.mjs').GetSettsResult} GetSettsResult
- * @typedef {import('../src/lib/Messaging.mjs').SaveSettingsResults} SaveSettingsResults
- * @typedef {import('../src/lib/Messaging.mjs').BatchRenderResult} BatchRenderResult
- * @typedef {import('../src/lib/Messaging.mjs').RenderSettsResults} RenderSettsResults
- * @typedef {import('../src/lib/Messaging.mjs').BatchGenerateResult} BatchGenerateResult
- * @typedef {import('../src/lib/Messaging.mjs').GetCurrentValuesResults} GetCurrentValuesResults
- * @typedef {import('../src/lib/Messaging.mjs').GetTmplsResult} GetTmplsResult
- * @typedef {import('../src/lib/Messaging.mjs').PreviewRowResult} PreviewRowResult
- * @typedef {import('../src/lib/Messaging.mjs').SaveSettsRequest} SaveSettsRequest
- * @typedef {import('../src/lib/Messaging.mjs').IsSameProjectResult} IsSameProjectResult
+ * @typedef {import('../src/lib/Settings').Settings} Settings
+ * @typedef {import('../src/lib/Settings').Template} Template
+ * @typedef {import('../src/lib/Settings').Column} Column
+ * @typedef {import('../src/lib/Settings').Comp} Comp
+ * @typedef {import('../src/lib/Settings').DepCompSetts} DepCompSetts
+ * @typedef {import('../src/lib/Messaging').GetSettsResult} GetSettsResult
+ * @typedef {import('../src/lib/Messaging').SaveSettingsResults} SaveSettingsResults
+ * @typedef {import('../src/lib/Messaging').BatchRenderResult} BatchRenderResult
+ * @typedef {import('../src/lib/Messaging').RenderSettsResults} RenderSettsResults
+ * @typedef {import('../src/lib/Messaging').BatchGenerateResult} BatchGenerateResult
+ * @typedef {import('../src/lib/Messaging').GetCurrentValuesResults} GetCurrentValuesResults
+ * @typedef {import('../src/lib/Messaging').GetTmplsResult} GetTmplsResult
+ * @typedef {import('../src/lib/Messaging').PreviewRowResult} PreviewRowResult
+ * @typedef {import('../src/lib/Messaging').SaveSettsRequest} SaveSettsRequest
+ * @typedef {import('../src/lib/Messaging').IsSameProjectResult} IsSameProjectResult
  */
 
 function _HasTemplates() {
@@ -126,8 +126,6 @@ function GetTemplates() {
             val = val.text;
           }
 
-
-
           cols.push({
             cont_name: templ_prop.name,
             type: t_type,
@@ -171,21 +169,19 @@ function _GetDependentComps(parent_comp) {
 
   //Iterate over all items in the project
   //and check if its a composition
-  for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-    var item = app.project.item(i_items);
 
-    //Avoid the own composition and the template preview comp
-    if (item instanceof CompItem && item.id !== parent_comp.id && item.name !== "TemplatePreview") {
+  if (parent_comp.usedIn !== undefined)
+    for (var i_comp = 1; i_comp <= parent_comp.usedIn.length; i_comp++) {
+      var comp = parent_comp.usedIn[i_comp];
 
-      //Iterate over layers of the comp to see if the layer source is the parent comp
-      for (var i_layer = 1; i_layer <= item.numLayers; i_layer++) {
-        var layer = item.layer(i_layer);
-        if (layer.source === parent_comp) {
-          deps.push({ name: item.name, id: item.id });
-        }
+      //Avoid the own composition and the template preview comp
+      if (comp instanceof CompItem
+        && comp.id !== parent_comp.id
+        && comp.name !== "TemplatePreview"
+        && comp.parentFolder.name !== "~Render Templates") {
+        deps.push({ name: comp.name, id: comp.id });
       }
     }
-  }
 
   return deps;
 }
@@ -908,6 +904,21 @@ function _QueueComp(comp, path, render_preset, output_preset) {
   var output_file = new File(path);
   om.file = output_file;
 
+  //Tests to remove the frame number from the file name
+  var om_setts = om.getSettings(GetSettingsFormat.STRING);
+
+  //Todo make this configurable
+  if (om_setts['Format'].search(/Sequence/gm) !== -1 && om_setts['Output File Info']['File Template'].search(/\[\#*\]/gm) === -1) {
+    var new_setts = {
+      "Output File Info":
+      {
+        "Base Path": om_setts['Output File Info']['Base Path'],
+        "File Template": output_file.name + "_[#].[fileExtension]",
+      }
+    };
+
+    om.setSettings(new_setts);
+  }
   return rq_item;
 }
 
@@ -1060,6 +1071,8 @@ var dep_comps = [];
 
 var last_render_queue_item = null;
 
+var last_render_direct_frame = false;
+
 function BatchRenderDepComps(str_template) {
   str_template = _EscapeJSON(str_template);
 
@@ -1070,7 +1083,10 @@ function BatchRenderDepComps(str_template) {
     /** @type {Template}*/
     dep_render_tmpl = JSON.parse(str_template);
 
+    //Reset the render row
     dep_comps = [];
+    last_render_queue_item = null;
+    last_render_direct_frame = false;
 
     //Add the template composition to the render comp as a layer
     //to get essential properties and though those access the original properties
@@ -1095,19 +1111,11 @@ function BatchRenderDepComps(str_template) {
     props_layer = temp_comp.layers.add(templ_comp);
 
     //Find dependent compositions
-    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-      var item = app.project.item(i_items);
+    for (var i_comp = 0; i_comp < templ_comp.usedIn.length; i_comp++) {
+      var current_comp = templ_comp.usedIn[i_comp];
 
-      //Avoid the own composition and the template preview comp
-      if (item instanceof CompItem && item.id !== templ_comp.id && item.name !== "TemplatePreview") {
-
-        //Iterate over layers of the comp to see if the layer source is the parent comp
-        for (var i_layer = 1; i_layer <= item.numLayers; i_layer++) {
-          var layer = item.layer(i_layer);
-          if (layer.source === templ_comp) {
-            dep_comps.push(item);
-          }
-        }
+      if (dep_render_tmpl.dep_config[current_comp.id] !== undefined && dep_render_tmpl.dep_config[current_comp.id].enabled) {
+        dep_comps.push(current_comp);
       }
     }
 
@@ -1126,20 +1134,18 @@ function BatchRenderDepComps(str_template) {
   }
 }
 
-function RenderFinishDeps() {
-  if (last_render_queue_item === null) return;
+function RenderFinishedDeps() {
+  if ((last_render_queue_item !== null && last_render_queue_item.status === RQItemStatus.DONE) || last_render_direct_frame)
 
-  if (last_render_queue_item.status !== RQItemStatus.DONE) return
+    //Check if there are more rows to render
+    if (dep_render_row < dep_render_tmpl.rows.length - 1) {
+      dep_render_row++;
 
-  //Check if there are more rows to render
-  if (dep_render_row < dep_render_tmpl.rows.length - 1) {
-    dep_render_row++;
-
-    last_render_queue_item = null;
-    app.setTimeout(function () {
-      RenderNextRowDeps();
-    }, 500);
-  }
+      last_render_queue_item = null;
+      app.setTimeout(function () {
+        RenderNextRowDeps();
+      }, 500);
+    }
 }
 
 /**
@@ -1157,9 +1163,9 @@ function RenderNextRowDeps() {
   for (var i = 0; i < dep_comps.length; i++) {
 
     //Find the configuration of the dep composition to get the render settings and the path
-
     /**@type {DepCompSetts} */
     var dep_config = null;
+
     if (dep_render_tmpl.dep_config[dep_comps[i].id] !== undefined) {
       dep_config = dep_render_tmpl.dep_config[dep_comps[i].id];
     }
@@ -1170,43 +1176,44 @@ function RenderNextRowDeps() {
       );
     }
 
-    var rq_item = _QueueComp(
-      dep_comps[i],
-      dep_config.save_paths[dep_render_row],
-      dep_config.render_setts_templ,
-      dep_config.render_out_module_templ
-    );
+    //Check if the render is a single frame
+    if (dep_config.single_frame) {
+      dep_comps[i].saveFrameToPng(0, new File(dep_config.save_paths[dep_render_row] + ".png"));
 
-    //If the last dep comp, add a callback to the render finish
-    if (i === dep_comps.length - 1) {
+      last_render_direct_frame = true;
 
-      //var last = app.project.renderQueue.item(app.project.renderQueue.numItems - 1);
-      rq_item.onStatusChanged = RenderFinishDeps;
+      if (i === dep_comps.length - 1) {
 
-      last_render_queue_item = rq_item;
+        
+          RenderFinishedDeps();
 
-      ////MEDIA ENCODER EXPERIMENT
 
-      // if (app.project.renderQueue.canQueueInAME) {
-      //   app.project.renderQueue.queueInAME(false);
-      // } else {
-      //   throw new Error("Media Encoder not available");
-      // }
+        // app.setTimeout(function () {
+        //   RenderFinishedDeps();
+        // }, 1000);
+      }
 
-      // _ClearRenderQueue();
+    } else {
+      var rq_item = _QueueComp(
+        dep_comps[i],
+        dep_config.save_paths[dep_render_row],
+        dep_config.render_setts_templ,
+        dep_config.render_out_module_templ
+      );
 
-      // if (dep_render_row < dep_render_tmpl.rows.length - 1) {
-      //   dep_render_row++;
 
-      //   RenderNextRowDeps();
-      // }
+      //If the last dep comp, add a callback to the render finish
+      if (i === dep_comps.length - 1) {
 
+        //var last = app.project.renderQueue.item(app.project.renderQueue.numItems - 1);
+        rq_item.onStatusChanged = RenderFinishedDeps;
+        last_render_queue_item = rq_item;
+      }
+
+      last_render_direct_frame = false;
     }
+
   }
-
-
-  //Start the render queue
-  //app.project.renderQueue.renderAsync();
 
   app.project.renderQueue.render();
 }
@@ -1232,3 +1239,28 @@ extend(ResponseError, Error); // B inherits A's prototype
 String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };
+
+//TESTS IF WE CAN EXPORT A SINGLE FRAME PNG FILE WITHOUT THE SEQUENCE NUMBER AT THE END
+
+function TestExport() {
+
+  //iterate over all the items in the render queue
+  for (var i = 1; i <= app.project.renderQueue.numItems; i++) {
+    var item = app.project.renderQueue.item(i);
+
+    //GET THE OUTPUT MODULE SETTINGS
+    var om_setts = item.outputModule(1).getSettings(GetSettingsFormat.STRING_SETTABLE);
+    var om_setts_1 = item.outputModule(1).getSettings(GetSettingsFormat.SPEC);
+    var om_setts_2 = item.outputModule(1).getSettings(GetSettingsFormat.NUMBER);
+    var om_setts_3 = item.outputModule(1).getSettings(GetSettingsFormat.NUMBER_SETTABLE);
+    var render_setts = item.getSettings(GetSettingsFormat.STRING_SETTABLE);
+    var render_setts_1 = item.getSettings(GetSettingsFormat.SPEC);
+    var render_setts_2 = item.getSettings(GetSettingsFormat.NUMBER_SETTABLE);
+
+    var dummy = 70;
+    break;
+
+  }
+}
+
+//TestExport();

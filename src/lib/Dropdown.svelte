@@ -31,6 +31,12 @@
     style="vertical-align:middle; margin-left: 5px;" />
 </button>
   <div class="dropdown-content"  style={style_list}>
+    {#if options.length === 0}
+      <p>No options available</p>
+    {/if}
+    {#if options.length > 0}
+      <p>Options available</p>
+    {/if}
     {#each options as option, opt_i}
       <button onclick={(e) => Selected(e, option, opt_i)}>{labels[opt_i]}</button>
     {/each}
@@ -78,7 +84,7 @@
     background-color: var(--color-p1);
   }
 
-  .dropdown:focus-within .dropdown-content {
+  :not(.disabled).dropdown:focus-within  .dropdown-content {
     display: flex;
   }
 
@@ -94,6 +100,10 @@
   .discrete .dropbtn:hover {
     border: 1px solid var(--color-border-p1);
     background-color: var(--color-solid-m2);
-    
   }
+
+  .disabled .dropbtn{
+    color: var(--color-text-disabled);
+  }
+
 </style>

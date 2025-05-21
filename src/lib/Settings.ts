@@ -249,7 +249,8 @@ class Template {
         render_out_module_templ: "",
         save_pattern: "",
         save_path: "",
-        save_paths: []
+        save_paths: [],
+        single_frame: false,
       };
     });
 
@@ -791,6 +792,7 @@ type DepCompSetts = {
   save_pattern: string;
   save_path: string;
   save_paths: string[];
+  single_frame: boolean;
 }
 
 export { Settings, Template, Column, type Comp, type DepCompSetts };
