@@ -34,9 +34,6 @@
     {#if options.length === 0}
       <p>No options available</p>
     {/if}
-    {#if options.length > 0}
-      <p>Options available</p>
-    {/if}
     {#each options as option, opt_i}
       <button onclick={(e) => Selected(e, option, opt_i)}>{labels[opt_i]}</button>
     {/each}
