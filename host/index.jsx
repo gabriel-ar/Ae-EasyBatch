@@ -178,7 +178,7 @@ function _GetDependentComps(parent_comp) {
       if (comp instanceof CompItem
         && comp.id !== parent_comp.id
         && comp.name !== "TemplatePreview"
-        && comp.parentFolder.name !== "~Render Templates") {
+        && comp.comment !== comment_render_comp) {
         deps.push({ name: comp.name, id: comp.id });
       }
     }
@@ -393,8 +393,10 @@ function _SetupTemplatePreviewComp(remove_layers) {
   return comp;
 }
 
+var comment_render_comp = "Created by EasyBatch";
+
 /**
- * Creates a composition to be used to render a row of the template.
+ * Creates a composition to be used to render a row of template data.
  * Puts the composition inside the given folder
  */
 function _CreateTemplateRenderComp(
@@ -435,13 +437,18 @@ function _CreateTemplateRenderComp(
     templ_comp.duration,
     templ_comp.frameRate
   );
+  comp.comment = comment_render_comp;
   comp.parentFolder = folder;
 
   return comp;
 }
 
+/**
+ * Adapts the properties of the render composition to match the template composition
+ * @param {*} render_comp 
+ * @param {*} templ_comp 
+ */
 function _AdaptCompToTempl(render_comp, templ_comp) {
-  //Set the composition so it has the same duration and size as the template
   render_comp.duration = templ_comp.duration;
   render_comp.width = templ_comp.width;
   render_comp.height = templ_comp.height;
@@ -620,7 +627,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
         ) {
           //Check if the source is already linked otherwise import the file
 
-          var alt_src = templ_prop.alternateSource;
+
+          //Depending if were replacing the original or the EP, we will check the alternate source
+          if (replace_orgs)
+            var alt_src = templ_prop.essentialPropertySource.source;
+          else
+            var alt_src = templ_prop.alternateSource;
 
           //The current alt source is a composition,
           //check if it includes the footage item linked to the correct file
@@ -634,24 +646,30 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
             }
           }
 
-          //It is a footage item and if it is linked to the correct file
-          if (alt_src !== null && alt_src instanceof AVLayer) {
-            if (
-              alt_src_layer.source instanceof FootageItem &&
-              alt_src_layer.source.file.fullName == col.values[row_i]
-            ) {
-              break;
+          else
+
+            //It is a footage item and if it is linked to the correct file
+            if (alt_src !== null && alt_src instanceof AVLayer) {
+              if (
+                alt_src_layer.source instanceof FootageItem &&
+                alt_src_layer.source.file.fullName == col.values[row_i]
+              ) {
+                break;
+              }
             }
-          }
 
           var footage_item = _ImportFootageItem(
             col.values[row_i],
             template.imported_footage_folder
           );
-          templ_prop.setAlternateSource(footage_item);
+
+          if (replace_orgs)
+            templ_prop.essentialPropertySource.replaceSource(footage_item, false);
+          else
+            templ_prop.setAlternateSource(footage_item);
 
           break;
-        }
+        }//if replaceable
 
         //TEXT
         else if (
@@ -689,11 +707,11 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
   }
 }
 
-
 /**
  * Given a path to a file, import it into the project and return the FootageItem
  * @param {string} path
  * @param {string} proj_folder
+ * @returns {FootageItem}
  */
 
 function _ImportFootageItem(path, proj_folder) {
@@ -1124,7 +1142,7 @@ function BatchRenderDepComps(str_template) {
       app.project.renderQueue.item(i).remove();
     }
 
-    RenderNextRowDeps();
+    RenderDeps();
 
   } catch (e) {
     result.success = false;
@@ -1134,6 +1152,7 @@ function BatchRenderDepComps(str_template) {
   }
 }
 
+//TODO: test RenderDeps() on Mac to delete this
 function RenderFinishedDeps() {
   if ((last_render_queue_item !== null && last_render_queue_item.status === RQItemStatus.DONE) || last_render_direct_frame)
 
@@ -1148,6 +1167,8 @@ function RenderFinishedDeps() {
     }
 }
 
+
+//TODO: test RenderDeps() on Mac to delete this
 /**
  * Renders a single row of the template's dependent compositions.
  * The function replaces the values directly on the master composition
@@ -1184,8 +1205,8 @@ function RenderNextRowDeps() {
 
       if (i === dep_comps.length - 1) {
 
-        
-          RenderFinishedDeps();
+
+        RenderFinishedDeps();
 
 
         // app.setTimeout(function () {
@@ -1206,7 +1227,9 @@ function RenderNextRowDeps() {
       if (i === dep_comps.length - 1) {
 
         //var last = app.project.renderQueue.item(app.project.renderQueue.numItems - 1);
-        rq_item.onStatusChanged = RenderFinishedDeps;
+        rq_item.onStatusChanged = function () {
+          RenderFinishedDeps();
+        };
         last_render_queue_item = rq_item;
       }
 
@@ -1216,6 +1239,55 @@ function RenderNextRowDeps() {
   }
 
   app.project.renderQueue.render();
+}
+
+function RenderDeps() {
+
+  while (dep_render_row < dep_render_tmpl.rows.length) {
+
+    _ApplyTemplProps(props_layer, dep_render_tmpl, dep_render_row, true);
+
+    //Add the dependent compositions to the render queue
+    for (var i = 0; i < dep_comps.length; i++) {
+
+      //Find the configuration of the dep composition to get the render settings and the path
+      /**@type {DepCompSetts} */
+      var dep_config = null;
+
+      if (dep_render_tmpl.dep_config[dep_comps[i].id] !== undefined) {
+        dep_config = dep_render_tmpl.dep_config[dep_comps[i].id];
+      }
+
+      if (dep_config === null) {
+        throw new Error(
+          "@RenderNextRowDeps: Dependent composition configuration not found"
+        );
+      }
+
+      //Check if the render is a single frame
+      if (dep_config.single_frame) {
+        dep_comps[i].saveFrameToPng(0, new File(dep_config.save_paths[dep_render_row] + ".png"));
+
+      } else {
+        var rq_item = _QueueComp(
+          dep_comps[i],
+          dep_config.save_paths[dep_render_row],
+          dep_config.render_setts_templ,
+          dep_config.render_out_module_templ
+        );
+      }
+    }
+
+    app.project.renderQueue.render();
+
+    dep_render_row++;
+  }
+
+
+  dep_render_row = 0;
+  dep_comps = [];
+  last_render_queue_item = null;
+  last_render_direct_frame = false;
 }
 
 // polyfills
