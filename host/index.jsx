@@ -9,6 +9,8 @@ This file is the CEP side of the app. The javascript app will make requests thro
 //Load JSON
 //@include "json2.js";
 
+//strict on
+
 //BatchRender(test_render_order);
 //SaveSettings('{"templates":[],"cloned":false}');
 //LoadSettings();
@@ -161,9 +163,8 @@ function GetTemplates() {
 /**
  * Checks if the given composition is included on other compositions
  * @returns {DependentComps}
-*/
+ */
 function _GetDependentComps(parent_comp) {
-
   /**@type {Comp[]} */
   var deps = [];
 
@@ -175,10 +176,12 @@ function _GetDependentComps(parent_comp) {
       var comp = parent_comp.usedIn[i_comp];
 
       //Avoid the own composition and the template preview comp
-      if (comp instanceof CompItem
-        && comp.id !== parent_comp.id
-        && comp.name !== "TemplatePreview"
-        && comp.comment !== comment_render_comp) {
+      if (
+        comp instanceof CompItem &&
+        comp.id !== parent_comp.id &&
+        comp.name !== "TemplatePreview" &&
+        comp.comment !== comment_render_comp
+      ) {
         deps.push({ name: comp.name, id: comp.id });
       }
     }
@@ -445,8 +448,8 @@ function _CreateTemplateRenderComp(
 
 /**
  * Adapts the properties of the render composition to match the template composition
- * @param {*} render_comp 
- * @param {*} templ_comp 
+ * @param {*} render_comp
+ * @param {*} templ_comp
  */
 function _AdaptCompToTempl(render_comp, templ_comp) {
   render_comp.duration = templ_comp.duration;
@@ -627,12 +630,10 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
         ) {
           //Check if the source is already linked otherwise import the file
 
-
           //Depending if were replacing the original or the EP, we will check the alternate source
           if (replace_orgs)
             var alt_src = templ_prop.essentialPropertySource.source;
-          else
-            var alt_src = templ_prop.alternateSource;
+          else var alt_src = templ_prop.alternateSource;
 
           //The current alt source is a composition,
           //check if it includes the footage item linked to the correct file
@@ -646,17 +647,15 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
             }
           }
 
-          else
-
-            //It is a footage item and if it is linked to the correct file
-            if (alt_src !== null && alt_src instanceof AVLayer) {
-              if (
-                alt_src_layer.source instanceof FootageItem &&
-                alt_src_layer.source.file.fullName == col.values[row_i]
-              ) {
-                break;
-              }
+          //It is a footage item and if it is linked to the correct file
+          else if (alt_src !== null && alt_src instanceof AVLayer) {
+            if (
+              alt_src_layer.source instanceof FootageItem &&
+              alt_src_layer.source.file.fullName == col.values[row_i]
+            ) {
+              break;
             }
+          }
 
           var footage_item = _ImportFootageItem(
             col.values[row_i],
@@ -664,26 +663,32 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
           );
 
           if (replace_orgs)
-            templ_prop.essentialPropertySource.replaceSource(footage_item, false);
-          else
-            templ_prop.setAlternateSource(footage_item);
+            templ_prop.essentialPropertySource.replaceSource(
+              footage_item,
+              false
+            );
+          else templ_prop.setAlternateSource(footage_item);
 
           break;
-        }//if replaceable
+        } //if replaceable
 
         //TEXT
         else if (
           templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
         ) {
           //Check if is different from the current value
-          if ((!replace_orgs && templ_prop.value.text === col.values[row_i]) || (replace_orgs && templ_prop.essentialPropertySource.value.text === col.values[row_i])) {
+          if (
+            (!replace_orgs && templ_prop.value.text === col.values[row_i]) ||
+            (replace_orgs &&
+              templ_prop.essentialPropertySource.value.text ===
+                col.values[row_i])
+          ) {
             break;
           }
 
           if (replace_orgs)
             templ_prop.essentialPropertySource.setValue(col.values[row_i]);
-          else
-            templ_prop.setValue(col.values[row_i]);
+          else templ_prop.setValue(col.values[row_i]);
 
           break;
         }
@@ -691,18 +696,21 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
         //COLOR / POSITION / SCALE / ROTATION
         else {
           //Check if is different from the current value
-          if ((templ_prop.value == col.values[row_i] && !replace_orgs) || (replace_orgs && templ_prop.essentialPropertySource.value == col.values[row_i])) {
+          if (
+            (templ_prop.value == col.values[row_i] && !replace_orgs) ||
+            (replace_orgs &&
+              templ_prop.essentialPropertySource.value == col.values[row_i])
+          ) {
             break;
           }
 
           if (replace_orgs)
             templ_prop.essentialPropertySource.setValue(col.values[row_i]);
-          else
-            templ_prop.setValue(col.values[row_i]);
+          else templ_prop.setValue(col.values[row_i]);
 
           break;
         }
-      }//if names match
+      } //if names match
     }
   }
 }
@@ -903,20 +911,7 @@ function _QueueComp(comp, path, render_preset, output_preset) {
   //Set the render settings template
   rq_item.applyTemplate(render_preset);
 
-  //remove the file name from the path
-  var folder_path = path.substring(0, path.lastIndexOf("/"));
-
-  //Make sure the directory exists
-  var folder = new Folder(folder_path);
-  if (!folder.exists) {
-    if (!folder.create()) {
-      if (folder.error !== null) throw new Error(folder.error);
-      else
-        throw new Error(
-          "@_QueueComp: Could not create folder at path: " + path
-        );
-    }
-  }
+  _CreateSubfolders(path);
 
   //Set the output file name
   var output_file = new File(path);
@@ -926,13 +921,15 @@ function _QueueComp(comp, path, render_preset, output_preset) {
   var om_setts = om.getSettings(GetSettingsFormat.STRING);
 
   //Todo make this configurable
-  if (om_setts['Format'].search(/Sequence/gm) !== -1 && om_setts['Output File Info']['File Template'].search(/\[\#*\]/gm) === -1) {
+  if (
+    om_setts["Format"].search(/Sequence/gm) !== -1 &&
+    om_setts["Output File Info"]["File Template"].search(/\[\#*\]/gm) === -1
+  ) {
     var new_setts = {
-      "Output File Info":
-      {
-        "Base Path": om_setts['Output File Info']['Base Path'],
+      "Output File Info": {
+        "Base Path": om_setts["Output File Info"]["Base Path"],
         "File Template": output_file.name + "_[#].[fileExtension]",
-      }
+      },
     };
 
     om.setSettings(new_setts);
@@ -1073,6 +1070,26 @@ function _EscapeJSON(str) {
   return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
 }
 
+/**
+ * Creates the subolderls needed to save the file at te given path.
+ * @param {string} path
+ */
+function _CreateSubfolders(path) {
+  //remove the file name from the path
+  var folder_path = path.substring(0, path.lastIndexOf("/"));
+
+  //Make sure the directory exists
+  var folder = new Folder(folder_path);
+  if (!folder.exists) {
+    if (!folder.create()) {
+      if (folder.error !== null) throw new Error(folder.error);
+      else
+        throw new Error(
+          "@_CreateSubfolders: Could not create folder at path: " + path
+        );
+    }
+  }
+}
 
 ///DEPENDANT COMPOSITIONS///
 
@@ -1092,6 +1109,10 @@ var last_render_queue_item = null;
 var last_render_direct_frame = false;
 
 function BatchRenderDepComps(str_template) {
+  writeLn("EasyBatch BatchRenderDepComps called");
+
+  app.beginSuppressDialogs();
+
   str_template = _EscapeJSON(str_template);
 
   /** @type {BatchRenderResult} */
@@ -1132,7 +1153,10 @@ function BatchRenderDepComps(str_template) {
     for (var i_comp = 0; i_comp < templ_comp.usedIn.length; i_comp++) {
       var current_comp = templ_comp.usedIn[i_comp];
 
-      if (dep_render_tmpl.dep_config[current_comp.id] !== undefined && dep_render_tmpl.dep_config[current_comp.id].enabled) {
+      if (
+        dep_render_tmpl.dep_config[current_comp.id] !== undefined &&
+        dep_render_tmpl.dep_config[current_comp.id].enabled
+      ) {
         dep_comps.push(current_comp);
       }
     }
@@ -1144,6 +1168,10 @@ function BatchRenderDepComps(str_template) {
 
     RenderDeps();
 
+    app.endSuppressDialogs();
+
+    result.success = true;
+    return JSON.stringify(result);
   } catch (e) {
     result.success = false;
     result.error_obj = e;
@@ -1152,104 +1180,12 @@ function BatchRenderDepComps(str_template) {
   }
 }
 
-//TODO: test RenderDeps() on Mac to delete this
-function RenderFinishedDeps() {
-  if ((last_render_queue_item !== null && last_render_queue_item.status === RQItemStatus.DONE) || last_render_direct_frame)
-
-    //Check if there are more rows to render
-    if (dep_render_row < dep_render_tmpl.rows.length - 1) {
-      dep_render_row++;
-
-      last_render_queue_item = null;
-      app.setTimeout(function () {
-        RenderNextRowDeps();
-      }, 500);
-    }
-}
-
-
-//TODO: test RenderDeps() on Mac to delete this
-/**
- * Renders a single row of the template's dependent compositions.
- * The function replaces the values directly on the master composition
- *  (the composition that defines the template) and queues the dependent compositions.
- * One all the dependent compositions are queued, the function sets up a render finish callback to itself. The starts the render queue.
- */
-function RenderNextRowDeps() {
-
-  //Loop through the properties and set the values
-  _ApplyTemplProps(props_layer, dep_render_tmpl, dep_render_row, true);
-
-  //Add the dependent compositions to the render queue
-  for (var i = 0; i < dep_comps.length; i++) {
-
-    //Find the configuration of the dep composition to get the render settings and the path
-    /**@type {DepCompSetts} */
-    var dep_config = null;
-
-    if (dep_render_tmpl.dep_config[dep_comps[i].id] !== undefined) {
-      dep_config = dep_render_tmpl.dep_config[dep_comps[i].id];
-    }
-
-    if (dep_config === null) {
-      throw new Error(
-        "@RenderNextRowDeps: Dependent composition configuration not found"
-      );
-    }
-
-    //Check if the render is a single frame
-    if (dep_config.single_frame) {
-      dep_comps[i].saveFrameToPng(0, new File(dep_config.save_paths[dep_render_row] + ".png"));
-
-      last_render_direct_frame = true;
-
-      if (i === dep_comps.length - 1) {
-
-
-        RenderFinishedDeps();
-
-
-        // app.setTimeout(function () {
-        //   RenderFinishedDeps();
-        // }, 1000);
-      }
-
-    } else {
-      var rq_item = _QueueComp(
-        dep_comps[i],
-        dep_config.save_paths[dep_render_row],
-        dep_config.render_setts_templ,
-        dep_config.render_out_module_templ
-      );
-
-
-      //If the last dep comp, add a callback to the render finish
-      if (i === dep_comps.length - 1) {
-
-        //var last = app.project.renderQueue.item(app.project.renderQueue.numItems - 1);
-        rq_item.onStatusChanged = function () {
-          RenderFinishedDeps();
-        };
-        last_render_queue_item = rq_item;
-      }
-
-      last_render_direct_frame = false;
-    }
-
-  }
-
-  app.project.renderQueue.render();
-}
-
 function RenderDeps() {
-
   while (dep_render_row < dep_render_tmpl.rows.length) {
-
     _ApplyTemplProps(props_layer, dep_render_tmpl, dep_render_row, true);
 
     //Add the dependent compositions to the render queue
     for (var i = 0; i < dep_comps.length; i++) {
-
       //Find the configuration of the dep composition to get the render settings and the path
       /**@type {DepCompSetts} */
       var dep_config = null;
@@ -1266,7 +1202,10 @@ function RenderDeps() {
 
       //Check if the render is a single frame
       if (dep_config.single_frame) {
-        dep_comps[i].saveFrameToPng(0, new File(dep_config.save_paths[dep_render_row] + ".png"));
+        _CreateSubfolders(dep_config.save_paths[dep_render_row]);
+        var file = new File(dep_config.save_paths[dep_render_row] + ".png");
+        dep_comps[i].saveFrameToPng(0, file);
+
 
       } else {
         var rq_item = _QueueComp(
@@ -1278,11 +1217,10 @@ function RenderDeps() {
       }
     }
 
-    app.project.renderQueue.render();
+    if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
 
     dep_render_row++;
   }
-
 
   dep_render_row = 0;
   dep_comps = [];
@@ -1292,7 +1230,7 @@ function RenderDeps() {
 
 // polyfills
 Object.create = function (o) {
-  function F() { }
+  function F() {}
   F.prototype = o;
   return new F();
 };
@@ -1311,28 +1249,3 @@ extend(ResponseError, Error); // B inherits A's prototype
 String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };
-
-//TESTS IF WE CAN EXPORT A SINGLE FRAME PNG FILE WITHOUT THE SEQUENCE NUMBER AT THE END
-
-function TestExport() {
-
-  //iterate over all the items in the render queue
-  for (var i = 1; i <= app.project.renderQueue.numItems; i++) {
-    var item = app.project.renderQueue.item(i);
-
-    //GET THE OUTPUT MODULE SETTINGS
-    var om_setts = item.outputModule(1).getSettings(GetSettingsFormat.STRING_SETTABLE);
-    var om_setts_1 = item.outputModule(1).getSettings(GetSettingsFormat.SPEC);
-    var om_setts_2 = item.outputModule(1).getSettings(GetSettingsFormat.NUMBER);
-    var om_setts_3 = item.outputModule(1).getSettings(GetSettingsFormat.NUMBER_SETTABLE);
-    var render_setts = item.getSettings(GetSettingsFormat.STRING_SETTABLE);
-    var render_setts_1 = item.getSettings(GetSettingsFormat.SPEC);
-    var render_setts_2 = item.getSettings(GetSettingsFormat.NUMBER_SETTABLE);
-
-    var dummy = 70;
-    break;
-
-  }
-}
-
-//TestExport();
