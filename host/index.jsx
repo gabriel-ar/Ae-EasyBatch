@@ -48,7 +48,7 @@ function GetTemplates() {
   var result = {};
 
   /**
-   * @type {Template}}
+   * @type {Template[]}}
    */
   var out_tmpls = [];
 
@@ -122,6 +122,7 @@ function GetTemplates() {
 
         out_tmpls.push({
           comp: templ_comp.name,
+          comp_id: templ_comp.id,
           name: templ_comp.motionGraphicsTemplateName,
           columns: cols,
           dep_comps: deps,
@@ -154,14 +155,14 @@ function _GetDependentComps(parent_comp) {
   //and check if its a composition
 
   if (parent_comp.usedIn !== undefined)
-    for (var i_comp = 1; i_comp <= parent_comp.usedIn.length; i_comp++) {
+    for (var i_comp = 0; i_comp <= parent_comp.usedIn.length; i_comp++) {
       var comp = parent_comp.usedIn[i_comp];
 
       //Avoid the own composition and the template preview comp
       if (
         comp instanceof CompItem &&
         comp.id !== parent_comp.id &&
-        comp.name !== "TemplatePreview" &&
+        comp.name !== "TemplatePreview" &&  
         comp.comment !== comment_render_comp
       ) {
         deps.push({ name: comp.name, id: comp.id });
@@ -466,14 +467,7 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
     var templ = JSON.parse(s_template);
 
     //Find the composition referenced by the template in the project
-    var templ_comp;
-    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-      var item = app.project.item(i_items);
-      if (item instanceof CompItem && item.name == templ.comp) {
-        templ_comp = item;
-        break;
-      }
-    }
+    var templ_comp = app.project.itemByID(templ.comp_id);
 
     if (templ_comp == undefined) {
       throw new Error("@PreviewRow: Template composition not found");
@@ -484,7 +478,7 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
 
     for (var i_layer = 1; i_layer <= render_comp.numLayers; i_layer++) {
       var layer = render_comp.layer(i_layer);
-      if (layer.source instanceof CompItem && layer.source.name == templ.comp) {
+      if (layer.source instanceof CompItem && layer.source.id == templ.comp_id) {
         //Template layer found, apply the properties and open in viewer
         _ApplyTemplProps(layer, templ, row_i);
         if (!is_auto_prev) render_comp.openInViewer();
@@ -537,7 +531,7 @@ function GetCurrentValues(s_template) {
     //Find the layer referencing the template
     for (var i_layer = 1; i_layer <= render_comp.numLayers; i_layer++) {
       var layer = render_comp.layer(i_layer);
-      if (layer.source instanceof CompItem && layer.source.name == templ.comp) {
+      if (layer.source instanceof CompItem && layer.source.id == templ.comp_id) {
         avl_templ = layer;
         break;
       }
@@ -756,18 +750,10 @@ function BatchRender(str_template, folder) {
 
   try {
     /** @type {Template}*/
-    var tmpl_data = JSON.parse(str_template);
+    var templ = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
-    var tmpl_comp;
-
-    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-      var item = app.project.item(i_items);
-      if (item instanceof CompItem && item.name == tmpl_data.comp) {
-        tmpl_comp = item;
-        break;
-      }
-    }
+    var tmpl_comp = app.project.itemByID(templ.comp_id);
 
     if (tmpl_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -778,9 +764,9 @@ function BatchRender(str_template, folder) {
     }
 
     //Loop through the rows and set the values of the template
-    for (var i_row = 0; i_row < tmpl_data.rows.length; i_row++) {
+    for (var i_row = 0; i_row < templ.rows.length; i_row++) {
       var render_comp = _CreateTemplateRenderComp(
-        tmpl_data.name + "_" + i_row,
+        templ.name + "_" + i_row,
         tmpl_comp,
         i_row === 0,
         folder
@@ -791,14 +777,14 @@ function BatchRender(str_template, folder) {
         var layer = render_comp.layers.add(tmpl_comp);
 
         //Set the values of the essential properties
-        _ApplyTemplProps(layer, tmpl_data, i_row);
+        _ApplyTemplProps(layer, templ, i_row);
 
         //Render the template
         _QueueComp(
           render_comp,
-          tmpl_data.save_paths[i_row],
-          tmpl_data.render_setts_templ,
-          tmpl_data.render_out_module_templ
+          templ.save_paths[i_row],
+          templ.render_setts_templ,
+          templ.render_out_module_templ
         );
       } catch (e) {
         result.errors.push({ message: e.message, row: i_row });
@@ -828,15 +814,7 @@ function BatchGenerate(str_template) {
     var tmpl_data = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
-    var templ_comp;
-
-    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-      var item = app.project.item(i_items);
-      if (item instanceof CompItem && item.name == tmpl_data.comp) {
-        templ_comp = item;
-        break;
-      }
-    }
+    var templ_comp = app.project.itemByID(tmpl_data.comp_id);
 
     if (templ_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -1087,50 +1065,37 @@ var props_layer = null;
 
 var dep_comps = [];
 
-var last_render_queue_item = null;
-
-var last_render_direct_frame = false;
-
 function BatchRenderDepComps(str_template) {
   writeLn("EasyBatch BatchRenderDepComps called");
-
-  app.beginSuppressDialogs();
 
   str_template = _EscapeJSON(str_template);
 
   /** @type {BatchRenderResult} */
   var result = { errors: [] };
+  dep_comps = [];
 
   try {
+    //reset the render row
+    dep_render_row = 0;
+    //Reset the render row
+    dep_comps = [];
+
     /** @type {Template}*/
     dep_render_tmpl = JSON.parse(str_template);
 
-    //Reset the render row
-    dep_comps = [];
-    last_render_queue_item = null;
-    last_render_direct_frame = false;
 
     //Add the template composition to the render comp as a layer
     //to get essential properties and though those access the original properties
-    var temp_comp = _SetupTemplatePreviewComp(true);
+    var prev_comp = _SetupTemplatePreviewComp(true);
 
     //Find the composition referenced by the template in the project
-    var templ_comp;
-    for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-      var item = app.project.item(i_items);
-      if (item instanceof CompItem && item.name == dep_render_tmpl.comp) {
-        templ_comp = item;
-        break;
-      }
-    }
+    var templ_comp = app.project.itemByID(dep_render_tmpl.comp_id);
 
     if (templ_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
 
-    //_AdaptCompToTempl(temp_comp, templ_comp);
-
     //Add the template composition to the render comp as a layer to find the essential properties
-    props_layer = temp_comp.layers.add(templ_comp);
+    props_layer = prev_comp.layers.add(templ_comp);
 
     //Find dependent compositions
     for (var i_comp = 0; i_comp < templ_comp.usedIn.length; i_comp++) {
@@ -1150,8 +1115,6 @@ function BatchRenderDepComps(str_template) {
     }
 
     RenderDeps();
-
-    app.endSuppressDialogs();
 
     result.success = true;
     return JSON.stringify(result);
@@ -1204,11 +1167,6 @@ function RenderDeps() {
 
     dep_render_row++;
   }
-
-  dep_render_row = 0;
-  dep_comps = [];
-  last_render_queue_item = null;
-  last_render_direct_frame = false;
 }
 
 // polyfills

@@ -1383,12 +1383,12 @@
   }
 
   .output .setting {
-    margin: 2px 0 8px 0;
+    margin: 2px 0 9px 0;
   }
 
   .output h5 {
     font-size: 1rem;
-    margin: 10px 0 2px 0;
+    margin: 13px 0 2px 0;
     color: rgba(255, 255, 255, 0.7);
   }
 
@@ -1417,7 +1417,7 @@
   }
 
   .out_sub_render {
-    padding: 8px 0 8px 0;
+    padding: 12px 0 12px 0;
 
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
@@ -1425,7 +1425,7 @@
   .settings .setting {
     display: flex;
     flex-direction: column;
-    margin: 2px 0 8px 0;
+    margin: 2px 0 7px 0;
   }
 
   .settings .setting label {
