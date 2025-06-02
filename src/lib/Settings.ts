@@ -23,15 +23,15 @@ class Settings {
       });
   }
 
-  UpdateTemplates(json_scanned_templs) {
-    let scanned_templs = [];
-    json_scanned_templs.forEach((templ) => {
+  UpdateTemplates(host_templates: object[]) {
+    let scanned_templs: Template[] = [];
+    host_templates.forEach((templ) => {
       scanned_templs.push(Template.FromJson(templ));
     });
 
     //Get the templates that don't exist in the current array
     let new_templs = scanned_templs.filter((s_templ) => {
-      return !this.tmpls.some((old_templ) => old_templ.name === s_templ.name);
+      return !this.tmpls.some((old_templ) => old_templ.comp_id === s_templ.comp_id);
     });
 
     //Add the new templates to the current ones
@@ -42,7 +42,7 @@ class Settings {
     //Filter the templates that exist in the current array but not in the new one
     let old_templs = this.tmpls.filter((old_templ) => {
       return !scanned_templs.some(
-        (new_templ) => new_templ.name === old_templ.name
+        (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
     });
 
@@ -54,14 +54,14 @@ class Settings {
     //Find the templates that are in both
     let same_templs = this.tmpls.filter((old_templ) => {
       return scanned_templs.some(
-        (new_templ) => new_templ.name === old_templ.name
+        (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
     });
 
     //Update the templates with the new data
     same_templs.forEach((old_templ) => {
       let new_templ = scanned_templs.find(
-        (new_templ) => new_templ.name === old_templ.name
+        (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
       old_templ.Update(new_templ);
     });
@@ -266,7 +266,7 @@ class Template {
    */
   comp: string;
 
-  comp_id: string;
+  comp_id: number;
 
   active = true;
 
