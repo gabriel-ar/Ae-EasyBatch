@@ -1,6 +1,6 @@
 <script>
     import {Template} from "./Settings.ts"
-    import CSAdapter from "./CSAdapter.mjs";
+    import CSAdapter from "./CSAdapter.ts";
     import { getContext, onMount } from "svelte";
     import Logger from './Logger.ts';
 

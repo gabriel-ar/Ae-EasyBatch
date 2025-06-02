@@ -4,7 +4,7 @@
   The user can either use a table or an external CSV file to populate the template. Each row in the table or CSV file will be used to populate a single instance of the template.
   */
 
-  import CSAdapter from "./lib/CSAdapter.mjs";
+  import CSAdapter from "./lib/CSAdapter.ts";
   import { onMount, setContext } from "svelte";
 
   import {

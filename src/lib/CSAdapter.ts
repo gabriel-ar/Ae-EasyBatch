@@ -26,7 +26,7 @@ class CSAdapter {
    *          If execution fails, the callback function receives the error message \c EvalScript_ErrMessage.
    */
   // @ts-ignore
-  Eval(script, callback) {
+  Eval(script, callback?) {
     if (callback === null || callback === undefined) {
       callback = function (result) {
         console.log("From Eval undefined callback: " + result);
@@ -68,7 +68,7 @@ class CSAdapter {
    * @param {string} initial_folder 
    * @returns {Promise<string|null>} The selected folder path or null if the user cancels the dialog.
    */
-  async OpenFolderDialog(initial_folder="") {
+  async OpenFolderDialog(initial_folder=""): Promise<string|null> {
   
     if(initial_folder !== "" && initial_folder !== undefined && initial_folder !== null) {
       let proj_folder = await this.EvalA(`app.project.file.parent.fsName`);
@@ -82,7 +82,7 @@ class CSAdapter {
     let res = cep.fs.showOpenDialogEx(
       false,
       true,
-      "Select Base Path",
+      "Select a Folder",
       initial_folder
     );
 
@@ -90,9 +90,9 @@ class CSAdapter {
 
       console.log("Selected folder: " + res.data[0]);
 
-      let rel_path = await this.EvalA(
+      let rel_path:string = await this.EvalA(
         `GetRelativeFolderPath("${encodeURIComponent(res.data[0])}")`
-      );
+      )as string;
 
       console.log("Relative path: " + rel_path);
 
@@ -119,6 +119,8 @@ class CSAdapter {
    * @returns {Promise<string|null>} The selected file path or null if the user cancels the dialog.
    */
 async OpenFileDialog(initial_folder) {
+
+  console.log("OpenFileDialog called with initial_folder: " + initial_folder);
 
     let i_folder = initial_folder || "";
 

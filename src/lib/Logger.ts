@@ -1,7 +1,7 @@
 //This is the way to import the node modules in the CEP environment
 //Is a mix of node.js and browser environment
 
-import CSAdapter from "./CSAdapter.mjs";
+import CSAdapter from "./CSAdapter.js";
 
 // @ts-ignore
 let fs = cep_node.require('fs');
