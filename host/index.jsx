@@ -1,29 +1,11 @@
 /**
 This is a CEP extension for After Effects that provides automation tools for mograph templates.
-The user can either use a table or an external CSV file to populate the template. 
-Each row in the table or CSV file will be used to populate a single instance of the template.
+The user can either use a table or an external CSV file to populate the After Effects composition that makes the template.
 
 This file is the CEP side of the app. The javascript app will make requests through window.__adobe_cep__.evalScript and those requests will be received in this file.
+
+Internal use functions are prefixed with an underscore `_`.
 */
-
-//Load JSON
-//@include "json2.js";
-
-//strict on
-
-//BatchRender(test_render_order);
-//SaveSettings('{"templates":[],"cloned":false}');
-//LoadSettings();
-//GetTemplates();
-//ExtractPropTypesNames();
-//GatherRenderTemplates();
-//PreviewRow(test_prev_template, 0);
-
-//ImportFile();
-
-//_ImportFootageItem(test_replaceable_import);
-
-//var result = $.colorPicker(-1);
 
 /**
  * @typedef {import('../src/lib/Settings').Settings} Settings
@@ -742,7 +724,8 @@ function _ImportFootageItem(path, proj_folder) {
   }
 
   //Check if the footage item exists in the project
-  var import_file = new File(path.replaceAll("\\\\", "/"));
+  //Replace the <b> tag used to indicate the file was manually selected
+  var import_file = new File(path.replaceAll("\\\\", "/").replaceAll("<b>", "").replaceAll("</b>", ""));
 
   var repl_f_item;
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
@@ -1071,7 +1054,7 @@ function _EscapeJSON(str) {
 }
 
 /**
- * Creates the subolderls needed to save the file at te given path.
+ * Creates the subfolders needed to save the file at te given path.
  * @param {string} path
  */
 function _CreateSubfolders(path) {

@@ -3,7 +3,8 @@
   import { Column } from "./Settings";
   import Logger from './Logger.ts';
   import EyeDropper from "../assets/EyeDropper.svelte";
-  import CSAdapter from "./CSAdapter.mjs";
+  import CSAdapter from "./CSAdapter.ts";
+    import { File } from "radix-icons-svelte";
 
   const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'PropInput');
 
@@ -155,6 +156,22 @@
     //l.debug('CallChange called with value:', value);
   }
 
+  function PickFile() {
+    //l.debug('PickFile called');
+    let csa = new CSAdapter();
+
+    let current_file = value.replace(/<b>|<\/b>/g, '')||"";
+
+    csa.OpenFileDialog(current_file).then((file) => {
+      if (file !== undefined && file !== null) {
+        value = `<b>${file}</b>`;
+        DebounceChange();
+      }
+    }).catch((err) => {
+      l.error('Error picking file:', err);
+    });
+  }
+
   //NUMERIC SLIDER FUNCTIONS
 
   let mouse_start_x;
@@ -192,7 +209,7 @@
   }
 
   function Dragging(event) {
-    //claculate the distance moved
+    //Calculate the distance moved
     let distance = event.clientX - mouse_start_x;
 
     //calculate the new value
@@ -246,7 +263,10 @@
     />
   </div>
 {:else if type === Column.PropertyValueType.SRC_ALTERNATE}
-  {src_alt_val}
+  {@html src_alt_val}  
+  <button class="pick_file" style="width: 22px;" data-variant="discrete" onclick={PickFile}>
+    <File/>
+  </button>
 {/if}
 
 {#snippet array_input(index)}
@@ -316,4 +336,15 @@
     background: none;
     border: none;
   }
+
+  .pick_file {
+    visibility: hidden;
+  }
+
+  :global(td:hover .pick_file){
+    visibility: visible;
+  }
+
+
+
 </style>

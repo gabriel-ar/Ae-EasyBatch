@@ -390,7 +390,7 @@ class Template {
   }
 
 
-    /**Resolve the save paths of dependant composition on dependant mode */
+  /**Resolve the save paths of dependant composition on dependant mode */
   ResolveSavePathDeps() {
 
     console.log("Resolving save paths for all rows of dependant comps");
@@ -402,7 +402,7 @@ class Template {
       console.log("Current save path", dep_setts.save_pattern);
       dep_setts.save_paths = [];
 
-      for(let row_i in this.rows){
+      for (let row_i in this.rows) {
         dep_setts.save_paths.push(this.ResolveSavePath(dep_setts.save_pattern, row_i));
       }
     }
@@ -444,7 +444,7 @@ class Template {
 
   /**
    * Resolves the path for the alternate source for a given row
-   * Alternate sources are the name we give to the footage we import fulfill a replaceable
+   * Alternate sources are the name we give to the footage we import to fulfill a replaceable
    */
   ResolveAltSrcPaths() {
     this.NormalizeRows();
@@ -664,9 +664,14 @@ class Column {
   ResolveAltSrcPaths(columns) {
     let row_count = this.values.length;
 
+    let old_values = this.values;
+
     this.values = [];
     for (let i = 0; i < row_count; i++) {
-      this.values.push(this.ResolveAltSrcPath(i, columns));
+      if (!old_values[i].startsWith("<b>"))
+        this.values.push(this.ResolveAltSrcPath(i, columns));
+      else
+        this.values.push(old_values[i]);
     }
   }
 
