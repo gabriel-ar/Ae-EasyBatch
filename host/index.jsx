@@ -7,6 +7,9 @@ This file is the CEP side of the app. The javascript app will make requests thro
 Internal use functions are prefixed with an underscore `_`.
 */
 
+//@include "json2.js"
+//script EasyBatch
+
 /**
  * @typedef {import('../src/lib/Settings').Settings} Settings
  * @typedef {import('../src/lib/Settings').Template} Template
@@ -258,6 +261,7 @@ function LoadSettings() {
     }
 
     result.success = true;
+    _SetGlobalCurrentPath();
   } catch (e) {
     result.success = false;
     result.error_obj = e;
@@ -668,6 +672,11 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
 
           break;
         }
+        
+        //MOGRAPH COMMENT
+        else if(templ_prop.matchName === "ADBE Layer Overrides Comment"){
+          continue;
+        }
 
         //COLOR / POSITION / SCALE / ROTATION
         else {
@@ -699,9 +708,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
  */
 
 function _ImportFootageItem(path, proj_folder) {
-  //Update the Folder.current global so that relative paths can be solved
-  if (app.project.file !== null)
-    Folder.current = new Folder(app.project.file.path);
+  _SetGlobalCurrentPath();
 
   //Check or create a folder in the project to organize the replaceable files
   var folder;
@@ -858,9 +865,7 @@ function BatchGenerate(str_template) {
 }
 
 function _QueueComp(comp, path, render_preset, output_preset) {
-  //Update the Folder.current global so that relative paths can be solved
-  if (app.project.file !== null)
-    Folder.current = new Folder(app.project.file.path);
+  _SetGlobalCurrentPath();
 
   //Create a new render queue item
   var rq_item = app.project.renderQueue.items.add(comp);
@@ -956,6 +961,12 @@ function PickColorFromPreview(startValue) {
   null_layer.remove();
 
   return JSON.stringify(res_value);
+}
+
+function _SetGlobalCurrentPath() {
+  if (app.project.file !== null) {
+    Folder.current = new Folder(app.project.file.path);
+  }
 }
 
 function GetRelativeFolderPath(path) {
@@ -1127,6 +1138,7 @@ function BatchRenderDepComps(str_template) {
 }
 
 function RenderDeps() {
+  _SetGlobalCurrentPath();
   while (dep_render_row < dep_render_tmpl.rows.length) {
     _ApplyTemplProps(props_layer, dep_render_tmpl, dep_render_row, true);
 
@@ -1190,3 +1202,5 @@ extend(ResponseError, Error); // B inherits A's prototype
 String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };
+
+_SetGlobalCurrentPath();
