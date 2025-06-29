@@ -17,6 +17,51 @@ class CSAdapter {
   // @ts-ignore
   a_cep = window.__adobe_cep__;
 
+  async Eval(method, ...args): Promise<string> {
+    return new Promise((resolve) => {
+
+    //build the script to be evaluated
+    let script = `${method}(`;
+    if (args.length > 0) {
+      script += args.map(arg => {
+        if(typeof arg === "string" ){arg = '"' + encodeURIComponent(arg) + '"'}
+        return arg;
+      }
+    ).join(", ");
+    }
+    script += `)`;
+
+    this.a_cep.evalScript(script, (result) => { 
+      resolve(result);
+    });
+  });//Promise
+  }
+
+  EvalSync(method, callback, ...args) {
+   //build the script to be evaluated
+    let script = `${method}(`;
+    if (args.length > 0) {
+      script += args.map(arg => {
+        if(typeof arg === "string" ){arg = '"'+ encodeURIComponent(arg)+'"'}
+        return arg;
+      }
+    ).join(", ");
+    }
+    script += `)`;
+
+    console.warn("EvalSync script: " + script);
+
+    if (callback === null || callback === undefined) {
+      callback = function (result) {
+        console.log("From Eval undefined callback: " + result);
+      };
+    }
+
+    this.a_cep.evalScript(script, callback);
+  }
+
+
+
   /**
    * Evaluates a JavaScript script, which can use the JavaScript DOM
    * of the host application.
@@ -26,20 +71,20 @@ class CSAdapter {
    *          If execution fails, the callback function receives the error message \c EvalScript_ErrMessage.
    */
   // @ts-ignore
-  Eval(script, callback?) {
+  EvalDirect(script, callback?) {
     if (callback === null || callback === undefined) {
       callback = function (result) {
         console.log("From Eval undefined callback: " + result);
       };
     }
 
-    return this.a_cep.evalScript(script, callback);
+   return this.a_cep.evalScript(script, callback);
   }
 
 
-  async EvalA(script) {
+  async EvalDirectAsync(script) {
     return new Promise((resolve, reject) => {
-      this.Eval(script, (result) => {
+      this.EvalDirect(script, (result) => {
         resolve(result);
       });
     });
@@ -52,7 +97,7 @@ class CSAdapter {
     let path =
       this.a_cep.getSystemPath(CSAdapter.SystemPath.EXTENSION) + "/host/" + name;
     console.log("Loading .jsx in: " + path);
-    return this.Eval(`$.evalFile("${path}")`);
+    return this.EvalDirect(`$.evalFile("${path}")`);
   }
 
   GetHostEnvironment() {
@@ -71,7 +116,7 @@ class CSAdapter {
   async OpenFolderDialog(initial_folder=""): Promise<string|null> {
   
     if(initial_folder !== "" && initial_folder !== undefined && initial_folder !== null) {
-      let proj_folder = await this.EvalA(`app.project.file.parent.fsName`);
+      let proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`);
       
       let path = cep_node.require("path");
       initial_folder = path.join(proj_folder, initial_folder);
@@ -90,7 +135,7 @@ class CSAdapter {
 
       console.log("Selected folder: " + res.data[0]);
 
-      let rel_path:string = await this.EvalA(
+      let rel_path:string = await this.EvalDirectAsync(
         `GetRelativeFolderPath("${encodeURIComponent(res.data[0])}")`
       )as string;
 
@@ -128,7 +173,7 @@ async OpenFileDialog(initial_folder) {
     let res = cep.fs.showOpenDialogEx(false, false, "Select File", i_folder);
 
     if (res.data[0] !== undefined && res.data[0] !== null) {
-      this.Eval(
+      this.EvalDirect(
         `GetRelativeFilePath("${encodeURIComponent(res.data[0])}")`,
         (res) => {
           resolve(decodeURIComponent(res));

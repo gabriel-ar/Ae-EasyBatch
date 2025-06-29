@@ -124,7 +124,7 @@
     let current_col = JSON.stringify([value[0], value[1], value[2]]);
 
     let csa = new CSAdapter();
-    csa.Eval(`PickColorFromPreview(${current_col})`, (result) => {
+    csa.EvalDirect(`PickColorFromPreview(${current_col})`, (result) => {
 
       try {
         result = JSON.parse(result);

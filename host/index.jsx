@@ -272,8 +272,7 @@ function LoadSettings() {
 }
 
 function SaveSettings(s_request) {
-  //Escape new lines
-  var s_request = _EscapeJSON(s_request);
+  _EscapeArgs(arguments);
 
   /**@type {SaveSettingsResults} */
   var response = {};
@@ -324,6 +323,7 @@ function SaveSettings(s_request) {
 }
 
 function IsSameProject(proj_id) {
+  _EscapeArgs(arguments);
   /**@type {IsSameProjectResult} */
   var response = { success: true };
   try {
@@ -455,7 +455,7 @@ function _AdaptCompToTempl(render_comp, templ_comp) {
  * @param {number} row_i
  */
 function PreviewRow(s_template, row_i, is_auto_prev) {
-  var s_template = _EscapeJSON(s_template);
+  _EscapeArgs(arguments);
   if (is_auto_prev === undefined) {
     is_auto_prev = false;
   }
@@ -517,6 +517,7 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
  * @param {string} s_template
  */
 function GetCurrentValues(s_template) {
+  _EscapeArgs(arguments);
   /**
    * @type {GetCurrentValuesResults}
    */
@@ -750,7 +751,7 @@ function _ImportFootageItem(path, proj_folder) {
 }
 
 function BatchRender(str_template, folder) {
-  str_template = _EscapeJSON(str_template);
+  _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
   var result = { errors: [] };
@@ -812,7 +813,7 @@ function BatchRender(str_template, folder) {
 }
 
 function BatchGenerate(str_template) {
-  str_template = _EscapeJSON(str_template);
+  _EscapeArgs(arguments);
   /** @type {BatchGenerateResult} */
   var result = { errors: [] };
 
@@ -937,6 +938,7 @@ function GatherRenderTemplates() {
 }
 
 function PickColorFromPreview(startValue) {
+  _EscapeArgs(arguments);
   if (!startValue || startValue.length != 3) {
     startValue = [1, 1, 1]; // default value
   }
@@ -970,7 +972,8 @@ function _SetGlobalCurrentPath() {
 }
 
 function GetRelativeFolderPath(path) {
-  var folder = new Folder(decodeURIComponent(path));
+  _EscapeArgs(arguments);
+  var folder = new Folder(path);
   if (folder.exists) {
     if (app.project.file !== null) {
       var base_path = app.project.file.path;
@@ -983,6 +986,7 @@ function GetRelativeFolderPath(path) {
 }
 
 function GetRelativeFilePath(path) {
+  _EscapeArgs(arguments);
   var file = new File(path);
   if (file.exists) {
     if (app.project.file !== null) {
@@ -996,6 +1000,7 @@ function GetRelativeFilePath(path) {
 }
 
 function SelectFolder(default_path) {
+  _EscapeArgs(arguments);
   var folder;
 
   //Setup the default path for the folder selection dialog
@@ -1030,7 +1035,7 @@ function ImportFile() {
 }
 
 function ExportFile(content) {
-  content = decodeURIComponent(content);
+  _EscapeArgs(arguments);
 
   var file = File.saveDialog("Save a file");
   file.open("w");
@@ -1038,15 +1043,12 @@ function ExportFile(content) {
   file.close();
 }
 
-function _EscapeJSON(str) {
-  return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
-}
-
 /**
  * Creates the subfolders needed to save the file at te given path.
  * @param {string} path
  */
 function _CreateSubfolders(path) {
+  _EscapeArgs(arguments);
   //remove the file name from the path
   var folder_path = path.substring(0, path.lastIndexOf("/"));
 
@@ -1077,9 +1079,7 @@ var props_layer = null;
 var dep_comps = [];
 
 function BatchRenderDepComps(str_template) {
-  writeLn("EasyBatch BatchRenderDepComps called");
-
-  str_template = _EscapeJSON(str_template);
+  _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
   var result = { errors: [] };
@@ -1181,7 +1181,7 @@ function RenderDeps() {
   }
 }
 
-// polyfills
+// POLYFILLS //
 Object.create = function (o) {
   function F() {}
   F.prototype = o;
@@ -1202,5 +1202,21 @@ extend(ResponseError, Error); // B inherits A's prototype
 String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };
+
+// UTILS //
+/**Escapes string arguments that are URI encoded */
+function _EscapeArgs(args){
+    if (!args || args.length === 0) return;
+
+    for (var i = 0; i < args.length; i++) {
+        if (typeof args[i] === 'string') {
+            args[i] = decodeURIComponent(args[i]);
+        }
+    }
+}
+
+function _EscapeJSON(str) {
+  return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
+}
 
 _SetGlobalCurrentPath();

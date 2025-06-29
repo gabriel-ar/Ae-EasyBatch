@@ -93,13 +93,13 @@
 
     //TODO Find another way to trigger the save settings
     window.onblur = (e) => {
-      IsSameProject();
+      //IsSameProject();
     };
   }
 
   function GetTemplates(): Promise<Template[]> {
     return new Promise((resolve, reject) => {
-      csa.Eval("GetTemplates()", function (s_result) {
+      csa.Eval("GetTemplates").then((s_result) => {
         try {
           l.debug("GetTemplates Eval result:", s_result);
           /**@type {GetTmplsResult}*/
@@ -122,7 +122,7 @@
 
   function GetSettings(): Promise<Settings> {
     return new Promise((resolve, reject) => {
-      csa.Eval(`LoadSettings()`, function (s_result) {
+      csa.Eval("LoadSettings").then((s_result) => {
         l.debug("GetSettings Eval result:", s_result);
 
         /**@type {GetSettsResult} */
@@ -181,7 +181,7 @@
     l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
-    csa.Eval(`SaveSettings('${s_request}')`, function (s_result) {
+    csa.Eval("SaveSettings", s_request).then((s_result) => {
       /**@type {SaveSettingsResults}*/
       let result;
 
@@ -233,7 +233,7 @@
     }
 
     l.debug("IsSameProject called with project ID:", setts.id);
-    csa.Eval(`IsSameProject("${setts.id}")`, function (s_result) {
+    csa.Eval("IsSameProject", setts.id).then((s_result) => {
       /**@type {IsSameProjectResult} */
       let result;
 
@@ -288,7 +288,7 @@
 
   function GetRenderSettsTempls() {
     return new Promise((resolve, reject) => {
-      csa.Eval(`GatherRenderTemplates()`, function (s_result) {
+      csa.Eval("GatherRenderTemplates").then((s_result) => {
         /**@type {RenderSettsResults}*/
         let result;
 
@@ -387,7 +387,7 @@
     let s_templt = JSON.stringify(send_templ);
     l.debug(`Previewing Row:`, s_templt, row_i, live);
 
-    csa.Eval(`PreviewRow('${s_templt}', ${0}, ${live})`, function (s_result) {
+    csa.Eval("PreviewRow", s_templt, 0, live).then((s_result) => {
       l.debug(`Preview Row Result`, s_result);
     });
   }
@@ -400,7 +400,7 @@
     let s_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
     l.debug("SampleRow called with row index:", row_i);
 
-    csa.Eval(`GetCurrentValues('${s_templt}')`, function (s_result) {
+    csa.Eval("GetCurrentValues", s_templt).then((s_result) => {
       l.debug(`Sample Row Result: ${s_result}`);
 
       let result;
@@ -438,9 +438,9 @@
     let string_templt = JSON.stringify(send_templ);
     l.debug("Rendering:", string_templt);
 
-    csa.Eval(
-      `BatchRender('${string_templt}', "${setts.render_comps_folder}")`,
-      function (s_result) {
+    csa
+      .Eval("BatchRender", string_templt, setts.render_comps_folder)
+      .then((s_result) => {
         /**@type {BatchRenderResult}*/
         let result;
 
@@ -463,8 +463,7 @@
         } else {
           l.debug(`Batch Render Started in Render Single Row`);
         }
-      },
-    );
+      });
   }
 
   let render_errors = [];
@@ -480,9 +479,9 @@
     l.debug("BatchRender called");
     l.log("Rendering:", setts.tmpls[setts.sel_tmpl]);
 
-    csa.Eval(
-      `BatchRender('${string_templt}', "${setts.render_comps_folder}")`,
-      function (s_result) {
+    csa
+      .Eval("BatchRender", string_templt, setts.render_comps_folder)
+      .then((s_result) => {
         /**@type {BatchRenderResult}*/
         let result;
 
@@ -512,8 +511,7 @@
             l.debug(`Batch Render Errors`, render_errors);
           }
         }
-      },
-    );
+      });
   }
 
   function BatchGenerate() {
@@ -524,7 +522,7 @@
     l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
-    csa.Eval(`BatchGenerate('${string_templt}')`, function (s_result) {
+    csa.Eval("BatchGenerate", string_templt).then((s_result) => {
       /**@type {BatchGenerateResult}*/
       let result;
 
@@ -558,7 +556,7 @@
     l.debug("BatchOneToMany called");
     l.log("Rendering:", string_templt);
 
-    csa.Eval(`BatchRenderDepComps('${string_templt}')`, function (s_result) {
+    csa.Eval("BatchRenderDepComps", string_templt).then((s_result) => {
       /**@type {BatchRenderResult}*/
       let result;
 
@@ -715,7 +713,7 @@
    */
   function ImportCSV() {
     l.debug("ImportCSV called");
-    csa.Eval(`ImportFile()`, function (result) {
+    csa.Eval("ImportFile").then((result) => {
       if (result === "null") return;
 
       let decoded = decodeURIComponent(result);
@@ -729,10 +727,8 @@
   function ExportCSV() {
     let content = setts.tmpls[setts.sel_tmpl].MakeCSV();
     l.debug("ExportCSV called");
-    //URL encode the content
-    content = encodeURIComponent(content);
 
-    csa.Eval(`ExportFile('${content}')`, function (result) {
+    csa.Eval("ExportFile", content).then((result) => {
       if (result == "null") return;
     });
   }
@@ -740,17 +736,15 @@
   function SaveJSON() {
     let content = JSON.stringify(setts);
     l.debug("SaveJSON called");
-    //URL encode the content
-    content = encodeURIComponent(content);
 
-    csa.Eval(`ExportFile('${content}')`, function (result) {
+    csa.Eval("ExportFile", content).then((result) => {
       if (result == "null") return;
     });
   }
 
   function LoadJSON() {
     l.debug("LoadJSON called");
-    csa.Eval(`ImportFile()`, function (result) {
+    csa.Eval("ImportFile").then((result) => {
       if (result === "null") return;
 
       let decoded = decodeURIComponent(result);

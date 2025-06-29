@@ -103,7 +103,7 @@ class Settings {
   /**Unique ID created by the constructor */
   id = null;
 
-  MakeId() {
+  MakeId():string {
     return (
       Math.random().toString(36).substring(2, 15) +
       Math.random().toString(36).substring(2, 15)
