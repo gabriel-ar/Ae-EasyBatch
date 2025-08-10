@@ -71,6 +71,12 @@ export interface RenderSettsResults extends Result {
   output_modules_templs?: string[];
 }
 
+/** Result for getting settings */
+export interface GetAllCompsResult extends Result {
+  /** Collection of after effects compositions*/
+  comps?: {id: string; name: string}[];
+}
+
 /** Result for saving settings */
 export type SaveSettingsResults = Result;
 

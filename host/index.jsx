@@ -17,6 +17,7 @@ Internal use functions are prefixed with an underscore `_`.
  * @typedef {import('../src/lib/Settings').Comp} Comp
  * @typedef {import('../src/lib/Settings').DepCompSetts} DepCompSetts
  * @typedef {import('../src/lib/Messaging').GetSettsResult} GetSettsResult
+ * @typedef {import('../src/lib/Messaging').GetAllCompsResult} GetAllCompsResult
  * @typedef {import('../src/lib/Messaging').SaveSettingsResults} SaveSettingsResults
  * @typedef {import('../src/lib/Messaging').BatchRenderResult} BatchRenderResult
  * @typedef {import('../src/lib/Messaging').RenderSettsResults} RenderSettsResults
@@ -173,6 +174,35 @@ function _GetDependentComps(parent_comp) {
     }
 
   return deps;
+}
+
+/**
+ * Returns all compositions in the project.
+ */
+function GetAllComps() {
+  /**@type {GetAllCompsResult} */
+  var result = {
+    success: false,
+    comps: []
+  };
+
+  try {
+    //Iterate over all items in the project
+    for (var i = 1; i <= app.project.items.length; i++) {
+      var item = app.project.items[i];
+      //Check if the item is a composition
+      if (item instanceof CompItem) {
+        result.comps.push({ id: item.id, name: item.name });
+      }
+    }
+    result.success = true;
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "index.jsx @ GetAllComps";
+  }
+
+  return JSON.stringify(result);
 }
 
 function ExtractPropTypesNames() {
