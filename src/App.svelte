@@ -266,21 +266,20 @@
       //Check if there's any template selected, otherwise just select the first one
 
       if (setts.tmpls[setts.sel_tmpl] !== undefined) {
+
         if (setts.tmpls[setts.sel_tmpl].render_setts_templ == "") {
           setts.tmpls[setts.sel_tmpl].render_setts_templ =
-            render_setts_templs.render_templs[0];
+            render_setts_templs.render_templs[render_setts_templs.default_render_templ] || render_setts_templs.render_templs[0];
         }
 
         if (setts.tmpls[setts.sel_tmpl].render_out_module_templ == "") {
           setts.tmpls[setts.sel_tmpl].render_out_module_templ =
-            render_setts_templs.output_modules_templs[0];
+            render_setts_templs.output_modules_templs[render_setts_templs.default_output_module_templ] || render_setts_templs.output_modules_templs[0];
         }
       }
 
-      last_opened_tab = "output";
-    } else {
+     }
       last_opened_tab = setts.active_tab;
-    }
   }
 
   /** @type {RenderSettsResults}*/
@@ -648,12 +647,72 @@
       old_val.slice(cursor_pos);
   }
 
+  //Updates the preview of the generate names based on the current generate pattern
   $: {
     if (setts.tmpls[setts.sel_tmpl] !== undefined) {
       setts.tmpls[setts.sel_tmpl].generate_names[0] = setts.tmpls[
         setts.sel_tmpl
       ].ResolveCompName(setts.tmpls[setts.sel_tmpl].generate_pattern, 0);
     }
+  }
+
+  //If the mode is dependant, get all the composition so they're available in the dropdown
+  $: {
+    if (setts.out_mode === "dependant") {
+      GetAllComps();
+      l.debug(setts.tmpls[setts.sel_tmpl].dep_comps);
+    }
+  }
+
+  let all_comps : Comp[] = [];
+  function GetAllComps() {
+    csa.Eval("GetAllComps").then((s_result) => {
+      /**@type {GetAllCompsResult}*/
+      let result;
+
+      try {
+        result = JSON.parse(s_result);
+      } catch (e) {
+        l.error("Failed to parse all comps", s_result);
+        return;
+      }
+
+      if (result.success == false) {
+        l.error("Failed to get all comps", result.error_obj);
+        return;
+      } else {
+        all_comps = result.comps;
+        l.debug(`Got All Comps`, all_comps);
+      }
+    });
+  }
+
+  let selected_comp = "";
+  function AddCompToDependents() {
+    if (selected_comp !== "") {
+      let comp = all_comps.find(
+        (c) => c.id === selected_comp,
+      );
+
+      if (comp) {
+        setts.tmpls[setts.sel_tmpl].AddDependantComp(
+          comp,
+          render_setts_templs,
+        );
+        setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
+
+        //force Svelte reactivity
+        setts.tmpls[setts.sel_tmpl].dep_comps = setts.tmpls[setts.sel_tmpl].dep_comps;
+      }
+    }
+  }
+
+  function DeleteDependantComp(dep_comp_id) {
+    setts.tmpls[setts.sel_tmpl].RemoveDependantComp(dep_comp_id);
+    setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
+
+    //force Svelte reactivity
+    setts.tmpls[setts.sel_tmpl].dep_comps = setts.tmpls[setts.sel_tmpl].dep_comps;
   }
 
   let sel_add_field_gen = "row_number";
@@ -921,6 +980,9 @@
 
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
+     <p style="font-size: small; margin: 0.5em 0;">
+      Renders your template composition once for every row of data.</p>
+
       <h4>
         File Name Pattern<button
           class="info"
@@ -1007,6 +1069,9 @@
       {/if}
     {:else if setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
+       
+     <p style="font-size: small; margin: 0.5em 0;">
+      For each row of data, it generates a composition that contains your template composition with the properties changed.</p>
 
       <h4>Project Name Pattern</h4>
       <textarea
@@ -1056,9 +1121,13 @@
         />
       </div>
 
-      <button class="setting" onclick={BatchGenerate}>Generate Projects</button>
+      <button class="setting" onclick={BatchGenerate}>Generate Compositions</button>
     {:else if setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
+
+      <p style="font-size: small; margin: 0.5em 0;">
+        Renders the compositions selected below per each row of data. Useful if you want to render compositions that include your main template composition.
+      </p>
 
       <h4>Common Base Path</h4>
 
@@ -1067,6 +1136,22 @@
         <div><button onclick={SelRenderBasePath}>Choose Folder...</button></div>
       </div>
 
+      <h4>Add Composition to Renders</h4>
+
+      <div class="setting">
+        <Dropdown
+          labels={all_comps.map((comp) => comp.name)}
+          options={all_comps.map((comp) => comp.id)}
+          bind:value={selected_comp}
+        />
+
+        <button
+          onclick={() => {
+            AddCompToDependents();
+          }}>Add</button>
+      </div>
+
+      <!-- Dependant Compositions -->
       {#each setts.tmpls[setts.sel_tmpl].dep_comps as dc}
         <div class="out_sub_render">
           <input
@@ -1074,7 +1159,14 @@
             style="margin: 5px 5px 3px 0;"
             bind:checked={setts.tmpls[setts.sel_tmpl].dep_config[dc.id].enabled}
           />
-          <h4 style="display: inline;">{dc.name}</h4>
+          <h4 style="display: inline;">{dc.name}</h4> 
+          <button
+                  class="delete_col"
+                  style="vertical-align: top;"
+                  data-tooltip="Delete column"
+                  data-tt-pos="bottom-right"
+                  onclick={() => DeleteDependantComp(dc.id)}><Trash /></button
+                >
 
           <div class="setting">
             <h5>

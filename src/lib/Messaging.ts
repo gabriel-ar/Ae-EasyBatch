@@ -63,19 +63,26 @@ export interface GetTmplsResult extends Result {
   tmpls?: Template[];
 }
 
+/** Result for getting settings */
+export interface GetAllCompsResult extends Result {
+  /** Collection of after effects compositions*/
+  comps?: {id: string; name: string; is_dependent: boolean}[];
+}
+
 /** Result for rendering settings */
 export interface RenderSettsResults extends Result {
   /** Render templates */
   render_templs?: string[];
+
+  default_render_templ?: number;
+
   /** Output modules templates */
   output_modules_templs?: string[];
+
+  default_output_module_templ?: number;
 }
 
-/** Result for getting settings */
-export interface GetAllCompsResult extends Result {
-  /** Collection of after effects compositions*/
-  comps?: {id: string; name: string}[];
-}
+
 
 /** Result for saving settings */
 export type SaveSettingsResults = Result;

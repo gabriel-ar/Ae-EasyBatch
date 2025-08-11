@@ -1,5 +1,5 @@
 import papa from "papaparse";
-import { type SaveSettsRequest } from "./Messaging";
+import { type RenderSettsResults, type SaveSettsRequest } from "./Messaging";
 import "./ces.t.ts"
 import Logger from "./Logger.js";
 
@@ -23,6 +23,10 @@ class Settings {
       });
   }
 
+  /**
+   * Updates the templates stored in settings with the templates retrieved from the host
+   * @param host_templates 
+   */
   UpdateTemplates(host_templates: object[]) {
     let scanned_templs: Template[] = [];
     host_templates.forEach((templ) => {
@@ -100,6 +104,11 @@ class Settings {
 
   auto_preview = true;
 
+  /**
+   * At render time, only update the columns that are visible in the table
+   */
+  update_visible_col_only = true;
+
   /**Unique ID created by the constructor */
   id = null;
 
@@ -147,7 +156,7 @@ class Template {
   }
 
   /**
-   * Updates the columns of the template stored in settings with the new template
+   * Updates the columns of the template stored in settings with the template info retrieved from the host
    * @param {Template} new_template
    */
   Update(new_template) {
@@ -208,52 +217,54 @@ class Template {
 
     this.rows = this.#AsRows();
 
-    this.UpdateDependantComps(new_template.dep_comps);
+    //this.UpdateDependantComps(new_template.dep_comps);
   }
 
   /**
-   * Updated the dependant comps of the template and the settings associated with them
+   * Updates the dependant comps of the template and the settings associated with them
    */
-  UpdateDependantComps(new_dep_comps: Comp[]) {
+  CleanupDependantComps(all_comps: Comp[]) {
 
-    //updates the dependant comps of the template
-    this.dep_comps = new_dep_comps;
-
-    // console.log("Updating dependant comps", new_dep_comps);
-    // console.log("Current dependant comps", this.dep_comps);
-    // console.log("Current dependant comps settings", this.dep_config);
+    //Check current dependant comps against all comps to remove references to comps that no longer exist
+    this.dep_comps = this.dep_comps.filter((dc) => {
+      return all_comps.some((comp) => comp.id === dc.id);
+    });
 
     for (let i_conf in this.dep_config) {
       //Delete stray dep config settings that are not in the new dependant comps
-      if (!new_dep_comps.some((dep_comp) => dep_comp.id === this.dep_config[i_conf].id)) {
+      if (!this.dep_comps.some((dep_comp) => dep_comp.id === this.dep_config[i_conf].id)) {
         console.log("Deleting stray settings for comp", this.dep_config[i_conf].id);
         delete this.dep_config[i_conf];
       }
     }
+  }
 
-    // Add new settings for the new dependant comps
-    new_dep_comps.forEach((new_dc) => {
+  AddDependantComp(comp: Comp, render_templs: RenderSettsResults) {
+    //Check if the comp is already a dependant comp
+    if (this.dep_comps.some((dc) => dc.id === comp.id)) {
+      return;
+    }
+    this.dep_comps.push(comp);
 
-      for (let i_conf in this.dep_config) {
-        //Check if the settings for the dependant comp already exist
-        if (this.dep_config[i_conf].id === new_dc.id) {
-          return;
-        }
-      }
+    //Add the new composition to the settings with id as key
+    this.dep_config[comp.id.toString()] = {
+      id: comp.id,
+      name: comp.name,
+      enabled: true,
+      render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
+      render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
+      save_pattern: "{base_path}/{comp_name}_{row_number}",
+      save_path: "",
+      save_paths: [],
+      single_frame: false,
+    };
 
-      //Add the new composition to the settings with id as key
-      this.dep_config[new_dc.id.toString()] = {
-        id: new_dc.id,
-        enabled: true,
-        render_setts_templ: "",
-        render_out_module_templ: "",
-        save_pattern: "",
-        save_path: "",
-        save_paths: [],
-        single_frame: false,
-      };
-    });
+    this.ResolveSavePathFirstDeps(0);
+  }
 
+  RemoveDependantComp(id: string) {
+    this.dep_comps = this.dep_comps.filter((dc) => dc.id !== id);
+    delete this.dep_config[id];
   }
 
   /**
@@ -284,7 +295,7 @@ class Template {
   /**
    * Selected row in the table
    */
-  save_pattern = "{base_path}";
+  save_pattern = "{base_path}/{template_name}_{row_number}";
 
   base_path = "";
 
@@ -344,10 +355,11 @@ class Template {
   /**
    * Resolves the save path for the output a given row
    */
-  ResolveSavePath(pattern, index) {
+  ResolveSavePath(pattern, index, comp_name?: string) {
     pattern = pattern.replaceAll("{base_path}", this.base_path);
     pattern = pattern.replaceAll("{row_number}", index);
     pattern = pattern.replaceAll("{template_name}", this.name);
+    pattern = pattern.replaceAll("{comp_name}", comp_name || this.comp);
 
     //Replace the increment pattern
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
@@ -375,17 +387,17 @@ class Template {
     }
   }
 
-  /**Resolve the save paths of dependant composition on dependant mode */
+  /**Resolve the first save path of dependant compositions on dependant output mode */
   ResolveSavePathFirstDeps(index) {
 
-    console.log("Resolving save paths for dependant comps", index);
+    console.log("Resolving sample save path for dependant comps", index);
 
     for (let dc in this.dep_config) {
       let dep_setts = this.dep_config[dc];
 
       console.log("Resolving save path for dependant comp", dep_setts.id);
       console.log("Current save path", dep_setts.save_pattern);
-      dep_setts.save_path = this.ResolveSavePath(dep_setts.save_pattern, index);
+      dep_setts.save_path = this.ResolveSavePath(dep_setts.save_pattern, index, dep_setts.name);
     }
   }
 
@@ -403,7 +415,7 @@ class Template {
       dep_setts.save_paths = [];
 
       for (let row_i in this.rows) {
-        dep_setts.save_paths.push(this.ResolveSavePath(dep_setts.save_pattern, row_i));
+        dep_setts.save_paths.push(this.ResolveSavePath(dep_setts.save_pattern, row_i, dep_setts.name));
       }
     }
   }
@@ -791,6 +803,7 @@ type Comp = {
  */
 type DepCompSetts = {
   id: string;
+  name: string;
   enabled: boolean;
   render_setts_templ: string;
   render_out_module_templ: string;

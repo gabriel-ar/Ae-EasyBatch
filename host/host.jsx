@@ -122,14 +122,14 @@ function GetTemplates() {
         }
 
         //Finally check if the composition is included in other compositions
-        var deps = _GetDependentComps(templ_comp);
+        //var deps = _GetDependentComps(templ_comp);
 
         out_tmpls.push({
           comp: templ_comp.name,
           comp_id: templ_comp.id,
           name: templ_comp.motionGraphicsTemplateName,
           columns: cols,
-          dep_comps: deps,
+          dep_comps: [],
         });
 
         av_templ_comp.remove();
@@ -166,7 +166,7 @@ function _GetDependentComps(parent_comp) {
       if (
         comp instanceof CompItem &&
         comp.id !== parent_comp.id &&
-        comp.name !== "TemplatePreview" &&  
+        comp.name !== "TemplatePreview" &&
         comp.comment !== comment_render_comp
       ) {
         deps.push({ name: comp.name, id: comp.id });
@@ -178,8 +178,10 @@ function _GetDependentComps(parent_comp) {
 
 /**
  * Returns all compositions in the project.
+ * @param {string} used_in_id - The ID of the composition used to for the is_dependent parameter. Determines if the composition passed is included in the returned compositions.
+ * //todo: implement used_in_id
  */
-function GetAllComps() {
+function GetAllComps(used_in_id) {
   /**@type {GetAllCompsResult} */
   var result = {
     success: false,
@@ -630,6 +632,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
     for (var i_col = 0; i_col < template.columns.length; i_col++) {
       var col = template.columns[i_col];
 
+      //Check if the value exists in the column
+      //TODO report soft errors to the user
+      if (col.values[row_i] === undefined) {
+        continue;
+      }
+
       //Check if the column name matches the property name
       if (col.cont_name == templ_prop.name) {
         //set the value of the prop to the first value in the column
@@ -692,7 +700,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
             (!replace_orgs && templ_prop.value.text === col.values[row_i]) ||
             (replace_orgs &&
               templ_prop.essentialPropertySource.value.text ===
-                col.values[row_i])
+              col.values[row_i])
           ) {
             break;
           }
@@ -703,9 +711,9 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
 
           break;
         }
-        
+
         //MOGRAPH COMMENT
-        else if(templ_prop.matchName === "ADBE Layer Overrides Comment"){
+        else if (templ_prop.matchName === "ADBE Layer Overrides Comment") {
           continue;
         }
 
@@ -941,11 +949,14 @@ function _ClearRenderQueue() {
   }
 }
 
-function GatherRenderTemplates() {
+function GetRenderTemplates() {
   //Per the documentation we can only gather the templates once an item is in the render queue
 
   /**@type {RenderSettsResults}*/
   var result = {};
+
+  result.default_output_module_templ = 0;
+  result.default_render_templ = 0;
 
   try {
     //Setup the render the render composition and send it to the render queue
@@ -957,11 +968,29 @@ function GatherRenderTemplates() {
     //Delete the render queue item
     rq_item.remove();
 
+    // Default OM Index
+    for (var i = 28; i <= 60; i++) {
+      if (app.preferences.havePref("Output Module Preference Section v" + i, "Default OM Index", PREFType.PREF_Type_MACHINE_INDEPENDENT_OUTPUT)) {
+        result.default_output_module_templ =
+          app.preferences.getPrefAsLong("Output Module Preference Section v" + i, "Default OM Index", PREFType.PREF_Type_MACHINE_INDEPENDENT_OUTPUT);
+        break;
+      }
+    }
+
+    // Default RS Index
+    for (var i = 70; i <= 90; i++) {
+      if (app.preferences.havePref("Render Settings Preference Section v" + i + " ", "Default RS Index", PREFType.PREF_Type_MACHINE_INDEPENDENT_RENDER)) {
+        result.default_render_templ =
+          app.preferences.getPrefAsLong("Render Settings Preference Section v" + i + " ", "Default RS Index", PREFType.PREF_Type_MACHINE_INDEPENDENT_RENDER);
+        break;
+      }
+    }
+
     result.success = true;
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GatherRenderTemplates";
+    result.error_obj.source = "index.jsx @ GetRenderTemplates";
   }
 
   return JSON.stringify(result);
@@ -1097,65 +1126,39 @@ function _CreateSubfolders(path) {
 
 ///DEPENDANT COMPOSITIONS///
 
-/**@type {Template} */
-var dep_render_tmpl;
-
-/**@type {number} */
-var dep_render_row = 0;
-
-/**Layer used to get essential props and original props*/
-var props_layer = null;
-
-var dep_comps = [];
-
 function BatchRenderDepComps(str_template) {
   _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
   var result = { errors: [] };
-  dep_comps = [];
 
   try {
-    //reset the render row
-    dep_render_row = 0;
-    //Reset the render row
-    dep_comps = [];
 
-    /** @type {Template}*/
-    dep_render_tmpl = JSON.parse(str_template);
+    _SetGlobalCurrentPath();
 
+    /** @type {Template} */
+    var tmpl = JSON.parse(str_template);
 
     //Add the template composition to the render comp as a layer
     //to get essential properties and though those access the original properties
     var prev_comp = _SetupTemplatePreviewComp(true);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(dep_render_tmpl.comp_id);
+    var templ_comp = app.project.itemByID(tmpl.comp_id);
 
-    if (templ_comp == undefined)
+    if (templ_comp === undefined)
       throw new Error("@BatchRender: Template composition not found");
 
     //Add the template composition to the render comp as a layer to find the essential properties
-    props_layer = prev_comp.layers.add(templ_comp);
-
-    //Find dependent compositions
-    for (var i_comp = 0; i_comp < templ_comp.usedIn.length; i_comp++) {
-      var current_comp = templ_comp.usedIn[i_comp];
-
-      if (
-        dep_render_tmpl.dep_config[current_comp.id] !== undefined &&
-        dep_render_tmpl.dep_config[current_comp.id].enabled
-      ) {
-        dep_comps.push(current_comp);
-      }
-    }
+    var props_layer = prev_comp.layers.add(templ_comp);
 
     //Clean the render queue
     for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
       app.project.renderQueue.item(i).remove();
     }
 
-    RenderDeps();
+    // Start rendering the dependent compositions
+    RenderDeps(tmpl, props_layer);
 
     result.success = true;
     return JSON.stringify(result);
@@ -1167,37 +1170,36 @@ function BatchRenderDepComps(str_template) {
   }
 }
 
-function RenderDeps() {
-  _SetGlobalCurrentPath();
-  while (dep_render_row < dep_render_tmpl.rows.length) {
-    _ApplyTemplProps(props_layer, dep_render_tmpl, dep_render_row, true);
+
+/**
+ * Renders the dependent compositions
+ * @param {Template} tmpl
+ */
+function RenderDeps(tmpl, props_layer) {
+
+  //Loop through the rows and set the values of the template
+  for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
+    _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
     //Add the dependent compositions to the render queue
-    for (var i = 0; i < dep_comps.length; i++) {
+    for (var i = 0; i < tmpl.dep_comps.length; i++) {
+
       //Find the configuration of the dep composition to get the render settings and the path
       /**@type {DepCompSetts} */
-      var dep_config = null;
+      var dep_config = tmpl.dep_config[tmpl.dep_comps[i].id];
 
-      if (dep_render_tmpl.dep_config[dep_comps[i].id] !== undefined) {
-        dep_config = dep_render_tmpl.dep_config[dep_comps[i].id];
-      }
-
-      if (dep_config === null) {
-        throw new Error(
-          "@RenderNextRowDeps: Dependent composition configuration not found"
-        );
-      }
+      var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
 
       //Check if the render is a single frame
       if (dep_config.single_frame) {
         _CreateSubfolders(dep_config.save_paths[dep_render_row]);
         var file = new File(dep_config.save_paths[dep_render_row] + ".png");
-        dep_comps[i].saveFrameToPng(0, file);
+        dep_comp.saveFrameToPng(0, file);
 
 
       } else {
         var rq_item = _QueueComp(
-          dep_comps[i],
+          dep_comp,
           dep_config.save_paths[dep_render_row],
           dep_config.render_setts_templ,
           dep_config.render_out_module_templ
@@ -1206,14 +1208,12 @@ function RenderDeps() {
     }
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
-
-    dep_render_row++;
   }
 }
 
 // POLYFILLS //
 Object.create = function (o) {
-  function F() {}
+  function F() { }
   F.prototype = o;
   return new F();
 };
@@ -1235,14 +1235,14 @@ String.prototype.replaceAll = function (target, replacement) {
 
 // UTILS //
 /**Escapes string arguments that are URI encoded */
-function _EscapeArgs(args){
-    if (!args || args.length === 0) return;
+function _EscapeArgs(args) {
+  if (!args || args.length === 0) return;
 
-    for (var i = 0; i < args.length; i++) {
-        if (typeof args[i] === 'string') {
-            args[i] = decodeURIComponent(args[i]);
-        }
+  for (var i = 0; i < args.length; i++) {
+    if (typeof args[i] === 'string') {
+      args[i] = decodeURIComponent(args[i]);
     }
+  }
 }
 
 function _EscapeJSON(str) {

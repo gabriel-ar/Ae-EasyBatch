@@ -1,5 +1,5 @@
 ﻿# Define the target directory for the symbolic link
-$target_dir = "dist"
+$target_dir = "..\dist"
 
 # Resolve the relative path to an absolute path
 $script_dir = Split-Path -Path $PSCommandPath -Parent

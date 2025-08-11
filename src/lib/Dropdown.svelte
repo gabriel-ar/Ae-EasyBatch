@@ -1,10 +1,10 @@
-<script>
+<script lang="ts">
   import { ChevronDown } from "radix-icons-svelte";
   import Logger from './Logger.ts';
   import { getContext } from "svelte";
 
-  const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'Dropdown');
-  let { value = $bindable(), options, labels, variant = "", style="", style_list="" } = $props();
+  const l = getContext("logger") as Logger || new Logger(Logger.Levels.Warn, 'Dropdown');
+  let { value = $bindable(), options, labels, variant = "", style="", style_list="", onselect = (option, index) => {} } = $props();
 
   let sel_label = $state();
 
@@ -13,6 +13,7 @@
     e.target.blur();
     value = option;
     l.debug('Selected called with option:', option, 'and index:', index);
+    onselect(option, index);
   }
 
   $effect(() => {
