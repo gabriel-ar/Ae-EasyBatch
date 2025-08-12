@@ -933,7 +933,7 @@ function _QueueComp(comp, path, render_preset, output_preset) {
     var new_setts = {
       "Output File Info": {
         "Base Path": om_setts["Output File Info"]["Base Path"],
-        "File Template": output_file.name + "_[#].[fileExtension]",
+        "File Template": output_file.displayName + "_[#].[fileExtension]",
       },
     };
 

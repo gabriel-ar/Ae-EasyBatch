@@ -287,24 +287,24 @@
 
   function GetRenderSettsTempls() {
     return new Promise((resolve, reject) => {
-      csa.Eval("GatherRenderTemplates").then((s_result) => {
+      csa.Eval("GetRenderTemplates").then((s_result) => {
         /**@type {RenderSettsResults}*/
         let result;
 
         try {
           result = JSON.parse(s_result);
         } catch (e) {
-          l.error("Failed to parse render templates", s_result);
+          l.error("Failed to parse render templates:", s_result);
           reject(e);
           return;
         }
 
         if (result.success == false) {
-          l.error("Failed to load render templates", result.error_obj);
+          l.error("Failed to load render templates:", result.error_obj);
           reject(result.error_obj);
         } else {
           resolve(result);
-          l.log(`Parsed Render Settings Templates`, result);
+          l.log(`Parsed Render Settings Templates:`, result);
         }
       }); //Eval
     }); //Promise
