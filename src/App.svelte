@@ -1073,7 +1073,7 @@
      <p style="font-size: small; margin: 0.5em 0;">
       For each row of data, it generates a composition that contains your template composition with the properties changed.</p>
 
-      <h4>Project Name Pattern</h4>
+      <h4>Composition Name Pattern</h4>
       <textarea
         id="generate_proj_ta"
         spellcheck="false"
@@ -1239,7 +1239,6 @@
         </div>
       {/each}
 
-      <!-- <button onclick={BatchGenerate}>Generate Projects</button> -->
       <button onclick={BatchOneToMany}>Batch One to Many</button>
     {/if}
   </main>

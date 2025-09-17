@@ -1,21 +1,22 @@
 # EasyBatch
-The After Effects Template Automator.
+### Data to Renders in After Effects.
 
-This extension provides automation tools to batch render templates and generate projects based on data in form of a table.
+The extension automates the rendering of Motion Graphics Templates.
+Use a .csv file or input the data in the extension. Render one composition or many for each line of data. Streamline versioning of templates.
 
 For tutorials and the user guide, see [the documentation.](https://gabriel-ar.github.io/Ae-EasyBatch/)
 
 ## Development 
-For the UI the extension uses Svelte, vanilla css and Radix icons. To interact with After Effects it uses Adobe's ExtendScript (a subset of ECMAScript 3).
+The UI uses Svelte, vanilla css and Radix icons. To interface with After Effects, Adobe's ExtendScript.
 
 ### To start development:
-The only debugger actively maintained for ExtendScript its a VS Code extension. Therefore, the default text editor to write Common Extensibility Platform applications is VS Code.
+Use VS Code with the ExtendScript extension (only debugger maintained by Adobe).
 
 - Clone the repository.
 - Install the ExtendScript extension in VS Code.
 - Run npm install to install the necessary packages.
 
-- Set up your After Effects software for development (read the full guide [here](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_12.x/Documentation/CEP%2012%20HTML%20Extension%20Cookbook.md) )
+- Set up your After Effects software for development (read the full guide [here](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_12.x/Documentation/CEP%2012%20HTML%20Extension%20Cookbook.md))
     - MAC: Use the `debug_config.sh` script
     - WIN: Use `debug_config.bat`
 - Create a symlink in the [folder](https://github.com/Adobe-CEP/CEP-Resources/blob/master/CEP_12.x/Documentation/Debugging%20Handbook.md) where After Effects searches for extensions, pointing to your development `dist` folder. That way no copy is necessary on every build.

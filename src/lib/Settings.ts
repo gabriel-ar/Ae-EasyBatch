@@ -56,18 +56,18 @@ class Settings {
     });
 
     //Find the templates that are in both
-    let same_templs = this.tmpls.filter((old_templ) => {
+    let same_tmpls = this.tmpls.filter((old_templ) => {
       return scanned_templs.some(
         (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
     });
 
     //Update the templates with the new data
-    same_templs.forEach((old_templ) => {
+    same_tmpls.forEach((s_tmpl) => {
       let new_templ = scanned_templs.find(
-        (new_templ) => new_templ.comp_id === old_templ.comp_id
+        (new_templ) => new_templ.comp_id === s_tmpl.comp_id
       );
-      old_templ.Update(new_templ);
+      s_tmpl.Update(new_templ);
     });
   }
 
@@ -160,12 +160,14 @@ class Template {
    * @param {Template} new_template
    */
   Update(new_template) {
+    this.name = new_template.name;
+
     //Find the columns that are in the new template but not in the old one
     let new_cols = new_template.columns.filter((new_col) => {
       return !this.columns.some(
         (old_col) => old_col.cont_name === new_col.cont_name
       );
-    });
+    }); 
 
     //Add the new columns to the template
     new_cols.forEach((new_col) => {
