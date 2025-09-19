@@ -41,6 +41,7 @@ class Settings {
     //Add the new templates to the current ones
     new_templs.forEach((new_templ) => {
       this.tmpls.push(new_templ);
+      new_templ.InitTableColumns();
     });
 
     //Filter the templates that exist in the current array but not in the new one
@@ -112,7 +113,7 @@ class Settings {
   /**Unique ID created by the constructor */
   id = null;
 
-  MakeId():string {
+  MakeId(): string {
     return (
       Math.random().toString(36).substring(2, 15) +
       Math.random().toString(36).substring(2, 15)
@@ -121,11 +122,77 @@ class Settings {
 }
 
 class Template {
+
+  /** Template name */
+  name: string;
+
+  /** Name of the composition associated with the template */
+  comp: string;
+
+  /** ID Assigned by after effects, unique in this project */
+  comp_id: number;
+
+  active = true;
+
+  /** Each column is an essential graphic controller associated with the template */
+  columns: Column[] = [];
+
+  /** Returns the template as a table */
+  rows = [];
+
+  /** Relative base path used in the pattern for saving renders */
+  base_path = "";
+
+  /** The pattern used to save rendered compositions. This pattern will be resolved at render time */
+  save_pattern = "{base_path}/{template_name}_{row_number}";
+
+  render_setts_templ = "";
+  render_out_module_templ = "";
+
+  /** Pattern used to name generated compositions */
+  generate_pattern = "Generated_{increment:0000}";
+
+  /** Array of save paths calculated from the save pattern */
+  save_paths: string[] = [];
+
+  generate_names = [];
+
+  /**When importing footage to fulfill a replaceable, we place it in this folder inside the project */
+  imported_footage_folder = "~Imported by Automator";
+
+  /** When generating comps, we place them in this folder */
+  gen_comps_folder = "~Generated Comps";
+
+  /** Determines which columns are shown in the Data view from the indexes of `columns` */
+  table_cols = [0];
+
   /**
-   * @param {string} eg_name Name of the template given in the Essential Graphics panel
-   * @param {*} comp_name Name of the composition associated with the template
-   * @param {Column[]} columns Array of columns associated with 'controllers' in the Essential Graphics panel
+   * These are the compositions that have the current templates as a layer.
+   * Called dependant comps in the UI
    */
+  dep_comps: Comp[] = [];
+
+  /** Settings belonging to the dependant comps */
+  dep_config: { [key: string]: DepCompSetts } = {};
+
+
+  /** Used to remember the last path of the Save File dialogues, per categories */
+  import_file_lasts = {
+    csv_folder: null,
+    config_folder: null,
+  }
+
+  /** Used to remember the last path of the Open File dialogues, per categories */
+  save_file_lasts = {
+    csv_folder: null,
+    config_folder: null,
+  }
+
+  /**
+ * @param {string} eg_name Name of the template given in the Essential Graphics panel
+ * @param {*} comp_name Name of the composition associated with the template
+ * @param {Column[]} columns Array of columns associated with 'controllers' in the Essential Graphics panel
+ */
   constructor(eg_name = "", comp_name = "", columns = []) {
     this.name = eg_name;
     this.comp = comp_name;
@@ -149,14 +216,11 @@ class Template {
 
     templ.rows = templ.#AsRows();
 
-    // console.log("MAKING JSON");  
-    // console.dir(json);
-    // console.dir(templ);
     return templ;
   }
 
   /**
-   * Updates the columns of the template stored in settings with the template info retrieved from the host
+   * Updates the columns stored in settings with the new template retrieved from the host
    * @param {Template} new_template
    */
   Update(new_template) {
@@ -167,7 +231,7 @@ class Template {
       return !this.columns.some(
         (old_col) => old_col.cont_name === new_col.cont_name
       );
-    }); 
+    });
 
     //Add the new columns to the template
     new_cols.forEach((new_col) => {
@@ -183,6 +247,9 @@ class Template {
       });
 
       this.columns.push(new_col);
+
+      //Add to the table view
+      this.table_cols.push(this.columns.indexOf(new_col));
     });
 
     //Find the columns that are in the old template but not in the new one
@@ -222,9 +289,7 @@ class Template {
     //this.UpdateDependantComps(new_template.dep_comps);
   }
 
-  /**
-   * Updates the dependant comps of the template and the settings associated with them
-   */
+  /** Updates the dependant comps of the template and the settings associated with them */
   CleanupDependantComps(all_comps: Comp[]) {
 
     //Check current dependant comps against all comps to remove references to comps that no longer exist
@@ -241,6 +306,7 @@ class Template {
     }
   }
 
+  /** We call a dependant composition one that contains a layer with the composition referenced by this template */
   AddDependantComp(comp: Comp, render_templs: RenderSettsResults) {
     //Check if the comp is already a dependant comp
     if (this.dep_comps.some((dc) => dc.id === comp.id)) {
@@ -269,94 +335,16 @@ class Template {
     delete this.dep_config[id];
   }
 
-  /**
-   * Template name
-   */
-  name: string;
-
-  /**
-   * Name of the composition associated with the template
-   */
-  comp: string;
-
-  comp_id: number;
-
-  active = true;
-
-  /**
-   * Array of columns associated with controllers
-   * @type {Column[]}
-   */
-  columns = [];
-
-  /**
-   * Returns the template as a table
-   */
-  rows = [];
-
-  /**
-   * Selected row in the table
-   */
-  save_pattern = "{base_path}/{template_name}_{row_number}";
-
-  base_path = "";
-
-  render_setts_templ = "";
-  render_out_module_templ = "";
-
-  generate_pattern = "Generated_{increment:0000}";
-
-  /**
-   * Array of save paths calculated from the save pattern
-   * @type {string[]}
-   */
-  save_paths = [];
-
-  generate_names = [];
-
-  /**
-   * When importing footage to fulfill a replaceable, we place it in this folder
-   */
-  imported_footage_folder = "~Imported by Automator";
-
-  /**
-   * When generating comps, we place them in this folder
-   */
-  gen_comps_folder = "~Generated Comps";
-
-  /**
-   * The user is able to customize the columns shown in the Data tab.
-   * This array what columns are shown in the Data view.
-   */
-  table_cols = [0];
-
-  /**
-   * These are the compositions that have the current templates as a layer.
-   * Called dependant comps in the UI
-   */
-  dep_comps: Comp[] = [];
-
-  /**
-   * Settings belonging to the dependant comps
-   */
-  dep_config: { [key: string]: DepCompSetts } = {};
-
-
-  /**Used to remember the last path of the Save File dialogues, per categories */
-  import_file_lasts = {
-    csv_folder: null,
-    config_folder: null,
+  /** Adds all columns to the table view, when the template is opened for the first time */
+  InitTableColumns() {
+    this.table_cols = [];
+    for (let col of this.columns) {
+      this.table_cols.push(this.columns.indexOf(col));
+    }
+    this.rows = this.#AsRows();
   }
 
-  /**Used to remember the last path of the Open File dialogues, per categories */
-  save_file_lasts = {
-    csv_folder: null,
-    config_folder: null,
-  }
-
-  /**
-   * Resolves the save path for the output a given row
-   */
+  /** Resolves the save path for the render of a given row */
   ResolveSavePath(pattern, index, comp_name?: string) {
     pattern = pattern.replaceAll("{base_path}", this.base_path);
     pattern = pattern.replaceAll("{row_number}", index);
@@ -389,7 +377,7 @@ class Template {
     }
   }
 
-  /**Resolve the first save path of dependant compositions on dependant output mode */
+  /** Resolve the first save path of dependant compositions on dependant output mode */
   ResolveSavePathFirstDeps(index) {
 
     console.log("Resolving sample save path for dependant comps", index);
@@ -423,9 +411,7 @@ class Template {
   }
 
 
-  /**
-   * When generating comps, we name them with this pattern
-   */
+  /** When generating comps, this pattern is used for the names */
   ResolveCompName(pattern, index) {
     pattern = pattern.replace("{row_number}", index);
     pattern = pattern.replace("{template_name}", this.name);
@@ -456,8 +442,7 @@ class Template {
     }
   }
 
-  /**
-   * Resolves the path for the alternate source for a given row
+  /** Resolves the path for the alternate source for a given row
    * Alternate sources are the name we give to the footage we import to fulfill a replaceable
    */
   ResolveAltSrcPaths() {
@@ -491,6 +476,13 @@ class Template {
   AddColumn() {
     this.table_cols.push(0);
   }
+  /**
+   * Deletes a column from the UI table
+   * It doesn't delete a column from the template
+   */
+  DeleteColumn(index) {
+    this.table_cols.splice(index, 1);
+  }
 
   DeleteRow(index) {
     this.columns.forEach((col) => {
@@ -501,17 +493,7 @@ class Template {
     this.rows = this.#AsRows();
   }
 
-  /**
-   * Deletes a column from the UI table
-   * It doesn't delete a column from the template
-   */
-  DeleteColumn(index) {
-    this.table_cols.splice(index, 1);
-  }
-
-  /**
-   * Converts the template to a table
-   */
+  /** Converts the array of `Column` objects to a 2D array of strings that represents the data */
   #AsRows() {
     this.NormalizeRows();
 
