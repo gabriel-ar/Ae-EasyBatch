@@ -3,6 +3,7 @@
     import CSAdapter from "./CSAdapter.ts";
     import { getContext, onMount } from "svelte";
     import Logger from "./Logger.ts";
+     import Dropdown from "./Dropdown.svelte";
 
     type OnCloseFunc = (base_path: string, pattern: string) => void;
 
@@ -113,9 +114,10 @@
                 <button onclick={AddField}>Add Field</button>
 
                 <select bind:value={sel_add_field}>
-                    <option value="base_path">Base Path</option>
-                    <option value="row_number">Row Number</option>
-                    <option value="increment:0000">Increment</option>
+                    <option value="base_path" style="font-weight: bold; font-style: italic;">Base Path</option>
+                    <option value="comp_name" style="font-weight: bold; font-style: italic;">Composition Name</option>
+                    <option value="row_number" style="font-weight: bold; font-style: italic;">Row Number</option>
+                    <option value="increment:0000" style="font-weight: bold; font-style: italic;">Increment</option>
                     {#each tmpl.columns as col}
                         <option value={col.cont_name}>{col.cont_name}</option>
                     {/each}
