@@ -17,6 +17,8 @@
     Reload,
     Trash,
     Update,
+    CheckCircled,
+    CrossCircled
   } from "radix-icons-svelte";
 
   import {
@@ -30,6 +32,17 @@
   import Logger from "./lib/Logger";
 
   import { SaveSettsRequest } from "./lib/Messaging";
+  import type {
+    GetTmplsResult,
+    GetSettsResult,
+    SaveSettingsResults,
+    RenderSettsResults,
+    BatchRenderResult,
+    BatchGenerateResult,
+    IsSameProjectResult,
+    GetAllCompsResult,
+    RowRenderResult,
+  } from "./lib/Messaging";
 
   import PropInput from "./lib/PropInput.svelte";
   import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
@@ -541,11 +554,12 @@
     });
   }
 
+
+  let dep_row_results: RowRenderResult[] = [];
   function BatchOneToMany() {
     l.debug("BatchOneToMany called");
 
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
-    // setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
     setts.tmpls[setts.sel_tmpl].ResolveSavePathDeps();
 
@@ -556,8 +570,7 @@
     l.log("Rendering:", string_templt);
 
     csa.Eval("BatchRenderDepComps", string_templt).then((s_result) => {
-      /**@type {BatchRenderResult}*/
-      let result;
+      let result: BatchRenderResult;
 
       try {
         result = JSON.parse(s_result);
@@ -568,9 +581,11 @@
 
       if (result.success == false) {
         l.error("Failed to render OtM", result.error_obj);
+        dep_row_results = [];
         return;
       } else {
         l.debug(`OtM Render Started`);
+
         if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`OtM Render Errors`, result.errors);
 
@@ -583,6 +598,9 @@
           });
 
           l.debug(`OtM Render Errors`, render_errors);
+        }else{
+          l.debug(`OtM Render Results`, result);
+          dep_row_results = result.row_results;
         }
       }
     });
@@ -1240,6 +1258,38 @@
       {/each}
 
       <button onclick={BatchOneToMany}>Batch One to Many</button>
+
+      <!--Results-->
+      {#if dep_row_results.length > 0}
+        <h4>Render Results</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Status</th>
+            <th>Rendered Path</th>
+            <th>Error Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each dep_row_results as row}
+            <tr>
+              <td>{row.row}</td>
+              <td>
+               {#if row.status == "success"}
+                  <CheckCircled color="green" size={23}/>
+                {:else}
+                  <CrossCircled color="red" size={23}/>
+               {/if}
+              </td>
+              <td>{row.rendered_path}</td>
+              <td>{row.error}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+
+      {/if}
     {/if}
   </main>
 {:else if setts.active_tab == "settings"}

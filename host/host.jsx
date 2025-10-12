@@ -1126,11 +1126,13 @@ function _CreateSubfolders(path) {
 
 ///DEPENDANT COMPOSITIONS///
 
+/** @type {BatchRenderResult} */
+var dep_result;
+
 function BatchRenderDepComps(str_template) {
   _EscapeArgs(arguments);
 
-  /** @type {BatchRenderResult} */
-  var result = { errors: [] };
+  dep_result = { success: false, row_results: [] };
 
   try {
 
@@ -1160,13 +1162,13 @@ function BatchRenderDepComps(str_template) {
     // Start rendering the dependent compositions
     RenderDeps(tmpl, props_layer);
 
-    result.success = true;
-    return JSON.stringify(result);
+    dep_result.success = true;
+    return JSON.stringify(dep_result);
   } catch (e) {
-    result.success = false;
-    result.error_obj = e;
-    result.error_obj.source = "index.jsx @ BatchRenderDepComps";
-    return JSON.stringify(result);
+    dep_result.success = false;
+    dep_result.error_obj = e;
+    dep_result.error_obj.source = "index.jsx @ BatchRenderDepComps";
+    return JSON.stringify(dep_result);
   }
 }
 
@@ -1179,6 +1181,8 @@ function RenderDeps(tmpl, props_layer) {
 
   //Loop through the rows and set the values of the template
   for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
+
+    try{
     _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
     //Add the dependent compositions to the render queue
@@ -1196,6 +1200,12 @@ function RenderDeps(tmpl, props_layer) {
         var file = new File(dep_config.save_paths[dep_render_row] + ".png");
         dep_comp.saveFrameToPng(0, file);
 
+        //Log the result
+        dep_result.row_results.push({
+          row: dep_render_row,
+          status: 'success',
+          rendered_path: file.fsName
+        });
 
       } else {
         var rq_item = _QueueComp(
@@ -1204,8 +1214,23 @@ function RenderDeps(tmpl, props_layer) {
           dep_config.render_setts_templ,
           dep_config.render_out_module_templ
         );
+
+        //Log the result
+        dep_result.row_results.push({
+          row: dep_render_row,
+          status: 'success',
+          rendered_path: dep_config.save_paths[dep_render_row]
+        });
       }
     }
+
+  } catch (e) {
+    dep_result.row_results.push({
+      row: dep_render_row,
+      status: 'error',
+      message: e.message
+    });
+  }
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
   }
