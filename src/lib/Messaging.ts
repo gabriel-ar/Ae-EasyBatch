@@ -82,13 +82,25 @@ export interface RenderSettsResults extends Result {
   default_output_module_templ?: number;
 }
 
+export type RowRenderResult ={
+  /** Row number */
+  row: number;
+  /**Status */
+  status: 'success' | 'error';
+  /** If successful, the path to the rendered file */
+  rendered_path?: string;
+  /** If not successful, the error message */
+  error?: string;
+}
 
+/** Result for batch rendering */
+export interface BatchRenderResult extends Result {
+  /** Array of row render results */
+  row_results?: RowRenderResult[];
+}
 
 /** Result for saving settings */
 export type SaveSettingsResults = Result;
-
-/** Result for batch render */
-export type BatchRenderResult = Result;
 
 /** Result for batch generate */
 export type BatchGenerateResult = Result;
