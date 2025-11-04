@@ -460,7 +460,9 @@ class Template {
 
     for (let col in this.columns) {
       this.columns[col].values.push(
-        Column.ValidateValue(last_row[col], this.columns[col].type)
+        last_row === undefined?
+          Column.ValidateValue("", this.columns[col].type)
+        : Column.ValidateValue(last_row[col], this.columns[col].type)
       );
     }
 
@@ -599,7 +601,7 @@ class Column {
   }
 
   /**
-   * Name given to the controller in the Essential Graphics panel
+   * Controller name assigned in the Essential Graphics panel
    * @type {string}
    */
   cont_name;
