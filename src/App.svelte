@@ -18,7 +18,10 @@
     Trash,
     Update,
     CheckCircled,
-    CrossCircled
+    CrossCircled,
+
+    Pencil1
+
   } from "radix-icons-svelte";
 
   import {
@@ -1028,11 +1031,12 @@
       Renders your template composition once for every row of data.</p>
 
       <h4>
-        File Name Pattern<button
+        File Name Pattern
+        <button
           class="info"
-          data-tooltip="Generates the file name of every export depending on the pattern."
-          >i</button
-        >
+          data-tt-pos="bottom-right" data-tt-width="large"
+          data-tooltip="Generates the file name of every export using this pattern."
+          >?</button>
       </h4>
 
       <textarea
@@ -1042,7 +1046,7 @@
       ></textarea>
 
       <div class="setting">
-        <span>Preview Path:</span>
+        <span>Preview File Path:</span>
         <span class="out_prev">{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span
         >
       </div>
@@ -1072,7 +1076,13 @@
         <button onclick={AddField}>Add Field</button>
       </div>
 
-      <h4>Render Settings</h4>
+      <h4>Render Settings
+        <button
+          class="info"
+          data-tt-pos="bottom-right" data-tt-width="x-large"
+          data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
+          >?</button>
+      </h4>
 
       <div class="setting">
         <label for="sel_render_setts_templ">Render Settings Template</label>
@@ -1170,22 +1180,34 @@
       <!-- MODE: DEPENDANT -->
 
       <p style="font-size: small; margin: 0.5em 0;">
-        Renders the compositions selected below per each row of data. Useful if you want to render compositions that include your main template composition.
+        Each row of data will update only the properties in your main composition, but will render multiple compositions that you define below.
       </p>
 
-      <h4>Common Base Path</h4>
+      <h4>Common Base Folder
+        <button
+          class="info"
+          data-tt-pos="bottom-right" data-tt-width="x-large"
+          data-tooltip="All renders will be saved relative to this folder. Use the 'Edit File Pattern' button to set the full save path for each composition."
+          >?</button>
+      </h4>
 
       <div class="setting">
         <span>{setts.tmpls[setts.sel_tmpl].base_path}</span>
         <div><button onclick={SelRenderBasePath}>Choose Folder...</button></div>
       </div>
 
-      <h4>Add Composition to Renders</h4>
+      <h4>Add Composition to Renders
+        <button
+          class="info"
+          data-tt-pos="bottom-right" data-tt-width="x-large"
+          data-tooltip="The compositions you select will be rendered for every row of data. You can select any composition in the project, even if is not directly related to the template composition."
+          >?</button>
+      </h4>
 
       <div class="setting">
         <Dropdown
-          labels={all_comps.map((comp) => comp.name)}
-          options={all_comps.map((comp) => comp.id)}
+          labels={["Select a Composition", ...all_comps.map((comp) => comp.name)]}
+          options={["", ...all_comps.map((comp) => comp.id)]}
           bind:value={selected_comp}
         />
 
@@ -1207,15 +1229,21 @@
           <button
                   class="delete_col"
                   style="vertical-align: top;"
-                  data-tooltip="Delete column"
+                  data-tooltip="Remove composition from renders"
                   data-tt-pos="bottom-right"
                   onclick={() => DeleteDependantComp(dc.id)}><Trash /></button
                 >
 
           <div class="setting">
             <h5>
-              File Pattern: {setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
+              Render Save Pattern: {setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
                 .save_pattern}
+                 <button
+              data-tooltip="Edit the pattern that will determine the save path for this render."
+              data-tt-pos="top-right" data-tt-width="large"
+              onclick={() => DepFilePatternModalOpen(dc.id)}
+              > <Pencil1 /> Edit</button
+            >
             </h5>
 
             <div>
@@ -1224,16 +1252,17 @@
                 >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id].save_path}</span
               >
             </div>
-            <button
-              style="margin-top: 5px;"
-              data-tooltip="Edit file pattern"
-              data-tt-pos="top-right"
-              onclick={() => DepFilePatternModalOpen(dc.id)}
-              >Edit Pattern <Gear /></button
-            >
+           
           </div>
 
-          <h5>Render Settings</h5>
+          <h5>Render Settings
+
+            <button
+              class="info"
+              data-tt-pos="bottom-right" data-tt-width="x-large"
+              data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
+              >?</button>
+          </h5>
 
           <div class="setting">
             <label for="sel_render_setts_templ">Render Settings Template</label>
@@ -1272,7 +1301,10 @@
           </div>
 
           <div class="setting">
-            <label for="sel_render_out_module">As Single Frame PNG</label>
+            <label for="sel_render_out_module"
+              data-tooltip="Will attempt to render the composition as a single frame PNG image, removing the '0000' that After Effects attaches to image sequences. May not work in Mac."
+              data-tt-pos="top-right" data-tt-width="large"
+            >As Single Frame PNG</label>
             <input
               type="checkbox"
               bind:checked={

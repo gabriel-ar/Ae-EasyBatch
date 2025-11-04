@@ -112,9 +112,10 @@ select option:focus {
 [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85);
 
   color: #fff;
+
   padding: 4px 2px;
   min-width: 80px;
   border-radius: 5px;
@@ -122,6 +123,8 @@ select option:focus {
   padding: 4px 4px;
   z-index: 99;
 
+  border: 1px solid;
+  border-color: var(--color-border-p1);
 
   font-size: 12px;
   font-style: normal;
@@ -175,9 +178,17 @@ select option:focus {
 }
 
 [data-tt-pos="bottom-right"]::after {
-  left: 0;
-  bottom: -6px;
+  left: 20px;
+  bottom: 17px;
   transform: translateY(100%);
+}
+
+[data-tt-width="large"]::after {
+  min-width: 100px;
+}
+
+[data-tt-width="x-large"]::after {
+  min-width: 150px;
 }
 
 @keyframes tooltip-show {
@@ -202,7 +213,6 @@ select option:focus {
   font-size: 9px;
   width: 17px;
   aspect-ratio: 1;
-  font-style: italic;
 
   margin-left: 4px;
 
