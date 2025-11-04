@@ -1042,7 +1042,7 @@
       ></textarea>
 
       <div class="setting">
-        <span>Preview:</span>
+        <span>Preview Path:</span>
         <span class="out_prev">{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span
         >
       </div>
@@ -1557,7 +1557,7 @@
 
   .output h4 {
     font-size: 1.1rem;
-    margin: 13px 0 2px 0;
+    margin: 13px 0 7px 0;
   }
 
   .output label,

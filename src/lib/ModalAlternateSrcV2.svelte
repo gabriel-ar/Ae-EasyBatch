@@ -82,7 +82,9 @@
     }
 </script>
 
-<div id="alternate_modal" style:display={show ? "block" : "none"}>
+{#if show}
+
+<div class="modal" id="alternate_modal" style:display={"block"}>
     <div class="wrapper">
         <h4>File Path Pattern</h4>
         <textarea
@@ -117,34 +119,9 @@
 </div>
 
 <style>
-    #alternate_modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.8);
-        z-index: 1000;
-
-        display: flex;
-        width: 100%;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .wrapper {
-        background-color: #242424;
-
-        display: flex;
-        flex-direction: column;
-
-        margin: 20px;
-        padding: 10px;
-
-        gap: 1rem;
-    }
-
     .out_prev {
         word-break: break-all;
     }
 </style>
+
+{/if}
