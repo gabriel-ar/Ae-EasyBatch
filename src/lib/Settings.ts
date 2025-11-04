@@ -460,9 +460,9 @@ class Template {
 
     for (let col in this.columns) {
       this.columns[col].values.push(
-        last_row === undefined?
+        last_row === undefined ?
           Column.ValidateValue("", this.columns[col].type)
-        : Column.ValidateValue(last_row[col], this.columns[col].type)
+          : Column.ValidateValue(last_row[col], this.columns[col].type)
       );
     }
 
@@ -535,7 +535,7 @@ class Template {
    * @param {string} csv
    */
   LoadFromCSV(csv) {
-    let csv_rows = papa.parse(csv).data;
+    let csv_rows = papa.parse(csv, { skipEmptyLines: true }).data;
 
     //Try to match the header with the columns
     let header: any[] = csv_rows.shift() as any[];
@@ -543,11 +543,13 @@ class Template {
     this.columns.forEach((tmpl_col) => {
       let col_i = header.indexOf(tmpl_col.cont_name);
 
-      if (col_i !== -1) {
-        tmpl_col.values = csv_rows.map((csv_row) => {
-          return Column.ValidateValue(csv_row[col_i], tmpl_col.type);
-        });
-      }
+      if (col_i < 0) return;
+
+      tmpl_col.values = csv_rows.map((csv_row) => {
+        if (csv_row[col_i] === undefined) return null;
+        return Column.ValidateValue(csv_row[col_i], tmpl_col.type);
+      });
+
     });
 
     this.ResolveAltSrcPaths();
@@ -659,7 +661,7 @@ class Column {
     return pattern;
   }
 
-  ResolveAltSrcPaths(columns) {
+  ResolveAltSrcPaths(columns: Column[]) {
     let row_count = this.values.length;
 
     let old_values = this.values;
