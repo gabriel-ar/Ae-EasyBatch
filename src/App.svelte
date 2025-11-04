@@ -48,6 +48,7 @@
   import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
   import ModalFilePattern from "./lib/ModalDepFilePattern.svelte";
   import Dropdown from "./lib/Dropdown.svelte";
+    import ModalMessage from "./lib/ModalMessage.svelte";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -61,6 +62,7 @@
   let false_blur = false;
 
   let m_file_pattern: ModalFilePattern;
+  let m_message: ModalMessage;
 
   //Update the log level of the logger when the settings changes
   $: {
@@ -401,6 +403,30 @@
 
     csa.Eval("PreviewRow", s_templt, 0, live).then((s_result) => {
       l.debug(`Preview Row Result`, s_result);
+
+      let result;
+      try {
+        result = JSON.parse(s_result);
+      } catch (e) {
+        l.error("Failed to parse preview row result", s_result);
+        return;
+      }
+
+      if (result.success == false) {
+        l.error("Failed to preview row", result.error_obj);
+        m_message.Open(
+          result.error_obj.map((e) => e.message).join("<br>"),
+          "Error While Previewing Row",
+        );
+        return;
+      }
+
+      if (result.errors.length > 0) {
+        m_message.Open(
+          result.errors.map((e) => e.message).join("<br>"),
+          "Errors While Previewing Row",
+        );
+      }
     });
   }
 
@@ -1356,6 +1382,8 @@
 {/if}
 
 <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
+
+<ModalMessage bind:this={m_message}></ModalMessage>
 
 {#if no_templs}
   <div class="fs_no_tmpls">
