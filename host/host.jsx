@@ -481,6 +481,218 @@ function _AdaptCompToTempl(render_comp, templ_comp) {
 }
 
 /**
+ * Given a path to a file, it either imports it or retrieves the existing footage item in the project.
+ * @param {string} path
+ * @param {string} proj_folder
+ * @returns {FootageItem}
+ */
+function _ResolveFootageItem(path, proj_folder) {
+  _SetGlobalCurrentPath();
+
+  //Check or create a folder in the project to organize the replaceable files
+  var folder;
+  for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
+    var proj_item = app.project.item(i_items);
+    if (proj_item instanceof FolderItem && proj_item.name == proj_folder) {
+      folder = proj_item;
+      break;
+    }
+  }
+
+  if (folder === undefined) {
+    folder = app.project.items.addFolder(proj_folder);
+  }
+
+  //Check if the footage item exists in the project
+  //Replace the <b> tag used to indicate the file was manually selected
+  var import_file = new File(path.replaceAll("\\\\", "/").replaceAll("<b>", "").replaceAll("</b>", ""));
+
+  var repl_f_item;
+  for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
+    var proj_item = app.project.item(i_items);
+    if (proj_item instanceof FootageItem
+      && proj_item.file !== null
+      && proj_item.file.fullName.toLowerCase() == import_file.fullName.toLowerCase()) {
+      return proj_item;
+    }
+  }
+
+  if (repl_f_item === undefined) {
+    //Import the file
+
+    var import_opt = new ImportOptions(import_file);
+    repl_f_item = app.project.importFile(import_opt);
+    repl_f_item.parentFolder = folder;
+  }
+
+  return repl_f_item;
+}
+
+/**
+ * Replaces the values in the Essential Properties of a layer
+ * with the values on the corresponding row of the template.
+ * @param {*} layer
+ * @param {Template} template
+ * @param {number} row_i
+ * @param {boolean} replace_orgs Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
+ * @returns {errors[]{message: string, column: number}} List of errors found during the process
+ */
+function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
+  if (replace_orgs === undefined) {
+    replace_orgs = false;
+  }
+
+  var errors = [];
+
+  //Access the Essential Properties of the layer
+  var e_props = layer.essentialProperty;
+
+  //Loop through the properties and set the values
+  for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
+    var ess_prop = e_props.property(i_prop);
+
+    //find the column in the template that matches the property name
+    var col;
+    for (var i_col = 0; i_col < template.columns.length; i_col++) {
+      if (template.columns[i_col].cont_name === ess_prop.name) {
+        col = template.columns[i_col];
+        break;
+      }
+    }
+
+    //Check if the value exists in the column
+    if (col.values[row_i] === undefined) {
+      errors.push({ message: "No value provided for '" + col.cont_name + "' at row " + row_i, column: i_col });
+      continue;
+    }
+
+    //REPLACEABLE / ALT SOURCE
+    if (
+      ess_prop.canSetAlternateSource &&
+      ess_prop.matchName === "ADBE Layer Source Alternate"
+    ) {
+
+      if (col.values[row_i] == "") {
+        errors.push({ message: "No file path provided for '" + col.cont_name + "' at row " + row_i, column: i_col });
+        continue;
+      }
+
+      //Depending if we're replacing the original or the Essential Property, we compare the correct source
+      if (replace_orgs) {
+        var alt_src = ess_prop.essentialPropertySource.source;
+      } else {
+        var alt_src = ess_prop.alternateSource;
+      }
+
+      //The current alt source is a composition,
+      //check if the first layer source points to the correct file
+      if (alt_src instanceof CompItem && alt_src.numLayers !== 0) {
+        var alt_src_layer = alt_src.layer(1);
+        if (
+          alt_src_layer.source instanceof FootageItem
+           && _ComparePaths(alt_src_layer.source.file, col.values[row_i])
+        ) {
+          //The footage item is already linked to the correct file
+          continue;
+        }
+      }
+
+      //It is a footage item check if it's linked to the correct file
+      else if (alt_src !== null && alt_src.source instanceof FootageItem
+        && _ComparePaths(alt_src.source.file, col.values[row_i])
+      ) {
+        //The footage item is already linked to the correct file
+        continue;
+      }
+
+      try {
+        var new_footage = _ResolveFootageItem(
+          col.values[row_i],
+          template.imported_footage_folder
+        );
+      } catch (e) {
+        errors.push({ message: "Could not import file: " + e.message, column: i_col });
+        continue;
+      }
+
+      if (replace_orgs) {
+        ess_prop.essentialPropertySource.replaceSource(new_footage, false);
+      } else {
+        ess_prop.setAlternateSource(new_footage);
+      }
+
+
+      continue;
+    } //if replaceable
+
+    //TEXT
+    else if (
+      ess_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
+    ) {
+      //Check if is different from the current value
+      if (
+        (!replace_orgs && ess_prop.value.text === col.values[row_i]) ||
+        (replace_orgs &&
+          ess_prop.essentialPropertySource.value.text ===
+          col.values[row_i])
+      ) {
+        continue;
+      }
+
+      if (replace_orgs)
+        ess_prop.essentialPropertySource.setValue(col.values[row_i]);
+      else ess_prop.setValue(col.values[row_i]);
+
+      continue;
+    }
+
+    //MOGRAPH COMMENT
+    else if (ess_prop.matchName === "ADBE Layer Overrides Comment") {
+      continue;
+    }
+
+    //COLOR / POSITION / SCALE / ROTATION
+    else {
+      //Check if is different from the current value
+      if (
+        (ess_prop.value == col.values[row_i] && !replace_orgs) ||
+        (replace_orgs &&
+          ess_prop.essentialPropertySource.value == col.values[row_i])
+      ) {
+        continue;
+      }
+
+      if (replace_orgs)
+        ess_prop.essentialPropertySource.setValue(col.values[row_i]);
+      else ess_prop.setValue(col.values[row_i]);
+
+      continue;
+    }
+  }
+
+
+  return { errors: errors };
+}
+
+function _ComparePaths(path1, path2) {
+  try {
+  // Normalize paths by converting to absolute paths
+  var fl1 = path1 instanceof File ? path1 : File(path1);
+  var fl2 = path2 instanceof File ? path2 : File(path2);
+  } catch (e) {
+    return false;
+  }
+
+  if (fl1 instanceof File && fl2 instanceof File) {
+    return fl1.fullName.toLowerCase() === fl2.fullName.toLowerCase();
+  } else if (fl1 instanceof Folder && fl2 instanceof Folder) {
+    return fl1.fullName.toLowerCase() === fl2.fullName.toLowerCase();
+  } else {
+    return false;
+  }
+}
+
+/**
  * Load the data of a single row in the preview composition
  *  and open it in the viewer.
  * @param {string} s_template
@@ -496,8 +708,6 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
   var result = { success: true };
 
   try {
-    //The template composition will be loaded in our render comp and then we will set the values of the essential properties
-    var render_comp = _SetupTemplatePreviewComp(false);
 
     /** @type {Template} */
     var templ = JSON.parse(s_template);
@@ -509,28 +719,42 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
       throw new Error("@PreviewRow: Template composition not found");
     }
 
-    //Check if the preview composition has a layer referencing the template
-    //Otherwise add it and adapt the properties
+    //The template composition will be loaded in our render comp and then we will set the values of the essential properties
+    var render_comp = _SetupTemplatePreviewComp(false);
 
+    _AdaptCompToTempl(render_comp, templ_comp);
+
+    //The layer referencing the template composition
+    var templ_layer = null;
+
+    //If the comp already has layers, check if one of them references the template, delete the rest
     for (var i_layer = 1; i_layer <= render_comp.numLayers; i_layer++) {
       var layer = render_comp.layer(i_layer);
       if (layer.source instanceof CompItem && layer.source.id == templ.comp_id) {
-        //Template layer found, apply the properties and open in viewer
-        _ApplyTemplProps(layer, templ, row_i);
-        if (!is_auto_prev) render_comp.openInViewer();
-
-        return JSON.stringify(result);
+        //Template layer found
+        templ_layer = layer;
       } else {
         layer.remove();
       }
     }
 
-    _AdaptCompToTempl(render_comp, templ_comp);
+    //If the template layer was not found, add it
+    if (templ_layer === null) {
+      //add the template composition to the render comp as a layer
+      templ_layer = render_comp.layers.add(templ_comp);
+    }
 
-    //add the template composition to the render comp as a layer
-    var avl_templ = render_comp.layers.add(templ_comp);
+    var props_res = _ApplyTemplProps(templ_layer, templ, row_i);
 
-    _ApplyTemplProps(avl_templ, templ, row_i);
+    //If errors while applying the properties, transfer them to the result object
+    if (props_res.errors.length > 0) {
+
+      result.errors = [];
+      //Transfer the errors to the result object
+      for (var i_err = 0; i_err < props_res.errors.length; i_err++) {
+        result.errors.push({ message: props_res.errors[i_err].message, type: "property", row: row_i });
+      }
+    }
 
     if (!is_auto_prev) render_comp.openInViewer();
 
@@ -608,185 +832,6 @@ function GetCurrentValues(s_template) {
   }
 }
 
-/**
- * Replaces the values in the Essential Properties of a layer
- * with the values in the corresponding row of the template.
- * @param {*} layer
- * @param {Template} template
- * @param {number} row_i
- * @param {boolean} replace_orgs Instead of replacing the values of the EP in the layers, will replace the values of the original properties
- */
-function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
-  if (replace_orgs === undefined) {
-    replace_orgs = false;
-  }
-
-  //Access the Essential Properties of the layer and chance the values to the template data
-  var e_props = layer.essentialProperty;
-
-  //Loop through the properties and set the values
-  for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
-    var templ_prop = e_props.property(i_prop);
-
-    //find the column that matches the prop name
-    for (var i_col = 0; i_col < template.columns.length; i_col++) {
-      var col = template.columns[i_col];
-
-      //Check if the value exists in the column
-      //TODO report soft errors to the user
-      if (col.values[row_i] === undefined) {
-        continue;
-      }
-
-      //Check if the column name matches the property name
-      if (col.cont_name == templ_prop.name) {
-        //set the value of the prop to the first value in the column
-
-        //REPLACEABLE / ALT SOURCE
-        if (
-          templ_prop.canSetAlternateSource &&
-          templ_prop.matchName === "ADBE Layer Source Alternate"
-        ) {
-          //Check if the source is already linked otherwise import the file
-
-          //Depending if were replacing the original or the EP, we will check the alternate source
-          if (replace_orgs)
-            var alt_src = templ_prop.essentialPropertySource.source;
-          else var alt_src = templ_prop.alternateSource;
-
-          //The current alt source is a composition,
-          //check if it includes the footage item linked to the correct file
-          if (alt_src !== null && alt_src instanceof CompItem) {
-            var alt_src_layer = alt_src.layer(1);
-            if (
-              alt_src_layer.source instanceof FootageItem &&
-              alt_src_layer.source.file.fullName == col.values[row_i]
-            ) {
-              break;
-            }
-          }
-
-          //It is a footage item and if it is linked to the correct file
-          else if (alt_src !== null && alt_src instanceof AVLayer) {
-            if (
-              alt_src_layer.source instanceof FootageItem &&
-              alt_src_layer.source.file.fullName == col.values[row_i]
-            ) {
-              break;
-            }
-          }
-
-          var footage_item = _ImportFootageItem(
-            col.values[row_i],
-            template.imported_footage_folder
-          );
-
-          if (replace_orgs)
-            templ_prop.essentialPropertySource.replaceSource(
-              footage_item,
-              false
-            );
-          else templ_prop.setAlternateSource(footage_item);
-
-          break;
-        } //if replaceable
-
-        //TEXT
-        else if (
-          templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
-        ) {
-          //Check if is different from the current value
-          if (
-            (!replace_orgs && templ_prop.value.text === col.values[row_i]) ||
-            (replace_orgs &&
-              templ_prop.essentialPropertySource.value.text ===
-              col.values[row_i])
-          ) {
-            break;
-          }
-
-          if (replace_orgs)
-            templ_prop.essentialPropertySource.setValue(col.values[row_i]);
-          else templ_prop.setValue(col.values[row_i]);
-
-          break;
-        }
-
-        //MOGRAPH COMMENT
-        else if (templ_prop.matchName === "ADBE Layer Overrides Comment") {
-          continue;
-        }
-
-        //COLOR / POSITION / SCALE / ROTATION
-        else {
-          //Check if is different from the current value
-          if (
-            (templ_prop.value == col.values[row_i] && !replace_orgs) ||
-            (replace_orgs &&
-              templ_prop.essentialPropertySource.value == col.values[row_i])
-          ) {
-            break;
-          }
-
-          if (replace_orgs)
-            templ_prop.essentialPropertySource.setValue(col.values[row_i]);
-          else templ_prop.setValue(col.values[row_i]);
-
-          break;
-        }
-      } //if names match
-    }
-  }
-}
-
-/**
- * Given a path to a file, import it into the project and return the FootageItem
- * @param {string} path
- * @param {string} proj_folder
- * @returns {FootageItem}
- */
-
-function _ImportFootageItem(path, proj_folder) {
-  _SetGlobalCurrentPath();
-
-  //Check or create a folder in the project to organize the replaceable files
-  var folder;
-  for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-    var proj_item = app.project.item(i_items);
-    if (proj_item instanceof FolderItem && proj_item.name == proj_folder) {
-      folder = proj_item;
-      break;
-    }
-  }
-
-  if (folder === undefined) {
-    folder = app.project.items.addFolder(proj_folder);
-  }
-
-  //Check if the footage item exists in the project
-  //Replace the <b> tag used to indicate the file was manually selected
-  var import_file = new File(path.replaceAll("\\\\", "/").replaceAll("<b>", "").replaceAll("</b>", ""));
-
-  var repl_f_item;
-  for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-    var proj_item = app.project.item(i_items);
-    if (proj_item instanceof FootageItem && proj_item.file !== null) {
-      if (proj_item.file.fullName == import_file.fullName) {
-        return proj_item;
-      }
-    }
-  }
-
-  if (repl_f_item === undefined) {
-    //Import the file
-
-    var import_opt = new ImportOptions(import_file);
-    repl_f_item = app.project.importFile(import_opt);
-    repl_f_item.parentFolder = folder;
-  }
-
-  return repl_f_item;
-}
 
 function BatchRender(str_template, folder) {
   _EscapeArgs(arguments);
@@ -1083,6 +1128,7 @@ function SelectFolder(default_path) {
   return null;
 }
 
+/**Generic file import, returns an URI encoded string */
 function ImportFile() {
   var file = File.openDialog("Select a file");
 
@@ -1182,55 +1228,55 @@ function RenderDeps(tmpl, props_layer) {
   //Loop through the rows and set the values of the template
   for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
 
-    try{
-    _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
+    try {
+      _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
-    //Add the dependent compositions to the render queue
-    for (var i = 0; i < tmpl.dep_comps.length; i++) {
+      //Add the dependent compositions to the render queue
+      for (var i = 0; i < tmpl.dep_comps.length; i++) {
 
-      //Find the configuration of the dep composition to get the render settings and the path
-      /**@type {DepCompSetts} */
-      var dep_config = tmpl.dep_config[tmpl.dep_comps[i].id];
+        //Find the configuration of the dep composition to get the render settings and the path
+        /**@type {DepCompSetts} */
+        var dep_config = tmpl.dep_config[tmpl.dep_comps[i].id];
 
-      var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
+        var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
 
-      //Check if the render is a single frame
-      if (dep_config.single_frame) {
-        _CreateSubfolders(dep_config.save_paths[dep_render_row]);
-        var file = new File(dep_config.save_paths[dep_render_row] + ".png");
-        dep_comp.saveFrameToPng(0, file);
+        //Check if the render is a single frame
+        if (dep_config.single_frame) {
+          _CreateSubfolders(dep_config.save_paths[dep_render_row]);
+          var file = new File(dep_config.save_paths[dep_render_row] + ".png");
+          dep_comp.saveFrameToPng(0, file);
 
-        //Log the result
-        dep_result.row_results.push({
-          row: dep_render_row,
-          status: 'success',
-          rendered_path: file.fsName
-        });
+          //Log the result
+          dep_result.row_results.push({
+            row: dep_render_row,
+            status: 'success',
+            rendered_path: file.fsName
+          });
 
-      } else {
-        var rq_item = _QueueComp(
-          dep_comp,
-          dep_config.save_paths[dep_render_row],
-          dep_config.render_setts_templ,
-          dep_config.render_out_module_templ
-        );
+        } else {
+          var rq_item = _QueueComp(
+            dep_comp,
+            dep_config.save_paths[dep_render_row],
+            dep_config.render_setts_templ,
+            dep_config.render_out_module_templ
+          );
 
-        //Log the result
-        dep_result.row_results.push({
-          row: dep_render_row,
-          status: 'success',
-          rendered_path: dep_config.save_paths[dep_render_row]
-        });
+          //Log the result
+          dep_result.row_results.push({
+            row: dep_render_row,
+            status: 'success',
+            rendered_path: dep_config.save_paths[dep_render_row]
+          });
+        }
       }
-    }
 
-  } catch (e) {
-    dep_result.row_results.push({
-      row: dep_render_row,
-      status: 'error',
-      message: e.message
-    });
-  }
+    } catch (e) {
+      dep_result.row_results.push({
+        row: dep_render_row,
+        status: 'error',
+        message: e.message
+      });
+    }
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
   }

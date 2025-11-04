@@ -414,14 +414,14 @@
 
       if (result.success == false) {
         l.error("Failed to preview row", result.error_obj);
-        m_message.Open(
+        if (!live) m_message.Open(
           result.error_obj.map((e) => e.message).join("<br>"),
           "Error While Previewing Row",
         );
         return;
       }
 
-      if (result.errors.length > 0) {
+      if (result.errors !== undefined && result.errors.length > 0 && !live) {
         m_message.Open(
           result.errors.map((e) => e.message).join("<br>"),
           "Errors While Previewing Row",
