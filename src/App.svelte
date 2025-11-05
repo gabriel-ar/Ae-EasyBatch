@@ -19,9 +19,7 @@
     Update,
     CheckCircled,
     CrossCircled,
-
-    Pencil1
-
+    Pencil1,
   } from "radix-icons-svelte";
 
   import {
@@ -51,7 +49,7 @@
   import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
   import ModalFilePattern from "./lib/ModalDepFilePattern.svelte";
   import Dropdown from "./lib/Dropdown.svelte";
-    import ModalMessage from "./lib/ModalMessage.svelte";
+  import ModalMessage from "./lib/ModalMessage.svelte";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -284,20 +282,22 @@
       //Check if there's any template selected, otherwise just select the first one
 
       if (setts.tmpls[setts.sel_tmpl] !== undefined) {
-
         if (setts.tmpls[setts.sel_tmpl].render_setts_templ == "") {
           setts.tmpls[setts.sel_tmpl].render_setts_templ =
-            render_setts_templs.render_templs[render_setts_templs.default_render_templ] || render_setts_templs.render_templs[0];
+            render_setts_templs.render_templs[
+              render_setts_templs.default_render_templ
+            ] || render_setts_templs.render_templs[0];
         }
 
         if (setts.tmpls[setts.sel_tmpl].render_out_module_templ == "") {
           setts.tmpls[setts.sel_tmpl].render_out_module_templ =
-            render_setts_templs.output_modules_templs[render_setts_templs.default_output_module_templ] || render_setts_templs.output_modules_templs[0];
+            render_setts_templs.output_modules_templs[
+              render_setts_templs.default_output_module_templ
+            ] || render_setts_templs.output_modules_templs[0];
         }
       }
-
-     }
-      last_opened_tab = setts.active_tab;
+    }
+    last_opened_tab = setts.active_tab;
   }
 
   /** @type {RenderSettsResults}*/
@@ -417,10 +417,11 @@
 
       if (result.success == false) {
         l.error("Failed to preview row", result.error_obj);
-        if (!live) m_message.Open(
-          result.error_obj.map((e) => e.message).join("<br>"),
-          "Error While Previewing Row",
-        );
+        if (!live)
+          m_message.Open(
+            result.error_obj.map((e) => e.message).join("<br>"),
+            "Error While Previewing Row",
+          );
         return;
       }
 
@@ -507,18 +508,18 @@
       });
   }
 
-  let render_errors = [];
-
+  //User facing render results
+  let render_results: RowRenderResult[] = [];
   function BatchRender() {
+    l.log("BatchRender called");
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
     setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
 
-    render_errors = [];
+    render_results = [];
 
     let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug("BatchRender called");
-    l.log("Rendering:", setts.tmpls[setts.sel_tmpl]);
+    l.debug("String sent to csa:", string_templt);
 
     csa
       .Eval("BatchRender", string_templt, setts.render_comps_folder)
@@ -535,22 +536,23 @@
 
         if (result.success == false) {
           l.error("Failed to batch render", result.error_obj);
+          m_message.Open(
+            result.error_obj.message,
+            "Error While Batch Rendering",
+          );
           return;
-        } else {
-          l.debug(`Batch Render Started`);
-          if (result.errors !== undefined && result.errors.length > 0) {
-            l.warn(`Batch Render Errors`, result.errors);
-
-            render_errors = result.errors.map((e) => {
-              if (e.message !== undefined) {
-                return e.row + " " + e.message;
-              } else {
-                return e;
-              }
-            });
-
-            l.debug(`Batch Render Errors`, render_errors);
-          }
+        } else
+        
+        //Some errors happened, log it as a warning (defalut txt log file level)
+        if (result.errors !== undefined && result.errors.length > 0) {
+          l.warn(`Batch Render completed with errors`, result.errors);
+          render_results = result.row_results;
+        } 
+        
+        //All rows queued up successfully
+        else {
+          l.debug(`Batch Render Results`, render_results);
+          render_results = result.row_results;
         }
       });
   }
@@ -583,20 +585,16 @@
     });
   }
 
-
   let dep_row_results: RowRenderResult[] = [];
   function BatchOneToMany() {
-    l.debug("BatchOneToMany called");
+    l.log("BatchOneToMany called");
 
     setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
     setts.tmpls[setts.sel_tmpl].ResolveSavePathDeps();
 
-    render_errors = [];
-
     let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug("BatchOneToMany called");
-    l.log("Rendering:", string_templt);
+    l.debug("OtM String Sent to csa:", string_templt);
 
     csa.Eval("BatchRenderDepComps", string_templt).then((s_result) => {
       let result: BatchRenderResult;
@@ -608,29 +606,26 @@
         return;
       }
 
+      l.debug(`OtM Render Results`, result);
+
       if (result.success == false) {
         l.error("Failed to render OtM", result.error_obj);
-        dep_row_results = [];
+        m_message.Open(
+          result.error_obj.message,
+          "Error While Rendering One to Many",
+        );
         return;
-      } else {
-        l.debug(`OtM Render Started`);
+      }
 
-        if (result.errors !== undefined && result.errors.length > 0) {
-          l.warn(`OtM Render Errors`, result.errors);
+      //Some rows had errors, but the queing went through
+      else if (result.errors !== undefined && result.errors.length > 0) {
+        l.warn(`OtM Render completed with errors`, result.errors);
+        dep_row_results = result.row_results;
+      }
 
-          render_errors = result.errors.map((e) => {
-            if (e.message !== undefined) {
-              return e.row + " " + e.message;
-            } else {
-              return e;
-            }
-          });
-
-          l.debug(`OtM Render Errors`, render_errors);
-        }else{
-          l.debug(`OtM Render Results`, result);
-          dep_row_results = result.row_results;
-        }
+      //All rows rendered successfully
+      else {
+        dep_row_results = result.row_results;
       }
     });
   }
@@ -711,7 +706,7 @@
     }
   }
 
-  let all_comps : Comp[] = [];
+  let all_comps: Comp[] = [];
   function GetAllComps() {
     csa.Eval("GetAllComps").then((s_result) => {
       /**@type {GetAllCompsResult}*/
@@ -737,19 +732,15 @@
   let selected_comp = "";
   function AddCompToDependents() {
     if (selected_comp !== "") {
-      let comp = all_comps.find(
-        (c) => c.id === selected_comp,
-      );
+      let comp = all_comps.find((c) => c.id === selected_comp);
 
       if (comp) {
-        setts.tmpls[setts.sel_tmpl].AddDependantComp(
-          comp,
-          render_setts_templs,
-        );
+        setts.tmpls[setts.sel_tmpl].AddDependantComp(comp, render_setts_templs);
         setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
 
         //force Svelte reactivity
-        setts.tmpls[setts.sel_tmpl].dep_comps = setts.tmpls[setts.sel_tmpl].dep_comps;
+        setts.tmpls[setts.sel_tmpl].dep_comps =
+          setts.tmpls[setts.sel_tmpl].dep_comps;
       }
     }
   }
@@ -759,7 +750,8 @@
     setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
 
     //force Svelte reactivity
-    setts.tmpls[setts.sel_tmpl].dep_comps = setts.tmpls[setts.sel_tmpl].dep_comps;
+    setts.tmpls[setts.sel_tmpl].dep_comps =
+      setts.tmpls[setts.sel_tmpl].dep_comps;
   }
 
   let sel_add_field_gen = "row_number";
@@ -1027,16 +1019,19 @@
 
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
-     <p style="font-size: small; margin: 0.5em 0;">
-      Renders your template composition once for every row of data.</p>
+      <p style="font-size: small; margin: 0.5em 0;">
+        Renders your template composition once for every row of data.
+      </p>
 
       <h4>
         File Name Pattern
         <button
           class="info"
-          data-tt-pos="bottom-right" data-tt-width="large"
+          data-tt-pos="bottom-right"
+          data-tt-width="large"
           data-tooltip="Generates the file name of every export using this pattern."
-          >?</button>
+          >?</button
+        >
       </h4>
 
       <textarea
@@ -1076,12 +1071,15 @@
         <button onclick={AddField}>Add Field</button>
       </div>
 
-      <h4>Render Settings
+      <h4>
+        Render Settings
         <button
           class="info"
-          data-tt-pos="bottom-right" data-tt-width="x-large"
+          data-tt-pos="bottom-right"
+          data-tt-width="x-large"
           data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
-          >?</button>
+          >?</button
+        >
       </h4>
 
       <div class="setting">
@@ -1113,19 +1111,43 @@
 
       <button class="setting" onclick={BatchRender}>Start Batch Render</button>
 
-      {#if render_errors.length > 0}
-        <div class="render_msgs">
-          <h4>Errors</h4>
-          {#each render_errors as error}
-            <div>{error}</div>
-          {/each}
-        </div>
+      <!--Results-->
+      {#if render_results.length > 0}
+        <h4>Render Results</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Row</th>
+              <th>Queued</th>
+              <th>Rendered Path</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each render_results as row}
+              <tr>
+                <td>{row.row}</td>
+                <td>
+                  {#if row.status == "success"}
+                    <CheckCircled color="green" size={23} />
+                  {:else}
+                    <CrossCircled color="red" size={23} />
+                  {/if}
+                </td>
+                <td>{row.rendered_path}</td>
+                <td>{row.error}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       {/if}
     {:else if setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
-       
-     <p style="font-size: small; margin: 0.5em 0;">
-      For each row of data, it generates a composition that contains your template composition with the properties changed.</p>
+
+      <p style="font-size: small; margin: 0.5em 0;">
+        For each row of data, it generates a composition that contains your
+        template composition with the properties changed.
+      </p>
 
       <h4>Composition Name Pattern</h4>
       <textarea
@@ -1175,20 +1197,27 @@
         />
       </div>
 
-      <button class="setting" onclick={BatchGenerate}>Generate Compositions</button>
+      <button class="setting" onclick={BatchGenerate}
+        >Generate Compositions</button
+      >
     {:else if setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
       <p style="font-size: small; margin: 0.5em 0;">
-        Each row of data will update only the properties in your main composition, but will render multiple compositions that you define below.
+        Each row of data will update only the properties in your main
+        composition, but will render multiple compositions that you define
+        below.
       </p>
 
-      <h4>Common Base Folder
+      <h4>
+        Common Base Folder
         <button
           class="info"
-          data-tt-pos="bottom-right" data-tt-width="x-large"
+          data-tt-pos="bottom-right"
+          data-tt-width="x-large"
           data-tooltip="All renders will be saved relative to this folder. Use the 'Edit File Pattern' button to set the full save path for each composition."
-          >?</button>
+          >?</button
+        >
       </h4>
 
       <div class="setting">
@@ -1196,17 +1225,23 @@
         <div><button onclick={SelRenderBasePath}>Choose Folder...</button></div>
       </div>
 
-      <h4>Add Composition to Renders
+      <h4>
+        Add Composition to Renders
         <button
           class="info"
-          data-tt-pos="bottom-right" data-tt-width="x-large"
+          data-tt-pos="bottom-right"
+          data-tt-width="x-large"
           data-tooltip="The compositions you select will be rendered for every row of data. You can select any composition in the project, even if is not directly related to the template composition."
-          >?</button>
+          >?</button
+        >
       </h4>
 
       <div class="setting">
         <Dropdown
-          labels={["Select a Composition", ...all_comps.map((comp) => comp.name)]}
+          labels={[
+            "Select a Composition",
+            ...all_comps.map((comp) => comp.name),
+          ]}
           options={["", ...all_comps.map((comp) => comp.id)]}
           bind:value={selected_comp}
         />
@@ -1214,7 +1249,8 @@
         <button
           onclick={() => {
             AddCompToDependents();
-          }}>Add</button>
+          }}>Add</button
+        >
       </div>
 
       <!-- Dependant Compositions -->
@@ -1225,25 +1261,28 @@
             style="margin: 5px 5px 3px 0;"
             bind:checked={setts.tmpls[setts.sel_tmpl].dep_config[dc.id].enabled}
           />
-          <h4 style="display: inline;">{dc.name}</h4> 
+          <h4 style="display: inline;">{dc.name}</h4>
           <button
-                  class="delete_col"
-                  style="vertical-align: top;"
-                  data-tooltip="Remove composition from renders"
-                  data-tt-pos="bottom-right"
-                  onclick={() => DeleteDependantComp(dc.id)}><Trash /></button
-                >
+            class="delete_col"
+            style="vertical-align: top;"
+            data-tooltip="Remove composition from renders"
+            data-tt-pos="bottom-right"
+            onclick={() => DeleteDependantComp(dc.id)}><Trash /></button
+          >
 
           <div class="setting">
             <h5>
-              Render Save Pattern: {setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                .save_pattern}
-                 <button
-              data-tooltip="Edit the pattern that will determine the save path for this render."
-              data-tt-pos="top-right" data-tt-width="large"
-              onclick={() => DepFilePatternModalOpen(dc.id)}
-              > <Pencil1 /> Edit</button
-            >
+              Render Save Pattern: {setts.tmpls[setts.sel_tmpl].dep_config[
+                dc.id
+              ].save_pattern}
+              <button
+                data-tooltip="Edit the pattern that will determine the save path for this render."
+                data-tt-pos="top-right"
+                data-tt-width="large"
+                onclick={() => DepFilePatternModalOpen(dc.id)}
+              >
+                <Pencil1 /> Edit</button
+              >
             </h5>
 
             <div>
@@ -1252,16 +1291,18 @@
                 >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id].save_path}</span
               >
             </div>
-           
           </div>
 
-          <h5>Render Settings
+          <h5>
+            Render Settings
 
             <button
               class="info"
-              data-tt-pos="bottom-right" data-tt-width="x-large"
+              data-tt-pos="bottom-right"
+              data-tt-width="x-large"
               data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
-              >?</button>
+              >?</button
+            >
           </h5>
 
           <div class="setting">
@@ -1301,10 +1342,12 @@
           </div>
 
           <div class="setting">
-            <label for="sel_render_out_module"
+            <label
+              for="sel_render_out_module"
               data-tooltip="Will attempt to render the composition as a single frame PNG image, removing the '0000' that After Effects attaches to image sequences. May not work in Mac."
-              data-tt-pos="top-right" data-tt-width="large"
-            >As Single Frame PNG</label>
+              data-tt-pos="top-right"
+              data-tt-width="large">As Single Frame PNG</label
+            >
             <input
               type="checkbox"
               bind:checked={
@@ -1320,33 +1363,32 @@
       <!--Results-->
       {#if dep_row_results.length > 0}
         <h4>Render Results</h4>
-      <table>
-        <thead>
-          <tr>
-            <th>Row</th>
-            <th>Status</th>
-            <th>Rendered Path</th>
-            <th>Error Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each dep_row_results as row}
+        <table>
+          <thead>
             <tr>
-              <td>{row.row}</td>
-              <td>
-               {#if row.status == "success"}
-                  <CheckCircled color="green" size={23}/>
-                {:else}
-                  <CrossCircled color="red" size={23}/>
-               {/if}
-              </td>
-              <td>{row.rendered_path}</td>
-              <td>{row.error}</td>
+              <th>Row</th>
+              <th>Queued</th>
+              <th>Rendered Path</th>
+              <th>Message</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-
+          </thead>
+          <tbody>
+            {#each dep_row_results as row}
+              <tr>
+                <td>{row.row}</td>
+                <td>
+                  {#if row.status == "success"}
+                    <CheckCircled color="green" size={23} />
+                  {:else}
+                    <CrossCircled color="red" size={23} />
+                  {/if}
+                </td>
+                <td>{row.rendered_path}</td>
+                <td>{row.error}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       {/if}
     {/if}
   </main>

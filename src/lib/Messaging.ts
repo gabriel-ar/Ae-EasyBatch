@@ -89,7 +89,7 @@ export type RowRenderResult ={
   status: 'success' | 'error';
   /** If successful, the path to the rendered file */
   rendered_path?: string;
-  /** If not successful, the error message */
+  /** If not successful, the error message (user facing) */
   error?: string;
 }
 

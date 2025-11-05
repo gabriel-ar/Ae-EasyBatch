@@ -18,6 +18,8 @@ class Logger {
         this.log_lvl = log_level;
         this.prefix = prefix;
 
+        console.log("Logger created with prefix: " + this.prefix);
+
         //Resolve the documents folder
         const docs_folder = new CSAdapter().GetSystemPath(CSAdapter.SystemPath.MY_DOCUMENTS);
         const log_filename = `${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
