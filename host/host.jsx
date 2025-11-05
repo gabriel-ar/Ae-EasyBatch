@@ -590,7 +590,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
         var alt_src_layer = alt_src.layer(1);
         if (
           alt_src_layer.source instanceof FootageItem
-           && _ComparePaths(alt_src_layer.source.file, col.values[row_i])
+          && _ComparePaths(alt_src_layer.source.file, col.values[row_i])
         ) {
           //The footage item is already linked to the correct file
           continue;
@@ -676,9 +676,9 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
 
 function _ComparePaths(path1, path2) {
   try {
-  // Normalize paths by converting to absolute paths
-  var fl1 = path1 instanceof File ? path1 : File(path1);
-  var fl2 = path2 instanceof File ? path2 : File(path2);
+    // Normalize paths by converting to absolute paths
+    var fl1 = path1 instanceof File ? path1 : File(path1);
+    var fl2 = path2 instanceof File ? path2 : File(path2);
   } catch (e) {
     return false;
   }
@@ -837,7 +837,7 @@ function BatchRender(str_template, folder) {
   _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
-  var result = { errors: [] };
+  var result = { errors: [], row_results: [] };
 
   try {
     /** @type {Template}*/
@@ -868,7 +868,17 @@ function BatchRender(str_template, folder) {
         var layer = render_comp.layers.add(tmpl_comp);
 
         //Set the values of the essential properties
-        _ApplyTemplProps(layer, templ, i_row);
+        var p_err = _ApplyTemplProps(layer, templ, i_row).errors;
+
+        //Convert errors to a string
+        var prop_error_str = null;
+        if (p_err.length > 0) {
+
+          prop_error_str = "";
+          for (var i_err = 0; i_err < p_err.length; i_err++) {
+            prop_error_str += p_err[i_err].message + " in column " + p_err[i_err].column + "; ";
+          }
+        }
 
         //Render the template
         _QueueComp(
@@ -877,8 +887,25 @@ function BatchRender(str_template, folder) {
           templ.render_setts_templ,
           templ.render_out_module_templ
         );
+
+        result.row_results.push({
+          row: i_row,
+          status: prop_error_str === null ? 'success' : 'warning',
+          rendered_path: templ.save_paths[i_row],
+          error: prop_error_str
+        });
+
+
+
       } catch (e) {
-        result.errors.push({ message: e.message, row: i_row });
+        result.row_results.push({
+          row: i_row,
+          status: 'error',
+          error_message: e.message
+        });
+
+
+        result.errors.push({ message: e.message, type: '@row', row: i_row });
       }
     } //loop template rows
 
@@ -1229,7 +1256,18 @@ function RenderDeps(tmpl, props_layer) {
   for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
 
     try {
-      _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
+      var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true).errors;
+
+      //Convert errors to a string
+      var prop_error_str = null;
+      if (p_err.length > 0) {
+
+        prop_error_str = "";
+        for (var i_err = 0; i_err < p_err.length; i_err++) {
+          prop_error_str += p_err[i_err].message + " in column " + p_err[i_err].column + "; ";
+        }
+      }
+
 
       //Add the dependent compositions to the render queue
       for (var i = 0; i < tmpl.dep_comps.length; i++) {
@@ -1249,8 +1287,9 @@ function RenderDeps(tmpl, props_layer) {
           //Log the result
           dep_result.row_results.push({
             row: dep_render_row,
-            status: 'success',
-            rendered_path: file.fsName
+            status: prop_error_str === null ? 'success' : 'warning',
+            rendered_path: file.fsName,
+            error: prop_error_str
           });
 
         } else {
@@ -1264,8 +1303,9 @@ function RenderDeps(tmpl, props_layer) {
           //Log the result
           dep_result.row_results.push({
             row: dep_render_row,
-            status: 'success',
-            rendered_path: dep_config.save_paths[dep_render_row]
+            status: prop_error_str === null ? 'success' : 'warning',
+            rendered_path: dep_config.save_paths[dep_render_row],
+            error: prop_error_str
           });
         }
       }

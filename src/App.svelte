@@ -20,6 +20,7 @@
     CheckCircled,
     CrossCircled,
     Pencil1,
+    ExclamationTriangle,
   } from "radix-icons-svelte";
 
   import {
@@ -541,14 +542,14 @@
             "Error While Batch Rendering",
           );
           return;
-        } else
-        
+        }
+
         //Some errors happened, log it as a warning (defalut txt log file level)
-        if (result.errors !== undefined && result.errors.length > 0) {
+        else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`Batch Render completed with errors`, result.errors);
           render_results = result.row_results;
-        } 
-        
+        }
+
         //All rows queued up successfully
         else {
           l.debug(`Batch Render Results`, render_results);
@@ -1379,6 +1380,8 @@
                 <td>
                   {#if row.status == "success"}
                     <CheckCircled color="green" size={23} />
+                  {:else if row.status == "warning"}
+                    <ExclamationTriangle color="yellow" size={21} />
                   {:else}
                     <CrossCircled color="red" size={23} />
                   {/if}
