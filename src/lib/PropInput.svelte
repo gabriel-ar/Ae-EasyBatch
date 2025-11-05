@@ -167,6 +167,10 @@
         value = `<b>${file}</b>`;
         DebounceChange();
       }
+      else if (file === null){
+        l.debug('File selection cancelled by user');
+        value = current_file;
+      }
     }).catch((err) => {
       l.error('Error picking file:', err);
     });

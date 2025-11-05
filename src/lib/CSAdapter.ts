@@ -1,12 +1,12 @@
 import "./cep_node.t";
 
 class CSAdapter {
-  constructor() {}
+  constructor() { }
 
   /**
    * @enum {string}
    */
- static SystemPath = {
+  static SystemPath = {
     EXTENSION: "extension",
     COMMON_FILES: "commonFiles",
     MY_DOCUMENTS: "myDocuments",
@@ -20,32 +20,32 @@ class CSAdapter {
   async Eval(method, ...args): Promise<string> {
     return new Promise((resolve) => {
 
+      //build the script to be evaluated
+      let script = `${method}(`;
+      if (args.length > 0) {
+        script += args.map(arg => {
+          if (typeof arg === "string") { arg = '"' + encodeURIComponent(arg) + '"' }
+          return arg;
+        }
+        ).join(", ");
+      }
+      script += `)`;
+
+      this.a_cep.evalScript(script, (result) => {
+        resolve(result);
+      });
+    });//Promise
+  }
+
+  EvalSync(method, callback, ...args) {
     //build the script to be evaluated
     let script = `${method}(`;
     if (args.length > 0) {
       script += args.map(arg => {
-        if(typeof arg === "string" ){arg = '"' + encodeURIComponent(arg) + '"'}
+        if (typeof arg === "string") { arg = '"' + encodeURIComponent(arg) + '"' }
         return arg;
       }
-    ).join(", ");
-    }
-    script += `)`;
-
-    this.a_cep.evalScript(script, (result) => { 
-      resolve(result);
-    });
-  });//Promise
-  }
-
-  EvalSync(method, callback, ...args) {
-   //build the script to be evaluated
-    let script = `${method}(`;
-    if (args.length > 0) {
-      script += args.map(arg => {
-        if(typeof arg === "string" ){arg = '"'+ encodeURIComponent(arg)+'"'}
-        return arg;
-      }
-    ).join(", ");
+      ).join(", ");
     }
     script += `)`;
 
@@ -78,7 +78,7 @@ class CSAdapter {
       };
     }
 
-   return this.a_cep.evalScript(script, callback);
+    return this.a_cep.evalScript(script, callback);
   }
 
 
@@ -113,17 +113,17 @@ class CSAdapter {
    * @param {string} initial_folder 
    * @returns {Promise<string|null>} The selected folder path or null if the user cancels the dialog.
    */
-  async OpenFolderDialog(initial_folder=""): Promise<string|null> {
-  
-    if(initial_folder !== "" && initial_folder !== undefined && initial_folder !== null) {
+  async OpenFolderDialog(initial_folder = ""): Promise<string | null> {
+
+    if (initial_folder !== "" && initial_folder !== undefined && initial_folder !== null) {
       let proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`);
-      
+
       let path = cep_node.require("path");
       initial_folder = path.join(proj_folder, initial_folder);
     }
 
     console.log("Initial folder: " + initial_folder);
-    
+
     let res = cep.fs.showOpenDialogEx(
       false,
       true,
@@ -135,13 +135,11 @@ class CSAdapter {
 
       console.log("Selected folder: " + res.data[0]);
 
-      let rel_path:string = await this.EvalDirectAsync(
+      let rel_path: string = await this.EvalDirectAsync(
         `GetRelativeFolderPath("${encodeURIComponent(res.data[0])}")`
-      )as string;
+      ) as string;
 
       console.log("Relative path: " + rel_path);
-
-
 
       return new Promise((resolve, reject) => {
         if (rel_path !== undefined && rel_path !== null) {
@@ -151,7 +149,7 @@ class CSAdapter {
           reject(null);
         }
       });
-    }else{
+    } else {
       return new Promise((resolve, reject) => {
         reject(null);
       });
@@ -163,39 +161,36 @@ class CSAdapter {
    * @param {string} initial_folder 
    * @returns {Promise<string|null>} The selected file path or null if the user cancels the dialog.
    */
-async OpenFileDialog(initial_folder) {
+  async OpenFileDialog(initial_folder) {
 
-  console.log("OpenFileDialog called with initial_folder: " + initial_folder);
+    console.log("OpenFileDialog called with initial_folder: " + initial_folder);
 
     let i_folder = initial_folder || "";
 
-  return new Promise((resolve, reject) => {
-    let res = cep.fs.showOpenDialogEx(false, false, "Select File", i_folder);
+    return new Promise((resolve, reject) => {
+      let res = cep.fs.showOpenDialogEx(false, false, "Select File", i_folder);
 
-    if (res.data[0] !== undefined && res.data[0] !== null) {
-      this.EvalDirect(
-        `GetRelativeFilePath("${encodeURIComponent(res.data[0])}")`,
-        (res) => {
-          resolve(decodeURIComponent(res));
-        }
-      );
-    }else{
-        return new Promise((resolve, reject) => {
-            resolve(null);
-          });
-    }
-  });
-}
+      if (res.data[0] !== undefined && res.data[0] !== null) {
+        this.EvalDirect(
+          `GetRelativeFilePath("${encodeURIComponent(res.data[0])}")`,
+          (res) => {
+            resolve(decodeURIComponent(res));
+          }
+        );
+      } else {
+        resolve(null);
+      }
+    });
+  }
 
-/**
- * 
- * @param {SystemPath} pathType 
- */
-GetSystemPath(pathType)
-{
+  /**
+   * 
+   * @param {SystemPath} pathType 
+   */
+  GetSystemPath(pathType) {
     var path = decodeURI(this.a_cep.getSystemPath(pathType));
     return path.replace("file:///", "").replace("file://", "");
-};
+  };
 }
 
 export default CSAdapter;
