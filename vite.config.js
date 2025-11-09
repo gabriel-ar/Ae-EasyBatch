@@ -1,7 +1,8 @@
 import { build, defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
-import { viteStaticCopy } from 'vite-plugin-static-copy'
 import { viteSingleFile } from "vite-plugin-singlefile"
+import copy from 'rollup-plugin-copy'
+
 
 //For custom extensions
 import { readFileSync, writeFileSync } from 'fs'
@@ -33,7 +34,7 @@ function updateManifest(isDev) {
         /<MainPath>.*<\/MainPath>/,
         `<MainPath>${mainPath}</MainPath>`
       );
-
+      1
       writeFileSync(manifestPath, manifest, 'utf-8')
       console.log(`Updated manifest.xml to version ${version}`)
     }
@@ -44,26 +45,31 @@ function updateManifest(isDev) {
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
-  const isDev = command === 'serve'
-  
+
+  console.log(`Command: ${command}, Mode: ${mode}`);
+
   return {
     define: {
       '_VERSION_': JSON.stringify(version)
     },
     plugins: [
       svelte(),
-      updateManifest(isDev),
-      viteStaticCopy({
+      copy({
         targets: [
           {
             src: 'CSXS/*',
-            dest: 'CSXS'
+            dest: 'dist/CSXS',
+            transform: (contents, filename) => contents.toString()
+              .replaceAll('_VERSION_', version)
+              .replace('_MAIN_FILE_', mode === 'development' ? './dev.html' : './index.html')
           },
           {
-            src: 'host/*', 
-            dest: 'host'
-          },
-        ]
+            src: 'host/*',
+            dest: 'dist/host'
+          }
+        ],
+        verbose: true,
+        hook: command === 'build' ? 'writeBundle' : 'buildStart'
       }),
       viteSingleFile(),
     ],

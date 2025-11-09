@@ -10,14 +10,13 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "rollup-plugin-copy": "^3.5.0",
     "svelte": "^5.19.6",
     "vite": "^6.4.1",
-    "vite-plugin-singlefile": "^2.1.0",
-    "vite-plugin-static-copy": "^2.3.2"
+    "vite-plugin-singlefile": "^2.1.0"
   },
   "dependencies": {
     "papaparse": "^5.5.2",
     "radix-icons-svelte": "^1.2.1"
   }
 }
-

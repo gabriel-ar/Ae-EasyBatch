@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8' standalone="no"?>
-<ExtensionManifest ExtensionBundleId="com.settools.easybatch" ExtensionBundleName="EasyBatch" ExtensionBundleVersion="0.1.1" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ExtensionManifest ExtensionBundleId="com.settools.easybatch" ExtensionBundleName="EasyBatch" ExtensionBundleVersion="_VERSION_" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.settools.easybatch.panel" Version="0.1.1" />
+    <Extension Id="com.settools.easybatch.panel" Version="_VERSION_" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -21,7 +21,7 @@
       </HostList>
       <DispatchInfo>
         <Resources>
-          <MainPath>./dev.html</MainPath>
+          <MainPath>_MAIN_FILE_</MainPath>
           <ScriptPath>./host/host.jsx</ScriptPath>
           <CEFCommandLine>
             <Parameter>--allow-file-access-from-files</Parameter>
