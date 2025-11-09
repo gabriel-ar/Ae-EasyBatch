@@ -72,7 +72,7 @@ class Settings {
     });
   }
 
-  static version = "0.1.1";
+  static version = _VERSION_;
 
   /**
    * Stores data from Essential GFXs templates that have automated data
