@@ -584,7 +584,8 @@ class Template {
       let tmpl_col = data.values.find((val) => val.name === col.cont_name);
 
       //TODO: Ignoring text documents because After Effects is returning the value of the original template comp and not the current value;
-      if (tmpl_col !== undefined && col.type !== Column.PropertyValueType.TEXT_DOCUMENT) {
+      // This seems to be fixed
+      if (tmpl_col !== undefined && col.type) {
         col.values[row_i] = tmpl_col.value;
       }
     });

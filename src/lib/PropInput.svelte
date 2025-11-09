@@ -293,12 +293,13 @@
 {/snippet}
 
 {#snippet text_input()}
-  <input
-    type="text"
+  <textarea
+  rows="1"
+  cols="15"
     bind:value
     onkeyup={DebounceChange}
     onchange={DebounceChange}
-  />
+  ></textarea>
 {/snippet}
 
 {#snippet slider(axis, index = -1)}
@@ -308,7 +309,7 @@
 {/snippet}
 
 <style>
-  input {
+  input, textarea {
     background-color: transparent;
     border: none;
 
@@ -320,8 +321,13 @@
     appearance: none;
   }
 
-  input:hover {
+  input:hover, textarea:hover {
     background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  input:focus, textarea:focus {
+    border: solid 1px var(--color-highlight);
+    background-color: rgba(255, 255, 255, 0.1);
   }
 
   input[type="number"] {
