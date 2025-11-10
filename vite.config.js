@@ -13,7 +13,7 @@ const version = packageJson.version;
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
 
-  console.log(`Command: ${command}, Mode: ${mode}`);
+  console.log(`VITE RUNNING Command: ${command}, Mode: ${mode}`);
 
   return {
     define: {
