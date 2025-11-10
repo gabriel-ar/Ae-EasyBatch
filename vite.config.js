@@ -3,45 +3,12 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { viteSingleFile } from "vite-plugin-singlefile"
 import copy from 'rollup-plugin-copy'
 
-
 //For custom extensions
-import { readFileSync, writeFileSync } from 'fs'
-import { resolve } from 'path'
+import { readFileSync } from 'fs'
 
 // Read version from package.json
-const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'))
-const version = packageJson.version
-
-function updateManifest(isDev) {
-  return {
-    name: 'update-manifest',
-    buildStart() {
-      const manifestPath = resolve(__dirname, 'CSXS/manifest.xml');
-      let manifest = readFileSync(manifestPath, 'utf-8');
-
-      // Update version placeholder
-      manifest = manifest.replace(
-        /ExtensionBundleVersion="[^"]*"/,
-        `ExtensionBundleVersion="${version}"`
-      ).replace(
-        /<Extension Id=".*?" Version="[^"]*" \/>/,
-        `<Extension Id="com.settools.easybatch.panel" Version="${version}" />`
-      );
-
-      // Update MainPath based on isDev
-      const mainPath = isDev ? './dev.html' : './index.html';
-      manifest = manifest.replace(
-        /<MainPath>.*<\/MainPath>/,
-        `<MainPath>${mainPath}</MainPath>`
-      );
-      1
-      writeFileSync(manifestPath, manifest, 'utf-8')
-      console.log(`Updated manifest.xml to version ${version}`)
-    }
-  }
-}
-
-
+const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
+const version = packageJson.version;
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -56,6 +23,7 @@ export default defineConfig(({ command, mode }) => {
       svelte(),
       copy({
         targets: [
+          // Copy the manifest file, and update the version and main file path depending on mode
           {
             src: 'CSXS/*',
             dest: 'dist/CSXS',
@@ -63,6 +31,7 @@ export default defineConfig(({ command, mode }) => {
               .replaceAll('_VERSION_', version)
               .replace('_MAIN_FILE_', mode === 'development' ? './dev.html' : './index.html')
           },
+          // Copy host files (ExtendScript files)
           {
             src: 'host/*',
             dest: 'dist/host'
