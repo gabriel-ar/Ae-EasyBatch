@@ -46,11 +46,12 @@
     RowRenderResult,
   } from "./lib/Messaging";
 
-  import PropInput from "./lib/PropInput.svelte";
-  import ModalAlternateSrcV2 from "./lib/ModalAlternateSrcV2.svelte";
-  import ModalFilePattern from "./lib/ModalDepFilePattern.svelte";
-  import Dropdown from "./lib/Dropdown.svelte";
-  import ModalMessage from "./lib/ModalMessage.svelte";
+  import PropInput from "./ui/PropInput.svelte";
+  import ModalAlternateSrcV2 from "./ui/ModalAlternateSrcV2.svelte";
+  import ModalFilePattern from "./ui/ModalDepFilePattern.svelte";
+  import Dropdown from "./ui/Dropdown.svelte";
+  import ModalMessage from "./ui/ModalMessage.svelte";
+    import SettingsPanel from "./ui/SettingsPanel.svelte";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -230,15 +231,6 @@
         l.log(`Saved Settings`, result);
       }
     });
-  }
-
-  function ResetSettings() {
-    setts = new Settings();
-    setts.sel_tmpl = 0;
-    setts = setts;
-    l.debug("ResetSettings called");
-    SaveSettings(true);
-    setTimeout(() => window.location.reload(), 1000);
   }
 
   function IsSameProject() {
@@ -812,7 +804,7 @@
    */
   function ImportCSV() {
     l.debug("ImportCSV called");
-    csa.Eval("ImportFile").then((result) => {
+    csa.Eval("ImportFile", "CSV Files: *.csv, All Files: *.*").then((result) => {
       if (result === "null") return;
 
       let decoded = decodeURIComponent(result);
@@ -827,36 +819,11 @@
     let content = setts.tmpls[setts.sel_tmpl].MakeCSV();
     l.debug("ExportCSV called");
 
-    csa.Eval("ExportFile", content).then((result) => {
+    csa.Eval("ExportFile", content, "CSV Files: *.csv, All Files: *.*").then((result) => {
       if (result == "null") return;
     });
   }
-
-  function SaveJSON() {
-    let content = JSON.stringify(setts);
-    l.debug("SaveJSON called");
-
-    csa.Eval("ExportFile", content).then((result) => {
-      if (result == "null") return;
-    });
-  }
-
-  function LoadJSON() {
-    l.debug("LoadJSON called");
-    csa.Eval("ImportFile").then((result) => {
-      if (result === "null") return;
-
-      let decoded = decodeURIComponent(result);
-
-      let json_setts = JSON.parse(decoded);
-
-      setts.FromJson(json_setts);
-      setts.id = setts.MakeId();
-      SaveSettings(true);
-      setts = setts;
-    });
-  }
-</script>
+  </script>
 
 <!-- HEADER -->
 <header>
@@ -1396,57 +1363,7 @@
     {/if}
   </main>
 {:else if setts.active_tab == "settings"}
-  <main class="settings">
-    <div class="setting">
-      <label for="in_imported_folder"
-        >Imported Footage Folder Name
-        <br /><span class="sett_label_note">Per template</span>
-      </label>
-      <input
-        id="in_gen_folder"
-        type="text"
-        bind:value={setts.tmpls[setts.sel_tmpl].imported_footage_folder}
-      />
-    </div>
-
-    <div class="setting">
-      <label for="in_imported_folder"
-        >Template Comps Render Folder Name
-        <br /><span class="sett_label_note">Global</span>
-      </label>
-      <input
-        id="in_gen_folder"
-        type="text"
-        bind:value={setts.render_comps_folder}
-      />
-    </div>
-
-    <div class="setting">
-      <label for="in_imported_folder">
-        Automatically preview when changing values
-        <input type="checkbox" bind:checked={setts.auto_preview} />
-      </label>
-    </div>
-
-    <div class="row">
-      <label for="in_imported_folder">Log Level </label>
-
-      <Dropdown
-        style_list="text-transform: capitalize;"
-        labels={Object.entries(Logger.Levels).map(
-          ([key, val]) => val + " - " + key,
-        )}
-        options={Object.entries(Logger.Levels).map(([key, val]) => val)}
-        bind:value={setts.log_level}
-      />
-    </div>
-
-    <div class="row">
-      <button onclick={LoadJSON}>Load Config as JSON</button>
-      <button onclick={SaveJSON}>Save Config as JSON</button>
-      <button onclick={ResetSettings}>Reset Settings</button>
-    </div>
-  </main>
+ <SettingsPanel bind:setts={setts} bind:csa={csa} />
 {/if}
 
 {#if setts.tmpls[setts.sel_tmpl] !== undefined && show_alt_src_modal}
@@ -1556,7 +1473,7 @@
     padding-right: 10px;
   }
 
-  main {
+  :global(main) {
     display: flex;
     flex-direction: column;
     /*gap: 1rem;*/
@@ -1662,30 +1579,6 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .settings .setting {
-    display: flex;
-    flex-direction: column;
-    margin: 2px 0 7px 0;
-  }
-
-  .settings .setting label {
-    margin: 0 0 5px 0;
-  }
-
-  .settings .row {
-    margin: 2px 0 8px 0;
-  }
-
-  .settings .row > label {
-    margin: 0 5px 0 0;
-  }
-
-  .sett_label_note {
-    margin: 0;
-    line-height: 0.8em;
-    font-size: 0.8em;
-    color: rgba(255, 255, 255, 0.6);
-  }
 
   .fs_no_tmpls {
     position: fixed;

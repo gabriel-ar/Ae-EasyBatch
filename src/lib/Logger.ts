@@ -24,7 +24,7 @@ class Logger {
         const docs_folder = new CSAdapter().GetSystemPath(CSAdapter.SystemPath.MY_DOCUMENTS);
         const log_filename = `${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
 
-        this.log_path = path.join(docs_folder,"EasyBatch Logs", log_filename);
+        this.log_path = path.join(docs_folder, "EasyBatch Logs", log_filename);
     }
 
     /**
@@ -66,8 +66,8 @@ class Logger {
             } else {
                 return message;
             }
-        }   );
-        
+        });
+
         //Only the messages with the log level equal or higher than the logLevel property will be logged to the file
         if (level <= this.log_lvl) {
             const logMessage = `[${new Date().toISOString()}] [${txt_lvl.toUpperCase()}] ${this.prefix} ${messages.join(' ')}`;
@@ -90,6 +90,37 @@ class Logger {
     debug(...messages) {
         this.DoLog(Logger.Levels.Debug, ...messages);
     }
+
+    OpenLogFolder() {
+        let dir = path.dirname(this.log_path);
+        console.log("Opening log folder: " + dir); 
+
+        // Source - https://stackoverflow.com/a
+        // Posted by Cleardd, modified by community. See post 'Timeline' for change history
+        // Retrieved 2025-11-10, License - CC BY-SA 4.0
+
+        var cmd = ``;
+        switch (os.platform().toLowerCase().replace(/[0-9]/g, ``).replace(`darwin`, `macos`)) {
+            case `win`:
+                dir = dir || '=';
+                cmd = `explorer`;
+                break;
+            case `linux`:
+                dir = dir || '/';
+                cmd = `xdg-open`;
+                break;
+            case `macos`:
+                dir = dir || '/';
+                cmd = `open`;
+                break;
+        }
+        let p = require(`child_process`).spawn(cmd, [dir]);
+        p.on('error', (err) => {
+            p.kill();
+        });
+    }
+
+
 }
 
 export default Logger;

@@ -1156,8 +1156,13 @@ function SelectFolder(default_path) {
 }
 
 /**Generic file import, returns an URI encoded string */
-function ImportFile() {
-  var file = File.openDialog("Select a file");
+function ImportFile(filter) {
+  _EscapeArgs(arguments);
+  if (filter === undefined) {
+    filter = "*.*";
+  }
+
+  var file = File.openDialog("Select a file", filter);
 
   file.open("r");
   var content = file.read();
@@ -1166,10 +1171,14 @@ function ImportFile() {
   return encodeURIComponent(content);
 }
 
-function ExportFile(content) {
+function ExportFile(content, filters) {
   _EscapeArgs(arguments);
 
-  var file = File.saveDialog("Save a file");
+  if (filters === undefined) {
+    filters = "All Files: *.*";
+  }
+
+  var file = File.saveDialog("Save a file", filters);
   file.open("w");
   file.write(content);
   file.close();

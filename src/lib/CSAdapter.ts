@@ -1,5 +1,6 @@
 import "./cep_node.t";
 
+//Modernized CEP adapter for easier interaction with the CEP environment
 class CSAdapter {
   constructor() { }
 

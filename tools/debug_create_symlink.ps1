@@ -17,6 +17,10 @@ $eb_dir = Join-Path -Path $ext_dir -ChildPath "EasyBatch"
 
 # Check if the script is running with elevated privileges
 if (-Not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+
+    Echo "Script is not running with elevated privileges. Will relaunch as administrator..."
+    pause
+
     # Relaunch the script with elevated privileges and set the working directory
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -WorkingDirectory $script_dir -Verb RunAs
     exit
