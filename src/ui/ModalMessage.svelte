@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Logger from "./Logger.ts";
+    import Logger from "../lib/Logger.ts";
 
     const l = new Logger(Logger.Levels.Warn, "ModalFilePattern");
 

@@ -1,9 +1,9 @@
 <script>
   import { getContext } from "svelte";
-  import { Column } from "./Settings";
-  import Logger from './Logger.ts';
+  import { Column } from "../lib/Settings.ts";
+  import Logger from '../lib/Logger.ts';
   import EyeDropper from "../assets/EyeDropper.svelte";
-  import CSAdapter from "./CSAdapter.ts";
+  import CSAdapter from "../lib/CSAdapter.ts";
     import { File } from "radix-icons-svelte";
 
   const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'PropInput');

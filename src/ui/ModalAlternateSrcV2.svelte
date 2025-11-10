@@ -1,8 +1,7 @@
 <script>
-    import { Template } from "./Settings.ts";
-    import CSAdapter from "./CSAdapter.ts";
+    import CSAdapter from "../lib/CSAdapter.ts";
     import { getContext, onMount } from "svelte";
-    import Logger from "./Logger.ts";
+    import Logger from "../lib/Logger.ts";
 
     const l =
         getContext("logger") ||

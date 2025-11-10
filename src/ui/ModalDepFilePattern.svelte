@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { Column, Template, type DepCompSetts } from "./Settings.ts";
-    import CSAdapter from "./CSAdapter.ts";
+    import { Column, Template, type DepCompSetts } from "../lib/Settings.ts";
+    import CSAdapter from "../lib/CSAdapter.ts";
     import { getContext, onMount } from "svelte";
-    import Logger from "./Logger.ts";
+    import Logger from "../lib/Logger.ts";
      import Dropdown from "./Dropdown.svelte";
 
     type OnCloseFunc = (base_path: string, pattern: string) => void;
@@ -60,11 +60,11 @@
         );
     }
 
-    let update_preview_timeout: number;
+    let update_prev_timeout: number;
     function DebounceUpdatePreview() {
-        if (update_preview_timeout) clearTimeout(update_preview_timeout);
+        if (update_prev_timeout) clearTimeout(update_prev_timeout);
 
-        update_preview_timeout = setTimeout(UpdatePreview, 800);
+        update_prev_timeout = window.setTimeout(UpdatePreview, 800);
     }
 
     function UpdatePreview() {
