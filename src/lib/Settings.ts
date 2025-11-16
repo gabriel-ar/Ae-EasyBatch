@@ -81,18 +81,12 @@ class Settings {
   tmpls: Template[] = [];
 
   /**
-   * The mode of the automator, either "table" or "csv"
-   * @type {string}
-   */
-  mode;
-
-  /**
    * Selected template to edit
    * @type {number}
    */
   sel_tmpl = -1;
 
-  active_tab = "data";
+  active_tab: Tabs = Tabs.Data;
 
   log_level = Logger.Levels.Warn;
 
@@ -101,7 +95,7 @@ class Settings {
    */
   render_comps_folder = "~Render Templates";
 
-  out_mode = "render";
+  out_mode: OutMode = OutMode.Render;
 
   auto_preview = true;
 
@@ -218,6 +212,12 @@ class Template {
 
     return templ;
   }
+
+  static MakeCopy(template: Template) {
+    return Template.FromJson(structuredClone(template));
+  }
+
+
 
   /**
    * Updates the columns stored in settings with the new template retrieved from the host
@@ -392,7 +392,7 @@ class Template {
   }
 
 
-  /**Resolve the save paths of dependant composition on dependant mode */
+  /**Resolve the save paths of dependant compositions on dependant mode */
   ResolveSavePathDeps() {
 
     console.log("Resolving save paths for all rows of dependant comps");
@@ -578,7 +578,7 @@ class Template {
    * @param {GetCurrentValuesResults} data
    * @param {number} row_i
    */
-  ReplaceRowValues(data, row_i) {
+  CopyValuesFromPreview(data, row_i) {
     //Match columns by name
     this.columns.forEach((col) => {
       let tmpl_col = data.values.find((val) => val.name === col.cont_name);
@@ -802,4 +802,16 @@ type DepCompSetts = {
   single_frame: boolean;
 }
 
-export { Settings, Template, Column, type Comp, type DepCompSetts };
+const enum OutMode {
+  Render = "render",
+  Generate = "generate",
+  Dependant = "dependant",
+}
+
+const enum Tabs {
+  Data = "data",
+  Output = "output",
+  Settings = "settings",
+}
+
+export { Settings, Template, Column, type Comp, type DepCompSetts, OutMode, Tabs };

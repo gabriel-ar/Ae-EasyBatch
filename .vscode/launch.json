@@ -22,16 +22,18 @@
             "webRoot": "${workspaceFolder}/src",
         },
         {
-            "name": "Attatch to CEP Ae",
+            "name": "Attach to CEP Ae",
             "type": "extendscript-debug",
             "hostAppSpecifier": "aftereffects-25.0",
             "request": "attach",
         },
         {
-            "type": "extendscript-debug",
-            "hostAppSpecifier": "aftereffects-25.0",
             "name": "Launch in CEP Ae",
+            "type": "extendscript-debug",
             "request": "launch",
+            "hostAppSpecifier": "aftereffects-25.0",
+            "script": "${workspaceFolder}/host/host.jsx",
+            "bringToFront": false,
         },
     ]
 }

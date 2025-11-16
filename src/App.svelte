@@ -29,6 +29,7 @@
     Column,
     type DepCompSetts,
     type Comp,
+    Tabs,
   } from "./lib/Settings";
 
   import Logger from "./lib/Logger";
@@ -51,7 +52,7 @@
   import ModalFilePattern from "./ui/ModalDepFilePattern.svelte";
   import Dropdown from "./ui/Dropdown.svelte";
   import ModalMessage from "./ui/ModalMessage.svelte";
-    import SettingsPanel from "./ui/SettingsPanel.svelte";
+  import SettingsPanel from "./ui/SettingsPanel.svelte";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -442,7 +443,7 @@
       try {
         result = JSON.parse(s_result);
 
-        setts.tmpls[setts.sel_tmpl].ReplaceRowValues(result, row_i);
+        setts.tmpls[setts.sel_tmpl].CopyValuesFromPreview(result, row_i);
         setts = setts;
       } catch (e) {
         l.error("Failed to parse sample row result", s_result);
@@ -451,67 +452,45 @@
     });
   }
 
-  function RenderSingleRow(row_i) {
-    l.debug("RenderSingleRow called with row index:", row_i);
-
-    //Trim the template to contain only the modified row
-
-    //TODO this is a hack, find a better way to do this
-    let send_templ = Template.FromJson(
-      JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])),
-    );
-    send_templ.ResolveSavePaths();
-
-    for (let col of send_templ.columns) {
-      col.values = [col.values[row_i]];
+  function RenderRow(row_i) {
+    switch (setts.out_mode) {
+      case "render":
+        BatchRender(row_i);
+        setts.active_tab = Tabs.Output;
+        break;
+      case "dependant":
+        BatchOneToMany(row_i);
+        setts.active_tab = Tabs.Output;
+        break;
     }
-
-    send_templ.ResolveAltSrcPaths();
-    send_templ.save_paths = [send_templ.save_paths[row_i]];
-    send_templ.generate_names = [send_templ.generate_names[row_i]];
-
-    let string_templt = JSON.stringify(send_templ);
-    l.debug("Rendering:", string_templt);
-
-    csa
-      .Eval("BatchRender", string_templt, setts.render_comps_folder)
-      .then((s_result) => {
-        /**@type {BatchRenderResult}*/
-        let result;
-
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error(
-            "Failed to parse batch render result in RenderSingleRow: ",
-            s_result,
-          );
-          return;
-        }
-
-        if (result.success == false) {
-          l.error(
-            "Failed to batch render in RenderSingleRow",
-            result.error_obj,
-          );
-          return;
-        } else {
-          l.debug(`Batch Render Started in Render Single Row`);
-        }
-      });
   }
 
   //User facing render results
   let render_results: RowRenderResult[] = [];
-  function BatchRender() {
+  function BatchRender(row_i) {
     l.log("BatchRender called");
-    setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
-    setts.tmpls[setts.sel_tmpl].ResolveSavePaths();
-    setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
+
+    let send_templ;
+    //If just rendering a single row, clone the template and trim it down to that row
+    if (row_i !== undefined) {
+      send_templ = Template.MakeCopy(
+        setts.tmpls[setts.sel_tmpl],
+      );
+
+      for (let col of send_templ.columns) {
+        col.values = [col.values[row_i]];
+      }
+    } else {
+      send_templ = setts.tmpls[setts.sel_tmpl];
+    }
+
+    send_templ.ResolveCompsNames();
+    send_templ.ResolveSavePaths();
+    send_templ.ResolveAltSrcPaths();
 
     render_results = [];
 
-    let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
+    let string_templt = JSON.stringify(send_templ);
     l.debug("String sent to csa:", string_templt);
 
     csa
@@ -579,14 +558,30 @@
   }
 
   let dep_row_results: RowRenderResult[] = [];
-  function BatchOneToMany() {
+  function BatchOneToMany(row_i) {
     l.log("BatchOneToMany called");
 
-    setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
-    setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
-    setts.tmpls[setts.sel_tmpl].ResolveSavePathDeps();
+    let send_templ;
 
-    let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
+    //If just rendering a single row, clone the template and trim it down to that row
+    if (row_i !== undefined) {
+      //TODO this is a hack, find a better way to do this
+      send_templ = Template.MakeCopy(
+        setts.tmpls[setts.sel_tmpl],
+      );
+
+      for (let col of send_templ.columns) {
+        col.values = [col.values[row_i]];
+      }
+    } else {
+      send_templ = setts.tmpls[setts.sel_tmpl];
+    }
+
+    send_templ.ResolveCompsNames();
+    send_templ.ResolveAltSrcPaths();
+    send_templ.ResolveSavePathDeps();
+
+    let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
 
     csa.Eval("BatchRenderDepComps", string_templt).then((s_result) => {
@@ -804,26 +799,30 @@
    */
   function ImportCSV() {
     l.debug("ImportCSV called");
-    csa.Eval("ImportFile", "CSV Files: *.csv, All Files: *.*").then((result) => {
-      if (result === "null") return;
+    csa
+      .Eval("ImportFile", "CSV Files: *.csv, All Files: *.*")
+      .then((result) => {
+        if (result === "null") return;
 
-      let decoded = decodeURIComponent(result);
+        let decoded = decodeURIComponent(result);
 
-      setts.tmpls[setts.sel_tmpl].LoadFromCSV(decoded);
+        setts.tmpls[setts.sel_tmpl].LoadFromCSV(decoded);
 
-      setts = setts;
-    });
+        setts = setts;
+      });
   }
 
   function ExportCSV() {
     let content = setts.tmpls[setts.sel_tmpl].MakeCSV();
     l.debug("ExportCSV called");
 
-    csa.Eval("ExportFile", content, "CSV Files: *.csv, All Files: *.*").then((result) => {
-      if (result == "null") return;
-    });
+    csa
+      .Eval("ExportFile", content, "CSV Files: *.csv, All Files: *.*")
+      .then((result) => {
+        if (result == "null") return;
+      });
   }
-  </script>
+</script>
 
 <!-- HEADER -->
 <header>
@@ -839,15 +838,15 @@
   <div class="header_tabs">
     <button
       class:curr_tab={setts.active_tab === "data"}
-      onclick={() => (setts.active_tab = "data")}>Data</button
+      onclick={() => (setts.active_tab = Tabs.Data)}>Data</button
     >
     <button
       class:curr_tab={setts.active_tab === "output"}
-      onclick={() => (setts.active_tab = "output")}>Output</button
+      onclick={() => (setts.active_tab = Tabs.Output)}>Output</button
     >
     <button
       class:curr_tab={setts.active_tab === "settings"}
-      onclick={() => (setts.active_tab = "settings")}>Settings</button
+      onclick={() => (setts.active_tab = Tabs.Settings)}>Settings</button
     >
   </div>
 
@@ -931,7 +930,7 @@
                   class="delete_row"
                   data-tooltip="Render this row"
                   data-tt-pos="top-right"
-                  onclick={() => RenderSingleRow(row_i)}><Camera /></button
+                  onclick={() => RenderRow(row_i)}><Camera /></button
                 >
               </td>
               {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
@@ -1082,12 +1081,12 @@
       <!--Results-->
       {#if render_results.length > 0}
         <h4>Render Results</h4>
-        <table>
+        <table class="render_results">
           <thead>
             <tr>
               <th>Row</th>
               <th>Queued</th>
-              <th>Rendered Path</th>
+              <th>Path</th>
               <th>Message</th>
             </tr>
           </thead>
@@ -1326,17 +1325,21 @@
         </div>
       {/each}
 
+      <div class="OtM_ui_warn">
+        <ExclamationTriangle color="white" size={15} />
+        This render mode will block the user interface, press Esc to cancel all renders.
+      </div>
       <button onclick={BatchOneToMany}>Batch One to Many</button>
 
       <!--Results-->
       {#if dep_row_results.length > 0}
         <h4>Render Results</h4>
-        <table>
+        <table class="render_results">
           <thead>
             <tr>
               <th>Row</th>
               <th>Queued</th>
-              <th>Rendered Path</th>
+              <th>Path</th>
               <th>Message</th>
             </tr>
           </thead>
@@ -1363,7 +1366,7 @@
     {/if}
   </main>
 {:else if setts.active_tab == "settings"}
- <SettingsPanel bind:setts={setts} bind:csa={csa} />
+  <SettingsPanel bind:setts bind:csa />
 {/if}
 
 {#if setts.tmpls[setts.sel_tmpl] !== undefined && show_alt_src_modal}
@@ -1517,6 +1520,10 @@
     white-space: nowrap;
   }
 
+  .render_results thead th{
+    padding: 0 5px;
+  }
+
   .delete_row,
   .delete_col {
     background-color: transparent;
@@ -1533,7 +1540,6 @@
   }
 
   /*/////OUTPUT/////*/
-
   .output textarea {
     min-height: 1.5em;
     resize: vertical;
@@ -1579,6 +1585,15 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
+  .OtM_ui_warn {
+    text-align: center;
+     margin: 10px 0;
+  }
+
+  :global(.OtM_ui_warn svg) {
+    vertical-align: middle;
+    margin-right: 3px;
+  }
 
   .fs_no_tmpls {
     position: fixed;
