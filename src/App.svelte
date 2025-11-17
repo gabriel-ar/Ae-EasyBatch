@@ -21,6 +21,7 @@
     CrossCircled,
     Pencil1,
     ExclamationTriangle,
+    HamburgerMenu,
   } from "radix-icons-svelte";
 
   import {
@@ -53,6 +54,7 @@
   import Dropdown from "./ui/Dropdown.svelte";
   import ModalMessage from "./ui/ModalMessage.svelte";
   import SettingsPanel from "./ui/SettingsPanel.svelte";
+  import MenuRow from "./ui/MenuRow.svelte";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -67,6 +69,8 @@
 
   let m_file_pattern: ModalFilePattern;
   let m_message: ModalMessage;
+  let menu_row: MenuRow;
+  let curr_row_i = -1;
 
   //Update the log level of the logger when the settings changes
   $: {
@@ -473,9 +477,7 @@
     let send_templ;
     //If just rendering a single row, clone the template and trim it down to that row
     if (row_i !== undefined) {
-      send_templ = Template.MakeCopy(
-        setts.tmpls[setts.sel_tmpl],
-      );
+      send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
 
       for (let col of send_templ.columns) {
         col.values = [col.values[row_i]];
@@ -566,9 +568,7 @@
     //If just rendering a single row, clone the template and trim it down to that row
     if (row_i !== undefined) {
       //TODO this is a hack, find a better way to do this
-      send_templ = Template.MakeCopy(
-        setts.tmpls[setts.sel_tmpl],
-      );
+      send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
 
       for (let col of send_templ.columns) {
         col.values = [col.values[row_i]];
@@ -794,6 +794,32 @@
     setts.tmpls[setts.sel_tmpl].ResolveSavePathFirstDeps(0);
   }
 
+  function RowMenu(e, row_i) {
+    curr_row_i = row_i;
+    e.preventDefault();
+    l.debug("RowMenu called for row:", e, row_i);
+    menu_row.Open(e.pageX, e.pageY, RowMenuSelected);
+  }
+
+  function RowMenuSelected(action) {
+    l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
+
+    switch (action) {
+      case "delete":
+        DeleteRow(curr_row_i);
+        break;
+      case "preview":
+        PreviewRow(curr_row_i);
+        break;
+      case "sample":
+        SampleRow(curr_row_i);
+        break;
+      case "render":
+        RenderRow(curr_row_i);
+        break;
+    }
+  }
+
   /**
    * Selects a folder to save the files to and adds it to the save pattern
    */
@@ -904,33 +930,24 @@
         </thead>
         <tbody>
           {#each setts.tmpls[setts.sel_tmpl].rows as row, row_i}
-            <tr>
-              <td
-                ><button
-                  class="delete_row"
-                  data-tooltip="Delete Row"
-                  data-tt-pos="top-right"
-                  onclick={() => DeleteRow(row_i)}
-                >
-                  <Trash />
-                </button>
+            <tr
+              oncontextmenu={function (e) {
+                RowMenu(e, row_i);
+              }}
+
+              onclick={() => {
+                curr_row_i = row_i;
+              }}
+
+              data-selected={row_i === curr_row_i}
+            >
+              <td>
+                {row_i}
                 <button
                   class="delete_row"
-                  data-tooltip="Preview this row"
+                  data-tooltip="Row menu"
                   data-tt-pos="top-right"
-                  onclick={() => PreviewRow(row_i)}><EyeOpen /></button
-                >
-                <button
-                  class="delete_row"
-                  data-tooltip="Copy data from preview"
-                  data-tt-pos="top-right"
-                  onclick={() => SampleRow(row_i)}><Crosshair2 /></button
-                >
-                <button
-                  class="delete_row"
-                  data-tooltip="Render this row"
-                  data-tt-pos="top-right"
-                  onclick={() => RenderRow(row_i)}><Camera /></button
+                  onclick={(e) => RowMenu(e, row_i)}><HamburgerMenu /></button
                 >
               </td>
               {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
@@ -1379,8 +1396,8 @@
 {/if}
 
 <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
-
 <ModalMessage bind:this={m_message}></ModalMessage>
+<MenuRow bind:this={menu_row} onselect={RowMenuSelected}></MenuRow>
 
 {#if no_templs}
   <div class="fs_no_tmpls">
@@ -1508,6 +1525,15 @@
     height: 20px;
   }
 
+
+  tr:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+
+  :global(tr[data-selected="true"]){
+    background-color: rgba(255, 255, 255, 0.07) !important;
+  }
+
   td {
     padding: 0 8px;
   }
@@ -1520,7 +1546,7 @@
     white-space: nowrap;
   }
 
-  .render_results thead th{
+  .render_results thead th {
     padding: 0 5px;
   }
 
@@ -1587,7 +1613,7 @@
 
   .OtM_ui_warn {
     text-align: center;
-     margin: 10px 0;
+    margin: 10px 0;
   }
 
   :global(.OtM_ui_warn svg) {
