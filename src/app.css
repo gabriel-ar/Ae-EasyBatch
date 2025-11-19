@@ -60,9 +60,15 @@ textarea {
   border: solid 1px var(--color-border-p1);
   background-color: var(--color-m2);
   color: white;
+
+  
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
 }
 
-button[data-variant="discrete"] {
+input[data-variant="discrete"], button[data-variant="discrete"] {
   background-color: transparent;
   border-color: transparent;
   padding: 3px;
@@ -90,10 +96,6 @@ button[data-variant="discrete"]:hover {
   cursor: pointer;
   border-color: transparent;
   background-color: rgba(255, 255, 255, 0.1);
-}
-
-button svg {
-  vertical-align: middle;
 }
 
 select option {
@@ -181,6 +183,12 @@ select option:focus {
   left: 20px;
   bottom: 17px;
   transform: translateY(100%);
+}
+
+[data-tt-pos="bottom"]::after {
+  right: 50%;
+  bottom: calc(-50% + -6px);
+  transform: translateY(50%) translateX(50%);
 }
 
 [data-tt-width="large"]::after {

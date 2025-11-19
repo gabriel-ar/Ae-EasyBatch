@@ -22,6 +22,9 @@
     Pencil1,
     ExclamationTriangle,
     HamburgerMenu,
+    ArrowLeft,
+    ArrowRight,
+    Table,
   } from "radix-icons-svelte";
 
   import {
@@ -55,6 +58,8 @@
   import ModalMessage from "./ui/ModalMessage.svelte";
   import SettingsPanel from "./ui/SettingsPanel.svelte";
   import MenuRow from "./ui/MenuRow.svelte";
+  import AddAfter from "./assets/AddAfter.svelte";
+  import AddBefore from "./assets/AddBefore.svelte";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
@@ -70,7 +75,9 @@
   let m_file_pattern: ModalFilePattern;
   let m_message: ModalMessage;
   let menu_row: MenuRow;
-  let curr_row_i = -1;
+  let curr_row_i = 0;
+
+  let data_mode: string = "detail"; //table or detail
 
   //Update the log level of the logger when the settings changes
   $: {
@@ -238,40 +245,6 @@
     });
   }
 
-  function IsSameProject() {
-    if (setts.id === undefined) {
-      l.error("Project ID not set");
-      return;
-    } else if (no_templs) {
-      return;
-    }
-
-    l.debug("IsSameProject called with project ID:", setts.id);
-    csa.Eval("IsSameProject", setts.id).then((s_result) => {
-      /**@type {IsSameProjectResult} */
-      let result;
-
-      l.debug(`Checking if same project`, setts.id, s_result);
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse project check", s_result);
-        return;
-      }
-
-      if (result.success == false) {
-        l.error("Failed to check project", result.error_obj);
-        return;
-      } else {
-        if (result.same_project === false) {
-          l.warn(`Different project ID @IsSameProject, reloading settings`);
-          StartupSequence();
-        }
-      }
-    });
-  }
-
   let last_opened_tab = null;
 
   //Updates the render settings templates when the output tab is opened
@@ -349,10 +322,6 @@
     setts.UpdateTemplates(n_tmpls);
     setts = setts;
     l.debug("F_Reload called with templates:", n_tmpls);
-  }
-
-  function Test() {
-    l.error("Test called");
   }
 
   function AddRow() {
@@ -658,25 +627,6 @@
       old_val.slice(cursor_pos);
   }
 
-  function AddField_Dep(dep_comps_s: DepCompSetts) {
-    let pattern_ta: HTMLTextAreaElement = document.querySelector(
-      `[data-dc-pattern="${dep_comps_s.id}"]`,
-    );
-
-    console.log(pattern_ta);
-    console.log(dep_comps_s);
-
-    let cursor_pos = pattern_ta.selectionStart;
-    let old_val =
-      setts.tmpls[setts.sel_tmpl].dep_config[dep_comps_s.id].save_pattern;
-
-    //Insert the selected field at the cursor position
-    setts.tmpls[setts.sel_tmpl].dep_config[dep_comps_s.id].save_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field}}` +
-      old_val.slice(cursor_pos);
-  }
-
   //Updates the preview of the generate names based on the current generate pattern
   $: {
     if (setts.tmpls[setts.sel_tmpl] !== undefined) {
@@ -794,10 +744,9 @@
     setts.tmpls[setts.sel_tmpl].ResolveSavePathFirstDeps(0);
   }
 
-  function RowMenu(e, row_i) {
+  function OpenRowMenu(e, row_i) {
     curr_row_i = row_i;
     e.preventDefault();
-    l.debug("RowMenu called for row:", e, row_i);
     menu_row.Open(e.pageX, e.pageY, RowMenuSelected);
   }
 
@@ -817,9 +766,23 @@
       case "render":
         RenderRow(curr_row_i);
         break;
+      case "detail":
+        data_mode = "detail";
+        break;
     }
   }
 
+  function NextRow() {
+    if (curr_row_i < setts.tmpls[setts.sel_tmpl].rows.length - 1) {
+      curr_row_i++;
+    }
+  }
+
+  function PrevRow() {
+    if (curr_row_i > 0) {
+      curr_row_i--;
+    }
+  }
   /**
    * Selects a folder to save the files to and adds it to the save pattern
    */
@@ -857,23 +820,19 @@
     <Dropdown
       options={setts.tmpls.map((templ) => setts.tmpls.indexOf(templ))}
       labels={setts.tmpls.map((templ) => templ.name)}
-      bind:value={setts.sel_tmpl}
-    />
+      bind:value={setts.sel_tmpl} />
   </div>
 
   <div class="header_tabs">
     <button
       class:curr_tab={setts.active_tab === "data"}
-      onclick={() => (setts.active_tab = Tabs.Data)}>Data</button
-    >
+      onclick={() => (setts.active_tab = Tabs.Data)}>Data</button>
     <button
       class:curr_tab={setts.active_tab === "output"}
-      onclick={() => (setts.active_tab = Tabs.Output)}>Output</button
-    >
+      onclick={() => (setts.active_tab = Tabs.Output)}>Output</button>
     <button
       class:curr_tab={setts.active_tab === "settings"}
-      onclick={() => (setts.active_tab = Tabs.Settings)}>Settings</button
-    >
+      onclick={() => (setts.active_tab = Tabs.Settings)}>Settings</button>
   </div>
 
   <div class="header_reload">
@@ -883,8 +842,7 @@
       onclick={() =>
         csa.OpenURLInDefaultBrowser(
           "https://gabriel-ar.github.io/Ae-EasyBatch/",
-        )}><QuestionMark /></button
-    >
+        )}><QuestionMark /></button>
   </div>
 </header>
 
@@ -892,89 +850,143 @@
 {#if setts.active_tab === "data"}
   <main>
     {#if setts.sel_tmpl >= 0 && setts.tmpls[setts.sel_tmpl] !== undefined && setts.tmpls.length > 0}
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            {#each setts.tmpls[setts.sel_tmpl].table_cols as col_i, view_i}
-              <th class="table_header">
-                <Dropdown
-                  variant="discrete"
-                  options={setts.tmpls[setts.sel_tmpl].columns.map((col) =>
-                    setts.tmpls[setts.sel_tmpl].columns.indexOf(col),
-                  )}
-                  labels={setts.tmpls[setts.sel_tmpl].columns.map(
-                    (col) => col.cont_name,
-                  )}
-                  bind:value={setts.tmpls[setts.sel_tmpl].table_cols[view_i]}
-                />
-                {#if setts.tmpls[setts.sel_tmpl].columns[col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
+      {#if data_mode === "table"}
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              {#each setts.tmpls[setts.sel_tmpl].table_cols as col_i, view_i}
+                <th class="table_header">
+                  <Dropdown
+                    variant="discrete"
+                    options={setts.tmpls[setts.sel_tmpl].columns.map((col) =>
+                      setts.tmpls[setts.sel_tmpl].columns.indexOf(col),
+                    )}
+                    labels={setts.tmpls[setts.sel_tmpl].columns.map(
+                      (col) => col.cont_name,
+                    )}
+                    bind:value={
+                      setts.tmpls[setts.sel_tmpl].table_cols[view_i]
+                    } />
+                  {#if setts.tmpls[setts.sel_tmpl].columns[col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
+                    <button
+                      class="delete_col"
+                      data-tooltip="Setup alternate source"
+                      data-tt-pos="bottom-right"
+                      onclick={() => {
+                        SetupAlternateSource(col_i);
+                      }}><Gear /></button>
+                  {/if}
+                  <button
+                    class="delete_col"
+                    data-tooltip="Delete column"
+                    data-tt-pos="bottom-right"
+                    onclick={() => DeleteColumn(view_i)}><Trash /></button>
+                </th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each setts.tmpls[setts.sel_tmpl].rows as row, row_i}
+              <tr
+                oncontextmenu={function (e) {
+                  OpenRowMenu(e, row_i);
+                }}
+                onclick={() => {
+                  curr_row_i = row_i;
+                }}
+                data-selected={row_i === curr_row_i}>
+                <td>
+                  {row_i}
+                  <button
+                    class="delete_row"
+                    data-tooltip="Row menu"
+                    data-tt-pos="top-right"
+                    onclick={(e) => OpenRowMenu(e, row_i)}
+                    ><HamburgerMenu /></button>
+                </td>
+                {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
+                  <td
+                    class={{
+                      table_cell:
+                        setts.tmpls[setts.sel_tmpl].columns[td_col_i].type !==
+                        Column.PropertyValueType.SRC_ALTERNATE,
+                    }}>
+                    <PropInput
+                      bind:value={
+                        setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
+                          row_i
+                        ]
+                      }
+                      type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
+                      onchange={() => {
+                        PreviewRow(row_i, true);
+                      }} />
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else if data_mode === "detail"}
+        <div class="dets_header">
+          <div class="dets_header_left">
+            <button onclick={() => (data_mode = "table")}><Table/>Table View</button>
+          </div>
+
+          <div class="dets_header_nav">
+            <button data-variant="discrete"><AddBefore /></button>
+            <button
+              data-variant="discrete"
+              onclick={PrevRow}
+              data-tooltip="Previous Row"
+              data-tt-pos="bottom"><ArrowLeft /></button>
+            <input
+              type="number"
+              min="0"
+              max={setts.tmpls[setts.sel_tmpl].rows.length - 1}
+              bind:value={curr_row_i} />
+            of {setts.tmpls[setts.sel_tmpl].rows.length - 1}
+            <button
+              onclick={NextRow}
+              data-tooltip="Next Row"
+              data-tt-pos="bottom"
+              data-variant="discrete"><ArrowRight /></button>
+            <button data-variant="discrete"><AddAfter /></button>
+          </div>
+        </div>
+
+        <div class="dets_field_cont">
+          {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
+            <div class="dets_field">
+              <h5>
+                {setts.tmpls[setts.sel_tmpl].columns[td_col_i].cont_name}
+
+                {#if setts.tmpls[setts.sel_tmpl].columns[td_col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
                   <button
                     class="delete_col"
                     data-tooltip="Setup alternate source"
                     data-tt-pos="bottom-right"
                     onclick={() => {
-                      SetupAlternateSource(col_i);
-                    }}><Gear /></button
-                  >
+                      SetupAlternateSource(td_col_i);
+                    }}><Gear /></button>
                 {/if}
-                <button
-                  class="delete_col"
-                  data-tooltip="Delete column"
-                  data-tt-pos="bottom-right"
-                  onclick={() => DeleteColumn(view_i)}><Trash /></button
-                >
-              </th>
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          {#each setts.tmpls[setts.sel_tmpl].rows as row, row_i}
-            <tr
-              oncontextmenu={function (e) {
-                RowMenu(e, row_i);
-              }}
-
-              onclick={() => {
-                curr_row_i = row_i;
-              }}
-
-              data-selected={row_i === curr_row_i}
-            >
-              <td>
-                {row_i}
-                <button
-                  class="delete_row"
-                  data-tooltip="Row menu"
-                  data-tt-pos="top-right"
-                  onclick={(e) => RowMenu(e, row_i)}><HamburgerMenu /></button
-                >
-              </td>
-              {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
-                <td
-                  class={{
-                    table_cell:
-                      setts.tmpls[setts.sel_tmpl].columns[td_col_i].type !==
-                      Column.PropertyValueType.SRC_ALTERNATE,
-                  }}
-                >
-                  <PropInput
-                    bind:value={
-                      setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
-                        row_i
-                      ]
-                    }
-                    type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
-                    onchange={() => {
-                      PreviewRow(row_i, true);
-                    }}
-                  />
-                </td>
-              {/each}
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+              </h5>
+              <PropInput
+                inline={false}
+                bind:value={
+                  setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
+                    curr_row_i
+                  ]
+                }
+                type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
+                onchange={() => {
+                  PreviewRow(curr_row_i, true);
+                }} />
+            </div>
+          {/each}<!-- End of detail fields -->
+        </div>
+      {/if}
     {/if}
   </main>
 
@@ -988,8 +1000,8 @@
       <button onclick={ExportCSV}>Export to CSV</button>
     </div>
   </footer>
-  <!-- OUTPUT -->
 {:else if setts.active_tab === "output"}
+  <!-- OUTPUT -->
   <main class="output">
     <span
       >Mode:
@@ -997,8 +1009,7 @@
         variant="discrete"
         labels={["Render", "One to Many", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
-        bind:value={setts.out_mode}
-      />
+        bind:value={setts.out_mode} />
     </span>
 
     <!-- MODE: RENDER -->
@@ -1014,20 +1025,18 @@
           data-tt-pos="bottom-right"
           data-tt-width="large"
           data-tooltip="Generates the file name of every export using this pattern."
-          >?</button
-        >
+          >?</button>
       </h4>
 
       <textarea
         id="save_pattern_ta"
         spellcheck="false"
-        bind:value={setts.tmpls[setts.sel_tmpl].save_pattern}
-      ></textarea>
+        bind:value={setts.tmpls[setts.sel_tmpl].save_pattern}></textarea>
 
       <div class="setting">
         <span>Preview File Path:</span>
-        <span class="out_prev">{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span
-        >
+        <span class="out_prev"
+          >{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span>
       </div>
 
       <div class="setting">
@@ -1049,8 +1058,7 @@
             "increment:0000",
             ...setts.tmpls[setts.sel_tmpl].columns.map((col) => col.cont_name),
           ]}
-          bind:value={sel_add_field}
-        />
+          bind:value={sel_add_field} />
 
         <button onclick={AddField}>Add Field</button>
       </div>
@@ -1062,8 +1070,7 @@
           data-tt-pos="bottom-right"
           data-tt-width="x-large"
           data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
-          >?</button
-        >
+          >?</button>
       </h4>
 
       <div class="setting">
@@ -1076,8 +1083,7 @@
           options={render_setts_templs.render_templs.filter(
             (templ) => !templ.startsWith("_HIDDEN"),
           )}
-          bind:value={setts.tmpls[setts.sel_tmpl].render_setts_templ}
-        />
+          bind:value={setts.tmpls[setts.sel_tmpl].render_setts_templ} />
       </div>
 
       <div class="setting">
@@ -1089,8 +1095,7 @@
           options={render_setts_templs.output_modules_templs.filter(
             (templ) => !templ.startsWith("_HIDDEN"),
           )}
-          bind:value={setts.tmpls[setts.sel_tmpl].render_out_module_templ}
-        />
+          bind:value={setts.tmpls[setts.sel_tmpl].render_out_module_templ} />
       </div>
 
       <button class="setting" onclick={BatchRender}>Start Batch Render</button>
@@ -1137,14 +1142,12 @@
       <textarea
         id="generate_proj_ta"
         spellcheck="false"
-        bind:value={setts.tmpls[setts.sel_tmpl].generate_pattern}
-      ></textarea>
+        bind:value={setts.tmpls[setts.sel_tmpl].generate_pattern}></textarea>
 
       <div class="setting">
         <span>Preview:</span>
         <span class="out_prev"
-          >{setts.tmpls[setts.sel_tmpl].generate_names[0]}</span
-        >
+          >{setts.tmpls[setts.sel_tmpl].generate_names[0]}</span>
       </div>
 
       <div class="setting">
@@ -1167,8 +1170,7 @@
                 (col) => col.cont_name,
               ),
             ]}
-            bind:value={sel_add_field_gen}
-          />
+            bind:value={sel_add_field_gen} />
         </div>
       </div>
 
@@ -1177,13 +1179,11 @@
         <input
           id="in_gen_folder"
           type="text"
-          bind:value={setts.tmpls[setts.sel_tmpl].gen_comps_folder}
-        />
+          bind:value={setts.tmpls[setts.sel_tmpl].gen_comps_folder} />
       </div>
 
       <button class="setting" onclick={BatchGenerate}
-        >Generate Compositions</button
-      >
+        >Generate Compositions</button>
     {:else if setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
@@ -1200,8 +1200,7 @@
           data-tt-pos="bottom-right"
           data-tt-width="x-large"
           data-tooltip="All renders will be saved relative to this folder. Use the 'Edit File Pattern' button to set the full save path for each composition."
-          >?</button
-        >
+          >?</button>
       </h4>
 
       <div class="setting">
@@ -1216,8 +1215,7 @@
           data-tt-pos="bottom-right"
           data-tt-width="x-large"
           data-tooltip="The compositions you select will be rendered for every row of data. You can select any composition in the project, even if is not directly related to the template composition."
-          >?</button
-        >
+          >?</button>
       </h4>
 
       <div class="setting">
@@ -1227,14 +1225,12 @@
             ...all_comps.map((comp) => comp.name),
           ]}
           options={["", ...all_comps.map((comp) => comp.id)]}
-          bind:value={selected_comp}
-        />
+          bind:value={selected_comp} />
 
         <button
           onclick={() => {
             AddCompToDependents();
-          }}>Add</button
-        >
+          }}>Add</button>
       </div>
 
       <!-- Dependant Compositions -->
@@ -1243,16 +1239,16 @@
           <input
             type="checkbox"
             style="margin: 5px 5px 3px 0;"
-            bind:checked={setts.tmpls[setts.sel_tmpl].dep_config[dc.id].enabled}
-          />
+            bind:checked={
+              setts.tmpls[setts.sel_tmpl].dep_config[dc.id].enabled
+            } />
           <h4 style="display: inline;">{dc.name}</h4>
           <button
             class="delete_col"
             style="vertical-align: top;"
             data-tooltip="Remove composition from renders"
             data-tt-pos="bottom-right"
-            onclick={() => DeleteDependantComp(dc.id)}><Trash /></button
-          >
+            onclick={() => DeleteDependantComp(dc.id)}><Trash /></button>
 
           <div class="setting">
             <h5>
@@ -1263,17 +1259,15 @@
                 data-tooltip="Edit the pattern that will determine the save path for this render."
                 data-tt-pos="top-right"
                 data-tt-width="large"
-                onclick={() => DepFilePatternModalOpen(dc.id)}
-              >
-                <Pencil1 /> Edit</button
-              >
+                onclick={() => DepFilePatternModalOpen(dc.id)}>
+                <Pencil1 /> Edit</button>
             </h5>
 
             <div>
               <span>Preview:</span>
               <span class="out_prev"
-                >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id].save_path}</span
-              >
+                >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
+                  .save_path}</span>
             </div>
           </div>
 
@@ -1285,8 +1279,7 @@
               data-tt-pos="bottom-right"
               data-tt-width="x-large"
               data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
-              >?</button
-            >
+              >?</button>
           </h5>
 
           <div class="setting">
@@ -1300,8 +1293,7 @@
               )}
               bind:value={
                 setts.tmpls[setts.sel_tmpl].dep_config[dc.id].render_setts_templ
-              }
-            />
+              } />
           </div>
 
           <div class="setting">
@@ -1321,8 +1313,7 @@
               bind:value={
                 setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
                   .render_out_module_templ
-              }
-            />
+              } />
           </div>
 
           <div class="setting">
@@ -1330,14 +1321,12 @@
               for="sel_render_out_module"
               data-tooltip="Will attempt to render the composition as a single frame PNG image, removing the '0000' that After Effects attaches to image sequences. May not work in Mac."
               data-tt-pos="top-right"
-              data-tt-width="large">As Single Frame PNG</label
-            >
+              data-tt-width="large">As Single Frame PNG</label>
             <input
               type="checkbox"
               bind:checked={
                 setts.tmpls[setts.sel_tmpl].dep_config[dc.id].single_frame
-              }
-            />
+              } />
           </div>
         </div>
       {/each}
@@ -1383,6 +1372,7 @@
     {/if}
   </main>
 {:else if setts.active_tab == "settings"}
+  <!-- SETTINGS -->
   <SettingsPanel bind:setts bind:csa />
 {/if}
 
@@ -1391,8 +1381,7 @@
     bind:show={show_alt_src_modal}
     tmpl={setts.tmpls[setts.sel_tmpl]}
     col_i={alt_src_modal_col}
-    onclose={AlertSrcModalClosed}
-  />
+    onclose={AlertSrcModalClosed} />
 {/if}
 
 <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
@@ -1525,12 +1514,11 @@
     height: 20px;
   }
 
-
   tr:hover {
     background-color: rgba(255, 255, 255, 0.02);
   }
 
-  :global(tr[data-selected="true"]){
+  :global(tr[data-selected="true"]) {
     background-color: rgba(255, 255, 255, 0.07) !important;
   }
 
@@ -1644,5 +1632,35 @@
     color: rgba(255, 255, 255, 0.6);
 
     margin-bottom: 1em;
+  }
+
+  .dets_header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+
+    margin-bottom: 15px;
+  }
+
+  .dets_field_cont {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .dets_field {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dets_field h5 {
+    margin: 0 0 10px 0;
+  }
+
+  :global(.dets_field textarea){
+    max-width: 100%;
+    box-sizing: border-box;
   }
 </style>

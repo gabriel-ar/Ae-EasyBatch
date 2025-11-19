@@ -1,20 +1,19 @@
 <script>
   import { getContext } from "svelte";
   import { Column } from "../lib/Settings.ts";
-  import Logger from '../lib/Logger.ts';
+  import Logger from "../lib/Logger.ts";
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "../lib/CSAdapter.ts";
-    import { File } from "radix-icons-svelte";
+  import { File } from "radix-icons-svelte";
 
-  const l = getContext("logger") || new Logger(Logger.Levels.Warn, 'PropInput');
+  const l = getContext("logger") || new Logger(Logger.Levels.Warn, "PropInput");
 
-  /** @type {{ value: any, type:any, onchange?: function(value):void}}*/
-  let { value = $bindable(), type, onchange } = $props();
+  /** @type {{ value: any, type:any, onchange?: function(value):void, inline?: boolean}}*/
+  let { value = $bindable(), type, onchange, inline = true } = $props();
 
   let is_color_update = false;
 
   let src_alt_val = $state();
-
 
   //ALTERNATE SOURCE PREVIEW
 
@@ -82,7 +81,7 @@
       hex_color = hex;
 
       DebounceChange();
-      l.debug('UpdateColor4D called with input:', input.target.value);
+      l.debug("UpdateColor4D called with input:", input.target.value);
     } catch (e) {
       l.error(e);
     }
@@ -112,20 +111,18 @@
       hex_color = hex;
       DebounceChange();
     });
-    l.debug('PromptColor called');
+    l.debug("PromptColor called");
   }
 
   /**
    * Adds a null layer to the preview composition, with a color effect applied
    * Then triggers the edit value menu command
    */
-  function DropperPicker(){
-
+  function DropperPicker() {
     let current_col = JSON.stringify([value[0], value[1], value[2]]);
 
     let csa = new CSAdapter();
     csa.EvalDirect(`PickColorFromPreview(${current_col})`, (result) => {
-
       try {
         result = JSON.parse(result);
       } catch (e) {
@@ -160,20 +157,22 @@
     //l.debug('PickFile called');
     let csa = new CSAdapter();
 
-    let current_file = value.replace(/<b>|<\/b>/g, '')||"";
+    let current_file = value.replace(/<b>|<\/b>/g, "") || "";
 
-    csa.OpenFileDialog(current_file).then((file) => {
-      if (file !== undefined && file !== null) {
-        value = `<b>${file}</b>`;
-        DebounceChange();
-      }
-      else if (file === null){
-        l.debug('File selection cancelled by user');
-        value = current_file;
-      }
-    }).catch((err) => {
-      l.error('Error picking file:', err);
-    });
+    csa
+      .OpenFileDialog(current_file)
+      .then((file) => {
+        if (file !== undefined && file !== null) {
+          value = `<b>${file}</b>`;
+          DebounceChange();
+        } else if (file === null) {
+          l.debug("File selection cancelled by user");
+          value = current_file;
+        }
+      })
+      .catch((err) => {
+        l.error("Error picking file:", err);
+      });
   }
 
   //NUMERIC SLIDER FUNCTIONS
@@ -248,39 +247,42 @@
 
   {@render slider("Z", 2)}
   {@render array_input(2)}
-
 {:else if type === Column.PropertyValueType.COLOR}
   <button
     class="color_show"
     style="background-color: #{hex_color};"
     onclick={PromptColor}
-    aria-label="Select Color"
-  ></button>
+    aria-label="Select Color"></button>
   <button style="width: 22px;" data-variant="discrete" onclick={DropperPicker}>
-    <EyeDropper/>
+    <EyeDropper />
   </button>
   <div>
     #<input
       value={hex_color}
       style="width: 60px;"
-      onchange={(e) => UpdateColor4D(e)}
-    />
+      onchange={(e) => UpdateColor4D(e)} />
   </div>
 {:else if type === Column.PropertyValueType.SRC_ALTERNATE}
-  {@html src_alt_val}  
-  <button class="pick_file" style="width: 22px;" data-variant="discrete" onclick={PickFile}>
-    <File/>
-  </button>
+  <div style="display: inline;">
+    {@html src_alt_val}
+    <button
+      class="pick_file"
+      style="width: 22px;"
+      data-variant="discrete"
+      data-tooltip="Override Pattern"
+      onclick={PickFile}>
+      <File />
+    </button>
+  </div>
 {/if}
 
 {#snippet array_input(index)}
-<!-- svelte-ignore binding_property_non_reactive -->
+  <!-- svelte-ignore binding_property_non_reactive -->
   <input
     type="number"
     bind:value={value[index]}
     onkeyup={DebounceChange}
-    onchange={DebounceChange}
-  /><wbr />
+    onchange={DebounceChange} /><wbr />
 {/snippet}
 
 {#snippet number_input()}
@@ -288,44 +290,56 @@
     type="number"
     bind:value
     onkeyup={DebounceChange}
-    onchange={DebounceChange}
-  />
+    onchange={DebounceChange} />
 {/snippet}
 
 {#snippet text_input()}
   <textarea
-  rows="1"
-  cols="15"
+    rows={inline ? 1 : 2}
+    cols="15"
     bind:value
     onkeyup={DebounceChange}
-    onchange={DebounceChange}
-  ></textarea>
+    onchange={DebounceChange}></textarea>
 {/snippet}
 
 {#snippet slider(axis, index = -1)}
   <button onmousedown={(e) => DragPropMD(e, index)} class="drag_btn"
-    >{axis}</button
-  >
+    >{axis}</button>
 {/snippet}
 
+{#if inline}
+  <style>
+    input,
+    textarea {
+      background-color: transparent;
+      border: 1px solid transparent;
+
+      min-width: 50px;
+      margin-left: 2px;
+
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+  </style>
+{/if}
+
 <style>
-  input, textarea {
-    background-color: transparent;
-    border: none;
 
-    min-width: 50px;
-    margin-left: 2px;
+   input,
+    textarea {
+      background-color: transparent;
+    }
 
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-  }
 
-  input:hover, textarea:hover {
+
+  input:hover,
+  textarea:hover {
     background-color: rgba(255, 255, 255, 0.05);
   }
 
-  input:focus, textarea:focus {
+  input:focus,
+  textarea:focus {
     border: solid 1px var(--color-highlight);
     background-color: rgba(255, 255, 255, 0.1);
   }
@@ -347,14 +361,7 @@
     border: none;
   }
 
-  .pick_file {
-    visibility: hidden;
-  }
-
-  :global(td:hover .pick_file){
+  :global(td:hover .pick_file) {
     visibility: visible;
   }
-
-
-
 </style>

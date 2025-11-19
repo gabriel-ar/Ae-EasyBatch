@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { EyeOpen, Crosshair2, Camera, Trash } from "radix-icons-svelte";
+    import { EyeOpen, Crosshair2, Camera, Trash, ActivityLog } from "radix-icons-svelte";
 
     let { onselect = (option, index) => {} } = $props();
 
@@ -32,29 +32,49 @@
 </script>
 
 {#if open}
-    <div class="c_menu_bg" onclick={() => Close()} onkeydown={(e) => e.key === 'Escape' && Close()} role="button" tabindex="0">
+    <div
+        class="c_menu_bg"
+        onclick={() => Close()}
+        onkeydown={(e) => e.key === "Escape" && Close()}
+        role="button"
+        tabindex="0"
+    >
         <div
             class="c_menu"
             bind:this={elm_menu}
-            style="left: {x}px; top: {y}px;"    
+            style="left: {x}px; top: {y}px;"
         >
-            <button class="c_item" onclick={() => Selected("preview")}
+            <button
+                class="c_item"
+                onclick={() => Selected("preview")}
                 data-tooltip="Preview this row"
                 ><EyeOpen />Preview
-                <span class="c_shortcut">Ctrl+P</span></button
+                <span class="c_shortcut"></span></button
             >
-            <button class="c_item" onclick={() => Selected("copy")}
+            <button
+                class="c_item"
+                onclick={() => Selected("copy")}
                 data-tooltip="Copy data from properties panel"
-                ><Crosshair2 />Copy Data<span class="c_shortcut">Ctrl+P</span
+                ><Crosshair2 />Copy Data<span class="c_shortcut"></span
                 ></button
             >
-            <button class="c_item" onclick={() => Selected("render")}
+            <button
+                class="c_item"
+                onclick={() => Selected("render")}
                 data-tooltip="Render this row"
-                ><Camera />Render<span class="c_shortcut">Ctrl+P</span></button
+                ><Camera />Render<span class="c_shortcut"></span></button
             >
-            <button class="c_item" onclick={() => Selected("delete")}
+            <button
+                class="c_item"
+                onclick={() => Selected("delete")}
                 data-tooltip="Delete this row"
-                ><Trash />Delete<span class="c_shortcut">Ctrl+P</span></button
+                ><Trash />Delete<span class="c_shortcut"></span></button
+            >
+            <button
+                class="c_item"
+                onclick={() => Selected("detail")}
+                data-tooltip="Open this row in detail view"
+                ><ActivityLog />View in detail<span class="c_shortcut"></span></button
             >
         </div>
     </div>
