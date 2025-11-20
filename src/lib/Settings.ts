@@ -483,7 +483,7 @@ class Template {
     }
 
     //Row data to copy
-    let row_data = this.rows[index];
+    let row_data = this.#AsRows()[index];
 
     for (let col in this.columns) {
       this.columns[col].values.splice(
@@ -508,7 +508,7 @@ class Template {
     }
 
     //Row data to copy
-    let row_data = this.rows[index];
+    let row_data = this.#AsRows()[index];
 
     for (let col in this.columns) {
       this.columns[col].values.splice(

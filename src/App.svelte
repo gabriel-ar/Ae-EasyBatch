@@ -60,14 +60,14 @@
   import MenuRow from "./ui/MenuRow.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
-    import ActionCoordinator from "./lib/ActionCoordinator.ts";
+  import ActionCoordinator from "./lib/ActionCoordinator.ts";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
 
   let csa = new CSAdapter();
   let setts = new Settings();
-  let ac =  new ActionCoordinator();
+  let ac = new ActionCoordinator();
 
   let no_templs = false;
 
@@ -90,43 +90,85 @@
     StartupSequence();
 
     ac.Init();
-    ac.AddListener("preview", () => {
-      PreviewRow(curr_row_i, true);
-    }, "p", true);
+    ac.AddListener(
+      "preview",
+      () => {
+        PreviewRow(curr_row_i, true);
+      },
+      "p",
+      true,
+    );
 
-    ac.AddListener("copy_from_preview", () => {
-      SampleRow(curr_row_i);
-    }, "d", true);
+    ac.AddListener(
+      "copy_from_preview",
+      () => {
+        SampleRow(curr_row_i);
+      },
+      "d",
+      true,
+    );
 
-    ac.AddListener("render_row", () => {
-      RenderRow(curr_row_i);
-    }, "r", true);
+    ac.AddListener(
+      "render_row",
+      () => {
+        RenderRow(curr_row_i);
+      },
+      "r",
+      true,
+    );
 
-    ac.AddListener("delete", () => {
-      DeleteRow(curr_row_i);
-    }, "Delete");
+    ac.AddListener(
+      "delete",
+      () => {
+        DeleteRow(curr_row_i);
+      },
+      "Delete",
+    );
 
-    ac.AddListener("detail_view", () => {
-      data_mode = "detail";
-    }, "D", false, true);
+    ac.AddListener(
+      "detail_view",
+      () => {
+        data_mode = "detail";
+      },
+      "D",
+      false,
+      true,
+    );
 
-    ac.AddListener("table_view", () => {
-      data_mode = "table";
-    }, "T", false, true);
+    ac.AddListener(
+      "table_view",
+      () => {
+        data_mode = "table";
+      },
+      "T",
+      false,
+      true,
+    );
 
-    ac.AddListener("add_before", () => {
-      setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
-      setts = setts;
-      curr_row_i--;
-    }, "N", true, true);
+    ac.AddListener(
+      "add_before",
+      () => {
+        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
+        setts = setts;
+        curr_row_i--;
+      },
+      "N",
+      true,
+      true,
+    );
 
-    ac.AddListener("add_after", () => {
-      setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
-      setts = setts;
-      curr_row_i++;
-    }, "N", true);
+    ac.AddListener(
+      "add_after",
+      () => {
+        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
+        setts = setts;
+        curr_row_i++;
+      },
+      "N",
+      true,
+    );
   });
-  
+
   async function StartupSequence() {
     let n_tmpls = (await GetTemplates()) as Template[];
     l.debug("StartupSequence called with templates:", n_tmpls);
@@ -873,7 +915,10 @@
       onclick={() => (setts.active_tab = Tabs.Data)}>Data</button>
     <button
       class:curr_tab={setts.active_tab === "output"}
-      onclick={() => {setts.active_tab = Tabs.Output; if(setts.out_mode==="dependant") GetAllComps();}}>Output</button>
+      onclick={() => {
+        setts.active_tab = Tabs.Output;
+        if (setts.out_mode === "dependant") GetAllComps();
+      }}>Output</button>
     <button
       class:curr_tab={setts.active_tab === "settings"}
       onclick={() => (setts.active_tab = Tabs.Settings)}>Settings</button>
@@ -975,13 +1020,18 @@
       {:else if data_mode === "detail"}
         <div class="dets_header">
           <div class="dets_header_left">
-            <button onclick={() => (data_mode = "table")}><Table/>Table View</button>
+            <button
+              onclick={() => (data_mode = "table")}
+              data-tooltip="Switch to Table View"
+              data-tt-pos="bottom"><Table />Table View</button>
           </div>
 
           <div class="dets_header_nav">
-            <button data-variant="discrete"
-            onclick={() => ac.Fire("add_before")}
-            ><AddBefore /></button>
+            <button
+              data-variant="discrete"
+              onclick={() => ac.Fire("add_before")}
+              data-tooltip="Add Row Before"
+              data-tt-pos="bottom"><AddBefore /></button>
             <button
               data-variant="discrete"
               onclick={PrevRow}
@@ -998,9 +1048,11 @@
               data-tooltip="Next Row"
               data-tt-pos="bottom"
               data-variant="discrete"><ArrowRight /></button>
-            <button data-variant="discrete"
-            onclick={() => ac.Fire("add_after")}
-            ><AddAfter /></button>
+            <button
+              data-variant="discrete"
+              onclick={() => ac.Fire("add_after")}
+              data-tooltip="Add Row After"
+              data-tt-pos="bottom"><AddAfter /></button>
           </div>
         </div>
 
@@ -1711,7 +1763,7 @@
     margin: 0 0 10px 0;
   }
 
-  :global(.dets_field textarea){
+  :global(.dets_field textarea) {
     max-width: 100%;
     box-sizing: border-box;
   }
