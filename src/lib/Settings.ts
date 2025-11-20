@@ -471,6 +471,57 @@ class Template {
     this.columns = this.columns;
   }
 
+  AddRowAfter(index) {
+    //Check if row index is valid
+     if (this.rows.length===0){
+      this.AddRow();
+      return;
+    } else
+    if (index < 0 || index >= this.rows.length) {
+      console.warn("AddRowAfter: Invalid row index", index);
+      return;
+    }
+
+    //Row data to copy
+    let row_data = this.rows[index];
+
+    for (let col in this.columns) {
+      this.columns[col].values.splice(
+        index + 1,
+        0,
+        Column.ValidateValue(row_data[col], this.columns[col].type)
+      );
+    }
+    this.rows = this.#AsRows();
+    this.ResolveAltSrcPaths();
+  }
+
+  AddRowBefore(index) {
+     if (this.rows.length===0){
+      this.AddRow();
+      return;
+    } else
+    //Check if row index is valid
+    if (index < 0 || index >= this.rows.length) {
+      console.warn("AddRowBefore: Invalid row index", index);
+      return;
+    }
+
+    //Row data to copy
+    let row_data = this.rows[index];
+
+    for (let col in this.columns) {
+      this.columns[col].values.splice(
+        index,
+        0,
+        Column.ValidateValue(row_data[col], this.columns[col].type)
+      );
+    }
+
+    this.rows = this.#AsRows();
+    this.ResolveAltSrcPaths();
+  }
+
   /**
    * Adds a column to the UI table
    * It doesn't add a column to the template

@@ -60,13 +60,14 @@
   import MenuRow from "./ui/MenuRow.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
+    import ActionCoordinator from "./lib/ActionCoordinator.ts";
 
   const l = new Logger(Logger.Levels.Warn, "App");
   setContext("logger", l);
 
   let csa = new CSAdapter();
-
   let setts = new Settings();
+  let ac =  new ActionCoordinator();
 
   let no_templs = false;
 
@@ -87,8 +88,45 @@
 
   onMount(() => {
     StartupSequence();
-  });
 
+    ac.Init();
+    ac.AddListener("preview", () => {
+      PreviewRow(curr_row_i, true);
+    }, "p", true);
+
+    ac.AddListener("copy_from_preview", () => {
+      SampleRow(curr_row_i);
+    }, "d", true);
+
+    ac.AddListener("render_row", () => {
+      RenderRow(curr_row_i);
+    }, "r", true);
+
+    ac.AddListener("delete", () => {
+      DeleteRow(curr_row_i);
+    }, "Delete");
+
+    ac.AddListener("detail_view", () => {
+      data_mode = "detail";
+    }, "D", false, true);
+
+    ac.AddListener("table_view", () => {
+      data_mode = "table";
+    }, "T", false, true);
+
+    ac.AddListener("add_before", () => {
+      setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
+      setts = setts;
+      curr_row_i--;
+    }, "N", true, true);
+
+    ac.AddListener("add_after", () => {
+      setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
+      setts = setts;
+      curr_row_i++;
+    }, "N", true);
+  });
+  
   async function StartupSequence() {
     let n_tmpls = (await GetTemplates()) as Template[];
     l.debug("StartupSequence called with templates:", n_tmpls);
@@ -636,14 +674,6 @@
     }
   }
 
-  //If the mode is dependant, get all the composition so they're available in the dropdown
-  $: {
-    if (setts.out_mode === "dependant") {
-      GetAllComps();
-      l.debug(setts.tmpls[setts.sel_tmpl].dep_comps);
-    }
-  }
-
   let all_comps: Comp[] = [];
   function GetAllComps() {
     csa.Eval("GetAllComps").then((s_result) => {
@@ -745,6 +775,14 @@
   }
 
   function OpenRowMenu(e, row_i) {
+    //if the active element is an input, don't open the menu
+    if (
+      document.activeElement instanceof HTMLInputElement ||
+      document.activeElement instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+
     curr_row_i = row_i;
     e.preventDefault();
     menu_row.Open(e.pageX, e.pageY, RowMenuSelected);
@@ -754,6 +792,12 @@
     l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
 
     switch (action) {
+      case "add_before":
+        ac.Fire("add_before");
+        break;
+      case "add_after":
+        ac.Fire("add_after");
+        break;
       case "delete":
         DeleteRow(curr_row_i);
         break;
@@ -829,7 +873,7 @@
       onclick={() => (setts.active_tab = Tabs.Data)}>Data</button>
     <button
       class:curr_tab={setts.active_tab === "output"}
-      onclick={() => (setts.active_tab = Tabs.Output)}>Output</button>
+      onclick={() => {setts.active_tab = Tabs.Output; if(setts.out_mode==="dependant") GetAllComps();}}>Output</button>
     <button
       class:curr_tab={setts.active_tab === "settings"}
       onclick={() => (setts.active_tab = Tabs.Settings)}>Settings</button>
@@ -851,7 +895,7 @@
   <main>
     {#if setts.sel_tmpl >= 0 && setts.tmpls[setts.sel_tmpl] !== undefined && setts.tmpls.length > 0}
       {#if data_mode === "table"}
-        <table>
+        <table class="dat_table">
           <thead>
             <tr>
               <th></th>
@@ -935,7 +979,9 @@
           </div>
 
           <div class="dets_header_nav">
-            <button data-variant="discrete"><AddBefore /></button>
+            <button data-variant="discrete"
+            onclick={() => ac.Fire("add_before")}
+            ><AddBefore /></button>
             <button
               data-variant="discrete"
               onclick={PrevRow}
@@ -952,7 +998,9 @@
               data-tooltip="Next Row"
               data-tt-pos="bottom"
               data-variant="discrete"><ArrowRight /></button>
-            <button data-variant="discrete"><AddAfter /></button>
+            <button data-variant="discrete"
+            onclick={() => ac.Fire("add_after")}
+            ><AddAfter /></button>
           </div>
         </div>
 
@@ -1520,6 +1568,10 @@
 
   :global(tr[data-selected="true"]) {
     background-color: rgba(255, 255, 255, 0.07) !important;
+  }
+
+  :global(.dat_table td:first-child) {
+    text-align: center;
   }
 
   td {
