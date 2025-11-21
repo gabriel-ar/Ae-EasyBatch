@@ -88,12 +88,15 @@ class Settings {
 
   active_tab: Tabs = Tabs.Data;
 
+  /** Mode of the data view, table or detail */
+  data_mode: "table" | "detail" = "table";
+
   log_level = Logger.Levels.Warn;
 
   /**
    * When the user Batch Renders, the intermediate compositions used to render are stored here
    */
-  render_comps_folder = "~Render Templates";
+  render_comps_folder = "~Automator Comps";
 
   out_mode: OutMode = OutMode.Render;
 

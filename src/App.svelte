@@ -78,8 +78,6 @@
   let menu_row: MenuRow;
   let curr_row_i = 0;
 
-  let data_mode: string = "detail"; //table or detail
-
   //Update the log level of the logger when the settings changes
   $: {
     l.log_lvl = setts.log_level;
@@ -89,6 +87,8 @@
   onMount(() => {
     StartupSequence();
 
+    //todo terrible hack, actually figure out the codes
+    csa.KeyRegisterOverride();
     ac.Init();
     ac.AddListener(
       "preview",
@@ -96,7 +96,6 @@
         PreviewRow(curr_row_i, true);
       },
       "p",
-      true,
     );
 
     ac.AddListener(
@@ -104,8 +103,7 @@
       () => {
         SampleRow(curr_row_i);
       },
-      "d",
-      true,
+      "s",
     );
 
     ac.AddListener(
@@ -114,7 +112,6 @@
         RenderRow(curr_row_i);
       },
       "r",
-      true,
     );
 
     ac.AddListener(
@@ -126,9 +123,17 @@
     );
 
     ac.AddListener(
+      "delete",
+      () => {
+        DeleteRow(curr_row_i);
+      },
+      "Backspace",
+    );
+
+    ac.AddListener(
       "detail_view",
       () => {
-        data_mode = "detail";
+        setts.data_mode = "detail";
       },
       "D",
       false,
@@ -138,7 +143,7 @@
     ac.AddListener(
       "table_view",
       () => {
-        data_mode = "table";
+        setts.data_mode = "table";
       },
       "T",
       false,
@@ -150,11 +155,8 @@
       () => {
         setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
         setts = setts;
-        curr_row_i--;
       },
       "N",
-      true,
-      true,
     );
 
     ac.AddListener(
@@ -165,7 +167,25 @@
         curr_row_i++;
       },
       "N",
+      false,
       true,
+    );
+
+    ac.AddListener(
+      "previous_row",
+      () => {
+        if (curr_row_i > 0) curr_row_i--;
+      },
+      "arrowup"
+    );
+
+    ac.AddListener(
+      "next_row",
+      () => {
+        if (curr_row_i < setts.tmpls[setts.sel_tmpl].rows.length - 1)
+          curr_row_i++;
+      },
+      "arrowdown"
     );
   });
 
@@ -520,12 +540,12 @@
 
   //User facing render results
   let render_results: RowRenderResult[] = [];
-  function BatchRender(row_i) {
+  function BatchRender(row_i = -1) {
     l.log("BatchRender called");
 
     let send_templ;
     //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined) {
+    if (row_i !== undefined && row_i !== -1) {
       send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
 
       for (let col of send_templ.columns) {
@@ -609,13 +629,13 @@
   }
 
   let dep_row_results: RowRenderResult[] = [];
-  function BatchOneToMany(row_i) {
+  function BatchOneToMany(row_i = -1) {
     l.log("BatchOneToMany called");
 
     let send_templ;
 
     //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined) {
+    if (row_i !== undefined && row_i !== -1) {
       //TODO this is a hack, find a better way to do this
       send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
 
@@ -853,7 +873,7 @@
         RenderRow(curr_row_i);
         break;
       case "detail":
-        data_mode = "detail";
+        setts.data_mode = "detail";
         break;
     }
   }
@@ -939,7 +959,7 @@
 {#if setts.active_tab === "data"}
   <main>
     {#if setts.sel_tmpl >= 0 && setts.tmpls[setts.sel_tmpl] !== undefined && setts.tmpls.length > 0}
-      {#if data_mode === "table"}
+      {#if setts.data_mode === "table"}
         <table class="dat_table">
           <thead>
             <tr>
@@ -1017,11 +1037,11 @@
             {/each}
           </tbody>
         </table>
-      {:else if data_mode === "detail"}
+      {:else if setts.data_mode === "detail"}
         <div class="dets_header">
           <div class="dets_header_left">
             <button
-              onclick={() => (data_mode = "table")}
+              onclick={() => (setts.data_mode = "table")}
               data-tooltip="Switch to Table View"
               data-tt-pos="bottom"><Table />Table View</button>
           </div>
@@ -1072,17 +1092,19 @@
                     }}><Gear /></button>
                 {/if}
               </h5>
-              <PropInput
-                inline={false}
-                bind:value={
-                  setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
-                    curr_row_i
-                  ]
-                }
-                type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
-                onchange={() => {
-                  PreviewRow(curr_row_i, true);
-                }} />
+              <div class="dets_prop">
+                <PropInput
+                  inline={false}
+                  bind:value={
+                    setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
+                      curr_row_i
+                    ]
+                  }
+                  type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
+                  onchange={() => {
+                    PreviewRow(curr_row_i, true);
+                  }} />
+              </div>
             </div>
           {/each}<!-- End of detail fields -->
         </div>
@@ -1104,10 +1126,10 @@
   <!-- OUTPUT -->
   <main class="output">
     <span
-      >Mode:
+      >Render Mode:
       <Dropdown
         variant="discrete"
-        labels={["Render", "One to Many", "Generate Comps"]}
+        labels={["One to One", "One to Many", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
         bind:value={setts.out_mode} />
     </span>
@@ -1198,7 +1220,8 @@
           bind:value={setts.tmpls[setts.sel_tmpl].render_out_module_templ} />
       </div>
 
-      <button class="setting" onclick={BatchRender}>Start Batch Render</button>
+      <button class="setting" onclick={() => BatchRender()}
+        >Start Batch Render</button>
 
       <!--Results-->
       {#if render_results.length > 0}
@@ -1435,7 +1458,7 @@
         <ExclamationTriangle color="white" size={15} />
         This render mode will block the user interface, press Esc to cancel all renders.
       </div>
-      <button onclick={BatchOneToMany}>Batch One to Many</button>
+      <button onclick={() => BatchOneToMany()}>Batch One to Many</button>
 
       <!--Results-->
       {#if dep_row_results.length > 0}
@@ -1751,7 +1774,7 @@
   .dets_field_cont {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 13px;
   }
 
   .dets_field {
@@ -1760,11 +1783,17 @@
   }
 
   .dets_field h5 {
-    margin: 0 0 10px 0;
+    margin: 0 0 7px 0;
   }
 
-  :global(.dets_field textarea) {
-    max-width: 100%;
+  .dets_prop {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  :global(.dets_prop textarea) {
+    width: 100%;
     box-sizing: border-box;
   }
 </style>

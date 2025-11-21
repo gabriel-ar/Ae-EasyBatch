@@ -31,9 +31,9 @@ export default class ActionCoordinator {
 
   Init(): void {
     //We add a window level listener
-    document.onkeydown = (e: KeyboardEvent) => {
+    window.addEventListener("keydown", (e: KeyboardEvent) => {
       this.KeyPressed(e);
-    };
+    });
   }
 
   /**
@@ -45,6 +45,12 @@ export default class ActionCoordinator {
   KeyPressed(e: KeyboardEvent): void {
     //If this class is paused, the callback is ignored.
     if (this.pause) return;
+
+    if (document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement) {
+      //If the focus is in an input, textarea or contenteditable element, we ignore the shortcuts
+      return;
+    }
 
     //we convert this to the combined_short code
     let combined = this.CombinedFromEvent(e);

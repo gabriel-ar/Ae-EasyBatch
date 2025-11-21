@@ -52,13 +52,13 @@
         onclick={() => Selected("add_after")}
         data-tooltip="Add a row after this one"
         ><AddAfter />Add After
-        <span class="c_shortcut">Ctrl + N</span></button>
+        <span class="c_shortcut">N</span></button>
       <button
         class="c_item"
         onclick={() => Selected("add_before")}
         data-tooltip="Add a row before this one"
         ><AddBefore />Add Before
-        <span class="c_shortcut">Ctrl + Shift + N</span></button>
+        <span class="c_shortcut">Shift + N</span></button>
       <button
         class="c_item"
         onclick={() => Selected("delete")}
@@ -70,18 +70,18 @@
         onclick={() => Selected("preview")}
         data-tooltip="Preview this row"
         ><EyeOpen />Preview
-        <span class="c_shortcut">Ctrl + P</span></button>
+        <span class="c_shortcut">P</span></button>
       <button
         class="c_item"
         onclick={() => Selected("copy")}
         data-tooltip="Copy data from properties panel"
-        ><Crosshair2 />Copy Data<span class="c_shortcut">Ctrl + D</span
+        ><Crosshair2 />Copy Data<span class="c_shortcut">D</span
         ></button>
       <button
         class="c_item"
         onclick={() => Selected("render")}
         data-tooltip="Render this row"
-        ><Camera />Render<span class="c_shortcut">Ctrl + R</span></button>
+        ><Camera />Render<span class="c_shortcut">R</span></button>
 
       <button
         class="c_item"
