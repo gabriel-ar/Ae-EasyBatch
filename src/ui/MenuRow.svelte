@@ -75,7 +75,7 @@
         class="c_item"
         onclick={() => Selected("copy")}
         data-tooltip="Copy data from properties panel"
-        ><Crosshair2 />Copy Data<span class="c_shortcut">D</span
+        ><Crosshair2 />Copy from Preview<span class="c_shortcut">D</span
         ></button>
       <button
         class="c_item"

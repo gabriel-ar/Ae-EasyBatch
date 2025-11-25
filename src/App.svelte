@@ -176,7 +176,7 @@
       () => {
         if (curr_row_i > 0) curr_row_i--;
       },
-      "arrowup"
+      "arrowup",
     );
 
     ac.AddListener(
@@ -185,7 +185,7 @@
         if (curr_row_i < setts.tmpls[setts.sel_tmpl].rows.length - 1)
           curr_row_i++;
       },
-      "arrowdown"
+      "arrowdown",
     );
   });
 
@@ -1062,7 +1062,7 @@
               min="0"
               max={setts.tmpls[setts.sel_tmpl].rows.length - 1}
               bind:value={curr_row_i} />
-            of {setts.tmpls[setts.sel_tmpl].rows.length - 1}
+            / {setts.tmpls[setts.sel_tmpl].rows.length - 1}
             <button
               onclick={NextRow}
               data-tooltip="Next Row"
@@ -1155,13 +1155,7 @@
         spellcheck="false"
         bind:value={setts.tmpls[setts.sel_tmpl].save_pattern}></textarea>
 
-      <div class="setting">
-        <span>Preview File Path:</span>
-        <span class="out_prev"
-          >{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span>
-      </div>
-
-      <div class="setting">
+      <div class="setting" style="margin-top: 4px;">
         <button onclick={SelRenderBasePath}>Pick Base Path</button>
 
         <Dropdown
@@ -1183,6 +1177,12 @@
           bind:value={sel_add_field} />
 
         <button onclick={AddField}>Add Field</button>
+      </div>
+
+      <div class="setting">
+        <span>Preview File Path:</span>
+        <span class="out_prev"
+          >{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span>
       </div>
 
       <h4>
