@@ -1,4 +1,3 @@
-import { getContext } from "svelte";
 import {l} from "../ui/States.svelte.ts";
 
 interface Listener {
@@ -10,8 +9,6 @@ interface Listener {
 interface Listeners {
   [key: string]: Listener;
 }
-
-
 
 /**
  * This class allows to define shortcuts by name and listens
@@ -65,7 +62,7 @@ export default class ActionCoordinator {
     for (let key in this.listeners) {
       if (this.listeners[key].combined === combined) {
         l.debug(`[ActionCoordinator] Shortcut matched: ${combined}`);
-        this.listeners[key].callback(e);
+        this.listeners[key].callback(e); 
 
         //Prevent default if the user choose to
         if (this.listeners[key].prevent) e.preventDefault();

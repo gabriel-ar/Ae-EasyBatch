@@ -1144,7 +1144,7 @@
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
       <p class="modal-description">
-        Renders your template composition once for every row of data.
+        Exports a single render per row. Perfect for creating multiple variations of a template from a spreadsheet.
       </p>
 
       <h4>
@@ -1264,8 +1264,7 @@
       <!-- MODE: GENERATE -->
 
       <p class="modal-description">
-        For each row of data, it generates a composition that contains your
-        template composition with the properties changed.
+        Creates editable compositions in your project for each row. Use this when you need to manually adjust outputs later.
       </p>
 
       <h4>Composition Name Pattern</h4>
@@ -1318,9 +1317,7 @@
       <!-- MODE: DEPENDANT -->
 
       <p class="modal-description">
-        Each row of data will update only the properties in your main
-        composition, but will render multiple compositions that you define
-        below.
+        Exports multiple files per row of data. Ideal for creating assets in different formats or from nested compositions.
       </p>
 
       <h4>

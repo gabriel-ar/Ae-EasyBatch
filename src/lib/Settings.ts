@@ -589,7 +589,12 @@ class Template {
    * @param {string} csv
    */
   LoadFromCSV(csv) {
+
+    if (!csv || csv.trim() === "") return;
+
     let csv_rows = papa.parse(csv, { skipEmptyLines: true }).data;
+
+    if (csv_rows.length === 0) return;
 
     //Try to match the header with the columns
     let header: any[] = csv_rows.shift() as any[];
