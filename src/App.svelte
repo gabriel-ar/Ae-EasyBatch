@@ -58,13 +58,11 @@
   import ModalMessage from "./ui/ModalMessage.svelte";
   import ModalEditView from "./ui/ModalEditView.svelte";
   import SettingsPanel from "./ui/SettingsTab.svelte";
-  import MenuRow from "./ui/MenuRow.svelte";
+  import MenuRow from "./ui/MenuCtx.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
-
-  const l = new Logger(Logger.Levels.Warn, "App");
-  setContext("logger", l);
+  import { l } from "./ui/States.svelte.ts";
 
   let csa = new CSAdapter();
   let setts = new Settings();
@@ -326,28 +324,10 @@
     l.debug("F_Reload called with templates:", n_tmpls);
   }
 
-  function AddRow() {
-    setts.tmpls[setts.sel_tmpl].AddRow();
-    setts = setts;
-    l.debug("AddRow called");
-  }
-
-  function AddColumn() {
-    setts.tmpls[setts.sel_tmpl].AddColumn();
-    setts = setts;
-    l.debug("AddColumn called");
-  }
-
   function DeleteRow(row_i) {
     setts.tmpls[setts.sel_tmpl].DeleteRow(row_i);
     setts = setts;
     l.debug("DeleteRow called with row index:", row_i);
-  }
-
-  function DeleteColumn(col_i) {
-    setts.tmpls[setts.sel_tmpl].DeleteColumn(col_i);
-    setts = setts;
-    l.debug("DeleteColumn called with column index:", col_i);
   }
 
   function PreviewRow(row_i, live = false) {
@@ -751,6 +731,25 @@
   function InitializeShortcuts() {
     csa.KeyRegisterOverride();
     ac.Init();
+
+    //File Actions
+    ac.AddListener(
+      "import_csv",
+      () => {
+        ImportCSV();
+      },
+      "i"
+    );
+
+    ac.AddListener(
+      "export_csv",
+      () => {
+        ExportCSV();
+      },
+      "e"
+    );
+
+    // Row/Edit Actions
     ac.AddListener(
       "preview",
       () => {
@@ -787,6 +786,32 @@
     );
 
     ac.AddListener(
+      "add_before",
+      () => {
+        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
+        setts = setts;
+        curr_row_i--;
+      },
+      "N",
+      false,
+      false,
+    );
+
+    ac.AddListener(
+      "add_after",
+      () => {
+        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
+        setts = setts;
+        curr_row_i++;
+      },
+      "N",
+      false,
+      true,
+    );
+
+    // View Actions
+
+    ac.AddListener(
       "view_detail",
       () => {
         setts.data_mode = "detail";
@@ -807,28 +832,14 @@
     );
 
     ac.AddListener(
-      "add_before",
+      "edit_view",
       () => {
-        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
-        setts = setts;
-        curr_row_i--;
+        OpenEditViewModal();
       },
-      "N",
-      true,
-      true,
+      "",
     );
 
-    ac.AddListener(
-      "add_after",
-      () => {
-        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
-        setts = setts;
-        curr_row_i++;
-      },
-      "N",
-      false,
-      true,
-    );
+    // Navigation Actions
 
     ac.AddListener(
       "previous_row",
@@ -845,22 +856,6 @@
           curr_row_i++;
       },
       "arrowdown",
-    );
-
-    ac.AddListener(
-      "add_column",
-      () => {
-        AddColumn();
-      },
-      "",
-    );
-
-    ac.AddListener(
-      "edit_view",
-      () => {
-        OpenEditViewModal();
-      },
-      "",
     );
   }
 
@@ -1014,11 +1009,6 @@
                         SetupAlternateSource(col_i);
                       }}><Gear /></button>
                   {/if}
-                  <button
-                    class="delete_col"
-                    data-tooltip="Delete column"
-                    data-tt-pos="bottom-right"
-                    onclick={() => DeleteColumn(view_i)}><Trash /></button>
                 </th>
               {/each}
             </tr>

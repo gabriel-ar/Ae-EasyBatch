@@ -1,11 +1,9 @@
 <script lang="ts">
     import { Template } from "../lib/Settings.ts";
-    import Logger from "../lib/Logger.ts";
+    import { l } from "./States.svelte.ts";
     import { DragHandleDots2, EyeOpen, EyeClosed } from "radix-icons-svelte";
 
     type OnCloseFunc = (table_cols: number[]) => void;
-
-    const l = new Logger(Logger.Levels.Warn, "ModalEditView");
 
     let show = $state(false);
     let tmpl = $state<Template>();
@@ -20,7 +18,7 @@
         template: Template,
         on_close_callback: OnCloseFunc,
     ) {
-        l.debug("Open called with template:", template);
+        l.debug("[ModalEditView] Open called with template:", template);
 
         tmpl = template;
         onclose = on_close_callback;
@@ -59,13 +57,13 @@
 
     function handleDragStart(index: number) {
         draggedIndex = index;
-        l.debug("Drag started at index:", index);
+        l.debug("[ModalEditView] Drag started at index:", index);
     }
 
     function handleDragEnd() {
         draggedIndex = null;
         dropTargetIndex = null;
-        l.debug("Drag ended");
+        l.debug("[ModalEditView] Drag ended");
     }
 
     function handleDragOver(event: DragEvent, index: number) {
@@ -87,7 +85,7 @@
             return;
         }
 
-        l.debug("Dropping from", draggedIndex, "to", index);
+        l.debug("[ModalEditView] Dropping from", draggedIndex, "to", index);
 
         // Reorder the array
         const newViewColumns = [...viewColumns];
@@ -97,21 +95,6 @@
         viewColumns = newViewColumns;
         draggedIndex = null;
         dropTargetIndex = null;
-    }
-
-    function addColumn() {
-        // Find the first hidden column
-        const hiddenColumn = viewColumns.find(vc => !vc.visible);
-        if (hiddenColumn) {
-            hiddenColumn.visible = true;
-            l.debug("Made column visible:", hiddenColumn.col_index);
-        } else {
-            l.warn("No hidden columns available to add");
-        }
-    }
-
-    function hasHiddenColumns() {
-        return viewColumns.some(vc => !vc.visible);
     }
 </script>
 
@@ -175,9 +158,6 @@
             </div>
 
             <div class="modal-actions">
-                {#if hasHiddenColumns()}
-                    <button onclick={addColumn}>Add Column</button>
-                {/if}
                 <button onclick={CloseDialog}>Done</button>
             </div>
         </div>
@@ -263,12 +243,6 @@
 
         .drop-indicator.bottom {
             bottom: -2px;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
         }
     </style>
 {/if}

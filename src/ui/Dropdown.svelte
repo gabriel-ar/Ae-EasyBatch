@@ -1,10 +1,17 @@
 <script lang="ts">
   import { ChevronDown } from "radix-icons-svelte";
-  import Logger from '../lib/Logger.ts';
+  import { l } from "./States.svelte.ts";
   import { getContext } from "svelte";
 
-  const l = getContext("logger") as Logger || new Logger(Logger.Levels.Warn, 'Dropdown');
-  let { value = $bindable(), options, labels, variant = "", style="", style_list="", onselect = (option, index) => {} } = $props();
+  let {
+    value = $bindable(),
+    options,
+    labels,
+    variant = "",
+    style = "",
+    style_list = "",
+    onselect = (option, index) => {},
+  } = $props();
 
   let sel_label = $state();
 
@@ -12,7 +19,12 @@
     e.preventDefault();
     e.target.blur();
     value = option;
-    l.debug('Selected called with option:', option, 'and index:', index);
+    l.debug(
+      "[Dropdown] Selected called with option:",
+      option,
+      "and index:",
+      index,
+    );
     onselect(option, index);
   }
 
@@ -27,16 +39,17 @@
   });
 </script>
 
-<div class={["dropdown", variant]} style={style}>
-  <button class="dropbtn">{sel_label}<ChevronDown 
-    style="vertical-align:middle; margin-left: 5px;" />
-</button>
-  <div class="dropdown-content"  style={style_list}>
+<div class={["dropdown", variant]} {style}>
+  <button class="dropbtn"
+    >{sel_label}<ChevronDown style="vertical-align:middle; margin-left: 5px;" />
+  </button>
+  <div class="dropdown-content" style={style_list}>
     {#if options.length === 0}
       <p>No options available</p>
     {/if}
     {#each options as option, opt_i}
-      <button onclick={(e) => Selected(e, option, opt_i)}>{labels[opt_i]}</button>
+      <button onclick={(e) => Selected(e, option, opt_i)}
+        >{labels[opt_i]}</button>
     {/each}
   </div>
 </div>
@@ -82,7 +95,7 @@
     background-color: var(--color-p1);
   }
 
-  :not(.disabled).dropdown:focus-within  .dropdown-content {
+  :not(.disabled).dropdown:focus-within .dropdown-content {
     display: flex;
   }
 
@@ -100,8 +113,7 @@
     background-color: var(--color-solid-m2);
   }
 
-  .disabled .dropbtn{
+  .disabled .dropbtn {
     color: var(--color-text-disabled);
   }
-
 </style>

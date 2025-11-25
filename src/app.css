@@ -62,14 +62,15 @@ textarea {
   background-color: var(--color-m2);
   color: white;
 
-  
+
   display: inline-flex;
   gap: 4px;
   align-items: center;
   justify-content: center;
 }
 
-input[data-variant="discrete"], button[data-variant="discrete"] {
+input[data-variant="discrete"],
+button[data-variant="discrete"] {
   background-color: transparent;
   border-color: transparent;
   padding: 3px;
@@ -273,11 +274,19 @@ select option:focus {
   margin: 0 0 0.5rem 0;
 }
 
-.modal-description{
+.modal-description {
   color: var(--color-text-disabled);
   font-size: 1rem;
   margin: 0 0 0.5rem 0;
 }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+
 
 
 @media (prefers-color-scheme: light) {

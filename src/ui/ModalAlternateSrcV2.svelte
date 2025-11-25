@@ -1,11 +1,7 @@
 <script>
   import CSAdapter from "../lib/CSAdapter.ts";
   import { getContext, onMount } from "svelte";
-  import Logger from "../lib/Logger.ts";
-
-  const l =
-    getContext("logger") ||
-    new Logger(Logger.Levels.Warn, "ModalAlternateSrcV2");
+  import { l } from "./States.svelte.ts";
 
   let {
     show = $bindable(false),
@@ -39,7 +35,7 @@
       old_val.slice(cursor_pos);
 
     tmpl = tmpl;
-    l.debug("AddField called with pattern:", pattern);
+    l.debug("[ModalAltSrc] AddField called with pattern:", pattern);
   }
 
   /**
@@ -68,7 +64,7 @@
 
     preview = col.ResolveAltSrcPath(0, tmpl.columns);
     l.debug(
-      "UpdatePreview called with pattern:",
+      "[ModalAltSrc] UpdatePreview called with pattern:",
       pattern,
       "and base_path:",
       base_path,
@@ -89,7 +85,8 @@
         This is the pattern the extension will use to find the files for this
         property.
       </div>
-      <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;">
+      <div
+        style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;">
         <textarea
           id="alt_src_pattern_ta"
           spellcheck="false"
@@ -114,12 +111,14 @@
         <span>Preview:</span>
         <span class="out_prev">{preview}</span>
       </div>
-      <button onclick={CloseDialog}>Close</button>
+
+      <div class="modal-actions">
+        <button onclick={CloseDialog}>Done</button>
+      </div>
     </div>
   </div>
 
   <style>
-    
     .out_prev {
       word-break: break-all;
     }

@@ -59,14 +59,14 @@
           class="c_item"
           onclick={() => Selected("add_after")}
           data-tooltip="Add a row after this one"
-          ><AddAfter />Add After
-          <span class="c_shortcut">Shift + N</span></button>
+          ><AddAfter />Add Row After
+          <span class="c_shortcut">N</span></button>
         <button
           class="c_item"
           onclick={() => Selected("add_before")}
           data-tooltip="Add a row before this one"
-          ><AddBefore />Add Before
-          <span class="c_shortcut">N</span></button>
+          ><AddBefore />Add Row Before
+          <span class="c_shortcut">Shift + N</span></button>
         <button
           class="c_item"
           onclick={() => Selected("delete")}

@@ -1,12 +1,10 @@
 <script>
   import { getContext } from "svelte";
   import { Column } from "../lib/Settings.ts";
-  import Logger from "../lib/Logger.ts";
+  import { l } from "./States.svelte.ts";
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "../lib/CSAdapter.ts";
   import { File } from "radix-icons-svelte";
-
-  const l = getContext("logger") || new Logger(Logger.Levels.Warn, "PropInput");
 
   /** @type {{ value: any, type:any, onchange?: function(value):void, inline?: boolean}}*/
   let { value = $bindable(), type, onchange, inline = true } = $props();
@@ -61,9 +59,9 @@
       let b = Math.round(value[2] * 255);
 
       hex_color = ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-      //l.debug('UpdateColorHex called with value:', value);
+      //l.debug('[PropInput] UpdateColorHex called with value:', value);
     } catch (e) {
-      l.error(e);
+      l.error("[PropInput]", e);
     }
   }
 
@@ -81,9 +79,12 @@
       hex_color = hex;
 
       DebounceChange();
-      l.debug("UpdateColor4D called with input:", input.target.value);
+      l.debug(
+        "[PropInput] UpdateColor4D called with input:",
+        input.target.value,
+      );
     } catch (e) {
-      l.error(e);
+      l.error("[PropInput]", e);
     }
   }
 
@@ -111,7 +112,7 @@
       hex_color = hex;
       DebounceChange();
     });
-    l.debug("PromptColor called");
+    l.debug("[PropInput] PromptColor called");
   }
 
   /**
@@ -126,7 +127,7 @@
       try {
         result = JSON.parse(result);
       } catch (e) {
-        l.error(e);
+        l.error("[PropInput]", e);
         return;
       }
 
@@ -166,12 +167,12 @@
           value = `<b>${file}</b>`;
           DebounceChange();
         } else if (file === null) {
-          l.debug("File selection cancelled by user");
+          l.debug("[PropInput] File selection cancelled by user");
           value = current_file;
         }
       })
       .catch((err) => {
-        l.error("Error picking file:", err);
+        l.error("[PropInput] Error picking file:", err);
       });
   }
 

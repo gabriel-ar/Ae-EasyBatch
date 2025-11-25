@@ -1,3 +1,6 @@
+import { getContext } from "svelte";
+import {l} from "../ui/States.svelte.ts";
+
 interface Listener {
   combined: string;
   callback: (event?: any) => void;
@@ -7,6 +10,8 @@ interface Listener {
 interface Listeners {
   [key: string]: Listener;
 }
+
+
 
 /**
  * This class allows to define shortcuts by name and listens
@@ -47,7 +52,7 @@ export default class ActionCoordinator {
     if (this.pause) return;
 
     if (document.activeElement instanceof HTMLInputElement ||
-        document.activeElement instanceof HTMLTextAreaElement) {
+      document.activeElement instanceof HTMLTextAreaElement) {
       //If the focus is in an input, textarea or contenteditable element, we ignore the shortcuts
       return;
     }
@@ -59,6 +64,7 @@ export default class ActionCoordinator {
     // generated shortcut combined is the same we just created from the event
     for (let key in this.listeners) {
       if (this.listeners[key].combined === combined) {
+        l.debug(`[ActionCoordinator] Shortcut matched: ${combined}`);
         this.listeners[key].callback(e);
 
         //Prevent default if the user choose to
@@ -138,7 +144,10 @@ export default class ActionCoordinator {
     let listener = this.listeners[name];
 
     if (listener !== undefined) {
+      l.debug(`[ActionCoordinator] Firing action: ${name}`);
       listener.callback(event);
+    }else{
+      l.warn(`[ActionCoordinator] No action found with name: ${name}`);
     }
   }
 }
