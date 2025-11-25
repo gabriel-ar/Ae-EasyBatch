@@ -56,8 +56,9 @@
   import ModalFilePattern from "./ui/ModalDepFilePattern.svelte";
   import Dropdown from "./ui/Dropdown.svelte";
   import ModalMessage from "./ui/ModalMessage.svelte";
-  import SettingsPanel from "./ui/SettingsPanel.svelte";
-  import MenuRow from "./ui/MenuRow.svelte";
+  import ModalEditView from "./ui/ModalEditView.svelte";
+  import SettingsPanel from "./ui/SettingsTab.svelte";
+  import MenuRow from "./ui/MenuCtx.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
@@ -75,6 +76,7 @@
 
   let m_file_pattern: ModalFilePattern;
   let m_message: ModalMessage;
+  let m_edit_view: ModalEditView;
   let menu_row: MenuRow;
   let curr_row_i = 0;
 
@@ -88,85 +90,7 @@
 
   onMount(() => {
     StartupSequence();
-
-    ac.Init();
-    ac.AddListener(
-      "preview",
-      () => {
-        PreviewRow(curr_row_i, true);
-      },
-      "p",
-      true,
-    );
-
-    ac.AddListener(
-      "copy_from_preview",
-      () => {
-        SampleRow(curr_row_i);
-      },
-      "d",
-      true,
-    );
-
-    ac.AddListener(
-      "render_row",
-      () => {
-        RenderRow(curr_row_i);
-      },
-      "r",
-      true,
-    );
-
-    ac.AddListener(
-      "delete",
-      () => {
-        DeleteRow(curr_row_i);
-      },
-      "Delete",
-    );
-
-    ac.AddListener(
-      "detail_view",
-      () => {
-        data_mode = "detail";
-      },
-      "D",
-      false,
-      true,
-    );
-
-    ac.AddListener(
-      "table_view",
-      () => {
-        data_mode = "table";
-      },
-      "T",
-      false,
-      true,
-    );
-
-    ac.AddListener(
-      "add_before",
-      () => {
-        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
-        setts = setts;
-        curr_row_i--;
-      },
-      "N",
-      true,
-      true,
-    );
-
-    ac.AddListener(
-      "add_after",
-      () => {
-        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
-        setts = setts;
-        curr_row_i++;
-      },
-      "N",
-      true,
-    );
+    InitializeShortcuts();
   });
 
   async function StartupSequence() {
@@ -816,6 +740,113 @@
     setts.tmpls[setts.sel_tmpl].ResolveSavePathFirstDeps(0);
   }
 
+  function OpenEditViewModal() {
+    m_edit_view.Open(setts.tmpls[setts.sel_tmpl], EditViewModalClosed);
+  }
+
+  function EditViewModalClosed(new_table_cols: number[]) {
+    setts.tmpls[setts.sel_tmpl].table_cols = new_table_cols;
+    setts = setts; // Force reactivity
+    l.debug("Edit view modal closed with new table_cols:", new_table_cols);
+  }
+
+  function InitializeShortcuts() {
+    ac.Init();
+    ac.AddListener(
+      "preview",
+      () => {
+        PreviewRow(curr_row_i, true);
+      },
+      "p",
+      true,
+    );
+
+    ac.AddListener(
+      "copy_from_preview",
+      () => {
+        SampleRow(curr_row_i);
+      },
+      "d",
+      true,
+    );
+
+    ac.AddListener(
+      "render_row",
+      () => {
+        RenderRow(curr_row_i);
+      },
+      "r",
+      true,
+    );
+
+    ac.AddListener(
+      "delete",
+      () => {
+        DeleteRow(curr_row_i);
+      },
+      "Delete",
+    );
+
+    ac.AddListener(
+      "view_detail",
+      () => {
+        data_mode = "detail";
+      },
+      "D",
+      false,
+      true,
+    );
+
+    ac.AddListener(
+      "view_table",
+      () => {
+        data_mode = "table";
+      },
+      "T",
+      false,
+      true,
+    );
+
+    ac.AddListener(
+      "add_before",
+      () => {
+        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
+        setts = setts;
+        curr_row_i--;
+      },
+      "N",
+      true,
+      true,
+    );
+
+    ac.AddListener(
+      "add_after",
+      () => {
+        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
+        setts = setts;
+        curr_row_i++;
+      },
+      "N",
+      true,
+    );
+
+    ac.AddListener(
+      "add_column",
+      () => {
+        AddColumn();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "edit_view",
+      () => {
+        OpenEditViewModal();
+      },
+      "",
+    );
+  }
+
   function OpenRowMenu(e, row_i) {
     //if the active element is an input, don't open the menu
     if (
@@ -832,30 +863,22 @@
 
   function RowMenuSelected(action) {
     l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
+    ac.Fire(action);
+  }
 
-    switch (action) {
-      case "add_before":
-        ac.Fire("add_before");
-        break;
-      case "add_after":
-        ac.Fire("add_after");
-        break;
-      case "delete":
-        DeleteRow(curr_row_i);
-        break;
-      case "preview":
-        PreviewRow(curr_row_i);
-        break;
-      case "sample":
-        SampleRow(curr_row_i);
-        break;
-      case "render":
-        RenderRow(curr_row_i);
-        break;
-      case "detail":
-        data_mode = "detail";
-        break;
-    }
+  function OpenBarMenu(e: MouseEvent, type: string) {
+    let btn = e.target as HTMLButtonElement;
+    menu_row.Open(
+      btn.offsetLeft,
+      btn.offsetTop + btn.offsetHeight,
+      BarMenuSelected,
+      type,
+    );
+  }
+
+  function BarMenuSelected(action: string) {
+    l.debug("BarMenuSelected called with action:", action);
+    ac.Fire(action);
   }
 
   function NextRow() {
@@ -937,6 +960,14 @@
 
 <!-- DATA -->
 {#if setts.active_tab === "data"}
+  <nav class="dat_bar">
+    <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "file")}
+      >File</button>
+    <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "row")}
+      >Edit</button>
+    <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "view")}
+      >View</button>
+  </nav>
   <main>
     {#if setts.sel_tmpl >= 0 && setts.tmpls[setts.sel_tmpl] !== undefined && setts.tmpls.length > 0}
       {#if data_mode === "table"}
@@ -1089,32 +1120,21 @@
       {/if}
     {/if}
   </main>
-
-  <footer class="table_tools">
-    <div>
-      <button onclick={AddRow}>Add Row</button>
-      <button onclick={AddColumn}>Add Column</button>
-    </div>
-    <div class="table_tools">
-      <button onclick={ImportCSV}>Import from CSV</button>
-      <button onclick={ExportCSV}>Export to CSV</button>
-    </div>
-  </footer>
 {:else if setts.active_tab === "output"}
   <!-- OUTPUT -->
   <main class="output">
     <span
-      >Mode:
+      >Render Mode:
       <Dropdown
         variant="discrete"
-        labels={["Render", "One to Many", "Generate Comps"]}
+        labels={["One to One", "One to Many", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
         bind:value={setts.out_mode} />
     </span>
 
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
-      <p style="font-size: small; margin: 0.5em 0;">
+      <p class="modal-description">
         Renders your template composition once for every row of data.
       </p>
 
@@ -1233,7 +1253,7 @@
     {:else if setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 
-      <p style="font-size: small; margin: 0.5em 0;">
+      <p class="modal-description">
         For each row of data, it generates a composition that contains your
         template composition with the properties changed.
       </p>
@@ -1287,7 +1307,7 @@
     {:else if setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
-      <p style="font-size: small; margin: 0.5em 0;">
+      <p class="modal-description">
         Each row of data will update only the properties in your main
         composition, but will render multiple compositions that you define
         below.
@@ -1486,6 +1506,7 @@
 
 <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
 <ModalMessage bind:this={m_message}></ModalMessage>
+<ModalEditView bind:this={m_edit_view}></ModalEditView>
 <MenuRow bind:this={menu_row} onselect={RowMenuSelected}></MenuRow>
 
 {#if no_templs}
@@ -1501,11 +1522,12 @@
     display: grid;
     height: 100vh;
 
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto auto 1fr auto;
     grid-template-columns: auto;
 
     grid-template-areas:
       "header"
+      "nav"
       "main"
       "footer";
   }
@@ -1591,16 +1613,23 @@
 
     overflow: auto;
 
+    grid-area: main;
+
     /* background-color: var(--color-m1); */
   }
 
-  footer {
+  /* ////// DATA //////// */
+
+  .dat_bar {
     display: flex;
     gap: 1rem;
 
-    padding: 10px 10px;
+    grid-area: nav;
+    padding: 4px 10px;
 
-    border-top: 2px solid var(--color-divider);
+    height: 22px;
+
+    border-bottom: solid 1px var(--color-border-p0);
   }
 
   table,

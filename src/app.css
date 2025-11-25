@@ -31,6 +31,7 @@
   --color-solid-m1: rgb(24, 24, 24);
   --color-solid-m2: rgb(19, 19, 19);
 
+  --color-border-p0: rgba(255, 255, 255, 0.10);
   --color-border-p1: rgba(255, 255, 255, 0.15);
 
   --color-divider: rgba(0, 0, 0, 0.5);
@@ -260,14 +261,22 @@ select option:focus {
 
   min-width: 80%;
   margin: 20px;
-  padding: 10px;
-
-  gap: 1rem;
+  padding: 15px;
 
   background-color: var(--color-base);
   border: 1px solid var(--color-border-p1);
 
   border-radius: var(--radius-form);
+}
+
+.modal .wrapper h4 {
+  margin: 0 0 0.5rem 0;
+}
+
+.modal-description{
+  color: var(--color-text-disabled);
+  font-size: 1rem;
+  margin: 0 0 0.5rem 0;
 }
 
 

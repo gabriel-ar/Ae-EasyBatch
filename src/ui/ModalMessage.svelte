@@ -25,7 +25,7 @@
 
 {#if show}
     <div class="modal">
-        <div class="wrapper">
+        <div class="wrapper" style="gap: 1em;">
             <h3>{i_title}</h3>
             <div>{@html msg}</div>
             <button onclick={CloseDialog}>Close</button>

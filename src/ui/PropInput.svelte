@@ -279,6 +279,7 @@
 {#snippet array_input(index)}
   <!-- svelte-ignore binding_property_non_reactive -->
   <input
+    class:inline_input={inline}
     type="number"
     bind:value={value[index]}
     onkeyup={DebounceChange}
@@ -287,6 +288,7 @@
 
 {#snippet number_input()}
   <input
+    class:inline_input={inline}
     type="number"
     bind:value
     onkeyup={DebounceChange}
@@ -295,6 +297,7 @@
 
 {#snippet text_input()}
   <textarea
+    class:inline_input={inline}
     rows={inline ? 1 : 2}
     cols="15"
     bind:value
@@ -307,31 +310,11 @@
     >{axis}</button>
 {/snippet}
 
-{#if inline}
-  <style>
-    input,
-    textarea {
-      background-color: transparent;
-      border: 1px solid transparent;
-
-      min-width: 50px;
-      margin-left: 2px;
-
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      appearance: none;
-    }
-  </style>
-{/if}
-
 <style>
-
-   input,
-    textarea {
-      background-color: transparent;
-    }
-
-
+  input,
+  textarea {
+    background-color: transparent;
+  }
 
   input:hover,
   textarea:hover {
@@ -346,6 +329,16 @@
 
   input[type="number"] {
     width: 50px;
+  }
+
+  .inline_input {
+    background-color: transparent;
+    border: 1px solid transparent;
+
+    min-width: 50px;
+    margin-left: 2px;
+
+    appearance: none;
   }
 
   .color_show {

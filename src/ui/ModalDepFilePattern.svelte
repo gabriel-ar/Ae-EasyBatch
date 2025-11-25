@@ -96,14 +96,17 @@
 {#if show && tmpl !== undefined}
     <div class="modal">
         <div class="wrapper">
-            <h4>File Path Pattern</h4>
+            <h4>Render Save Path Pattern</h4>
+            <div class="modal-description">
+                Define the pattern used to resolve where to save the rendered files.</div> 
+
+            <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;">
             <textarea
                 id="file_pattern_ta"
                 spellcheck="false"
                 onkeyup={DebounceUpdatePreview}
                 bind:value={tmpl.dep_config[dc_id].save_pattern}
             ></textarea>
-
             <div>
                 {#if pick_base}
                     <button onclick={SelectBasePath} style="margin-right: 15px;"
@@ -123,8 +126,9 @@
                     {/each}
                 </select>
             </div>
+            </div>
 
-            <div class="out_prev_cont">
+            <div style="margin-bottom: 10px;">
                 <span>Preview:</span>
                 <span class="out_prev">{tmpl.dep_config[dc_id].save_path}</span>
             </div>
