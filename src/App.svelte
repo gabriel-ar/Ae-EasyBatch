@@ -58,7 +58,7 @@
   import ModalMessage from "./ui/ModalMessage.svelte";
   import ModalEditView from "./ui/ModalEditView.svelte";
   import SettingsPanel from "./ui/SettingsTab.svelte";
-  import MenuRow from "./ui/MenuCtx.svelte";
+  import MenuRow from "./ui/MenuRow.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
@@ -79,8 +79,6 @@
   let m_edit_view: ModalEditView;
   let menu_row: MenuRow;
   let curr_row_i = 0;
-
-  let data_mode: string = "detail"; //table or detail
 
   //Update the log level of the logger when the settings changes
   $: {
@@ -444,12 +442,12 @@
 
   //User facing render results
   let render_results: RowRenderResult[] = [];
-  function BatchRender(row_i) {
+  function BatchRender(row_i = -1) {
     l.log("BatchRender called");
 
     let send_templ;
     //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined) {
+    if (row_i !== undefined && row_i !== -1) {
       send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
 
       for (let col of send_templ.columns) {
@@ -533,13 +531,13 @@
   }
 
   let dep_row_results: RowRenderResult[] = [];
-  function BatchOneToMany(row_i) {
+  function BatchOneToMany(row_i = -1) {
     l.log("BatchOneToMany called");
 
     let send_templ;
 
     //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined) {
+    if (row_i !== undefined && row_i !== -1) {
       //TODO this is a hack, find a better way to do this
       send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
 
@@ -751,6 +749,7 @@
   }
 
   function InitializeShortcuts() {
+    csa.KeyRegisterOverride();
     ac.Init();
     ac.AddListener(
       "preview",
@@ -766,7 +765,7 @@
       () => {
         SampleRow(curr_row_i);
       },
-      "d",
+      "s",
       true,
     );
 
@@ -790,7 +789,7 @@
     ac.AddListener(
       "view_detail",
       () => {
-        data_mode = "detail";
+        setts.data_mode = "detail";
       },
       "D",
       false,
@@ -800,7 +799,7 @@
     ac.AddListener(
       "view_table",
       () => {
-        data_mode = "table";
+        setts.data_mode = "table";
       },
       "T",
       false,
@@ -827,7 +826,25 @@
         curr_row_i++;
       },
       "N",
+      false,
       true,
+    );
+
+    ac.AddListener(
+      "previous_row",
+      () => {
+        if (curr_row_i > 0) curr_row_i--;
+      },
+      "arrowup",
+    );
+
+    ac.AddListener(
+      "next_row",
+      () => {
+        if (curr_row_i < setts.tmpls[setts.sel_tmpl].rows.length - 1)
+          curr_row_i++;
+      },
+      "arrowdown",
     );
 
     ac.AddListener(
@@ -970,7 +987,7 @@
   </nav>
   <main>
     {#if setts.sel_tmpl >= 0 && setts.tmpls[setts.sel_tmpl] !== undefined && setts.tmpls.length > 0}
-      {#if data_mode === "table"}
+      {#if setts.data_mode === "table"}
         <table class="dat_table">
           <thead>
             <tr>
@@ -1048,11 +1065,11 @@
             {/each}
           </tbody>
         </table>
-      {:else if data_mode === "detail"}
+      {:else if setts.data_mode === "detail"}
         <div class="dets_header">
           <div class="dets_header_left">
             <button
-              onclick={() => (data_mode = "table")}
+              onclick={() => (setts.data_mode = "table")}
               data-tooltip="Switch to Table View"
               data-tt-pos="bottom"><Table />Table View</button>
           </div>
@@ -1073,7 +1090,7 @@
               min="0"
               max={setts.tmpls[setts.sel_tmpl].rows.length - 1}
               bind:value={curr_row_i} />
-            of {setts.tmpls[setts.sel_tmpl].rows.length - 1}
+            / {setts.tmpls[setts.sel_tmpl].rows.length - 1}
             <button
               onclick={NextRow}
               data-tooltip="Next Row"
@@ -1103,17 +1120,19 @@
                     }}><Gear /></button>
                 {/if}
               </h5>
-              <PropInput
-                inline={false}
-                bind:value={
-                  setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
-                    curr_row_i
-                  ]
-                }
-                type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
-                onchange={() => {
-                  PreviewRow(curr_row_i, true);
-                }} />
+              <div class="dets_prop">
+                <PropInput
+                  inline={false}
+                  bind:value={
+                    setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
+                      curr_row_i
+                    ]
+                  }
+                  type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
+                  onchange={() => {
+                    PreviewRow(curr_row_i, true);
+                  }} />
+              </div>
             </div>
           {/each}<!-- End of detail fields -->
         </div>
@@ -1153,13 +1172,7 @@
         spellcheck="false"
         bind:value={setts.tmpls[setts.sel_tmpl].save_pattern}></textarea>
 
-      <div class="setting">
-        <span>Preview File Path:</span>
-        <span class="out_prev"
-          >{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span>
-      </div>
-
-      <div class="setting">
+      <div class="setting" style="margin-top: 4px;">
         <button onclick={SelRenderBasePath}>Pick Base Path</button>
 
         <Dropdown
@@ -1181,6 +1194,12 @@
           bind:value={sel_add_field} />
 
         <button onclick={AddField}>Add Field</button>
+      </div>
+
+      <div class="setting">
+        <span>Preview File Path:</span>
+        <span class="out_prev"
+          >{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span>
       </div>
 
       <h4>
@@ -1218,7 +1237,8 @@
           bind:value={setts.tmpls[setts.sel_tmpl].render_out_module_templ} />
       </div>
 
-      <button class="setting" onclick={BatchRender}>Start Batch Render</button>
+      <button class="setting" onclick={() => BatchRender()}
+        >Start Batch Render</button>
 
       <!--Results-->
       {#if render_results.length > 0}
@@ -1455,7 +1475,7 @@
         <ExclamationTriangle color="white" size={15} />
         This render mode will block the user interface, press Esc to cancel all renders.
       </div>
-      <button onclick={BatchOneToMany}>Batch One to Many</button>
+      <button onclick={() => BatchOneToMany()}>Batch One to Many</button>
 
       <!--Results-->
       {#if dep_row_results.length > 0}
@@ -1780,7 +1800,7 @@
   .dets_field_cont {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 13px;
   }
 
   .dets_field {
@@ -1789,11 +1809,17 @@
   }
 
   .dets_field h5 {
-    margin: 0 0 10px 0;
+    margin: 0 0 7px 0;
   }
 
-  :global(.dets_field textarea) {
-    max-width: 100%;
+  .dets_prop {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  :global(.dets_prop textarea) {
+    width: 100%;
     box-sizing: border-box;
   }
 </style>

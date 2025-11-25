@@ -192,6 +192,82 @@ class CSAdapter {
     var path = decodeURI(this.a_cep.getSystemPath(pathType));
     return path.replace("file:///", "").replace("file://", "");
   };
+
+/**
+ * 
+ * @param keyEventsInterest  * Register an interest in some key events to prevent them from being sent to the host application.
+ *
+ * This function works with modeless extensions and panel extensions.
+ * Generally all the key events will be sent to the host application for these two extensions if the current focused element
+ * is not text input or dropdown,
+ * If you want to intercept some key events and want them to be handled in the extension, please call this function
+ * in advance to prevent them being sent to the host application.
+ *
+ * Since 6.1.0
+ *
+ * @param keyEventsInterest      A JSON string describing those key events you are interested in. A null object or
+                                 an empty string will lead to removing the interest
+ *
+ * This JSON string should be an array, each object has following keys:
+ *
+ * keyCode:  [Required] represents an OS system dependent virtual key code identifying
+ *           the unmodified value of the pressed key.
+ * ctrlKey:  [optional] a Boolean that indicates if the control key was pressed (true) or not (false) when the event occurred.
+ * altKey:   [optional] a Boolean that indicates if the alt key was pressed (true) or not (false) when the event occurred.
+ * shiftKey: [optional] a Boolean that indicates if the shift key was pressed (true) or not (false) when the event occurred.
+ * metaKey:  [optional] (Mac Only) a Boolean that indicates if the Meta key was pressed (true) or not (false) when the event occurred.
+ *                      On Macintosh keyboards, this is the command key. To detect Windows key on Windows, please use keyCode instead.
+ * An example JSON string:
+ *
+ * [
+ *     {
+ *         "keyCode": 48
+ *     },
+ *     {
+ *         "keyCode": 123,
+ *         "ctrlKey": true
+ *     }, 
+ *     {
+ *         "keyCode": 123,
+ *         "ctrlKey": true,
+ *         "metaKey": true
+ *     }
+ * ]
+ *
+ * @returns 
+ */
+  RegisterKeyEventsInterest(keyEventsInterest: {keyCode: number, ctrlKey?: boolean, altKey?: boolean, shiftKey?: boolean, metaKey?: boolean}[] | null | string) {
+    console.log("RegisterKeyEventsInterest called with: ", keyEventsInterest);
+    return this.a_cep.registerKeyEventsInterest(JSON.stringify(keyEventsInterest));
+  }
+
+  KeyRegisterOverride(){
+	const platform = navigator.platform.substring(0, 3);
+	let maxKey;
+	if (platform === 'Mac')
+		maxKey = 126; // Mac Max Key Code
+	else if (platform === 'Win')
+		maxKey = 222; // HTML Max Key Code
+	let allKeys = [];
+	for (let k = 0; k <= maxKey; k++) {
+		for (let j = 0; j <= 15; j++) {
+			const guide = (j >>> 0).toString(2).padStart(4, '0');
+			allKeys.push({
+				keyCode: k,
+				ctrlKey: guide[0] == 1,
+				altKey: guide[1] == 1,
+				shiftKey: guide[2] == 1,
+				metaKey: guide[3] == 1
+			});
+		}
+	}
+
+	const keyRes = this.a_cep.registerKeyEventsInterest(JSON.stringify(allKeys));
+	console.log('Key Events Registered Completed: ' + keyRes);
+  console.debug(allKeys)
+};
+
+
 }
 
 export default CSAdapter;
