@@ -54,6 +54,8 @@ export default class ActionCoordinator {
       return;
     }
 
+    //console.log("ActionCoordinator KeyPressed", e);
+
     //we convert this to the combined_short code
     let combined = this.CombinedFromEvent(e);
 

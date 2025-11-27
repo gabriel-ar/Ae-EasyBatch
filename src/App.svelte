@@ -69,7 +69,6 @@
   let ac = new ActionCoordinator();
 
   let no_templs = false;
-
   let false_blur = false;
 
   let m_file_pattern: ModalFilePattern;
@@ -729,8 +728,29 @@
   }
 
   function InitializeShortcuts() {
-    csa.KeyRegisterOverride();
+    //csa.KeyRegisterOverride();
     ac.Init();
+    csa.RegisterKeyEventsInterest([
+      //MAC
+
+      { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
+      { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
+
+      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down ALT
+      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up ALT
+
+      { keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
+      { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
+
+      { keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false }, // S
+      { keyCode: 0x0F, ctrlKey: false, altKey: false, shiftKey: false }, // R
+      { keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false }, // P
+      { keyCode: 0x2D, ctrlKey: false, altKey: false, shiftKey: false }, // N
+      { keyCode: 0x2D, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
+
+      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: true }, // T
+      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: true }, // D
+    ]);
 
     //File Actions
     ac.AddListener(
@@ -738,7 +758,7 @@
       () => {
         ImportCSV();
       },
-      "i"
+      "i",
     );
 
     ac.AddListener(
@@ -746,7 +766,7 @@
       () => {
         ExportCSV();
       },
-      "e"
+      "e",
     );
 
     // Row/Edit Actions
@@ -756,7 +776,6 @@
         PreviewRow(curr_row_i, true);
       },
       "p",
-      true,
     );
 
     ac.AddListener(
@@ -774,7 +793,6 @@
         RenderRow(curr_row_i);
       },
       "r",
-      true,
     );
 
     ac.AddListener(
@@ -783,6 +801,14 @@
         DeleteRow(curr_row_i);
       },
       "Delete",
+    );
+
+        ac.AddListener(
+      "delete",
+      () => {
+        DeleteRow(curr_row_i);
+      },
+      "Backspace",
     );
 
     ac.AddListener(
@@ -844,18 +870,22 @@
     ac.AddListener(
       "previous_row",
       () => {
-        if (curr_row_i > 0) curr_row_i--;
+        PrevRow();
       },
       "arrowup",
+      false,
+      false,
+      true
     );
-
     ac.AddListener(
       "next_row",
       () => {
-        if (curr_row_i < setts.tmpls[setts.sel_tmpl].rows.length - 1)
-          curr_row_i++;
+        NextRow();
       },
       "arrowdown",
+      false,
+      false,
+      true
     );
   }
 
@@ -1144,7 +1174,8 @@
     <!-- MODE: RENDER -->
     {#if setts.out_mode === "render"}
       <p class="modal-description">
-        Exports a single render per row. Perfect for creating multiple variations of a template from a spreadsheet.
+        Exports a single render per row. Perfect for creating multiple
+        variations of a template from a spreadsheet.
       </p>
 
       <h4>
@@ -1264,7 +1295,8 @@
       <!-- MODE: GENERATE -->
 
       <p class="modal-description">
-        Creates editable compositions in your project for each row. Use this when you need to manually adjust outputs later.
+        Creates editable compositions in your project for each row. Use this
+        when you need to manually adjust outputs later.
       </p>
 
       <h4>Composition Name Pattern</h4>
@@ -1317,7 +1349,8 @@
       <!-- MODE: DEPENDANT -->
 
       <p class="modal-description">
-        Exports multiple files per row of data. Ideal for creating assets in different formats or from nested compositions.
+        Exports multiple files per row of data. Ideal for creating assets in
+        different formats or from nested compositions.
       </p>
 
       <h4>
