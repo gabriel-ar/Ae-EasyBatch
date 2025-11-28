@@ -1281,9 +1281,12 @@ function RenderDeps(tmpl, props_layer) {
       //Add the dependent compositions to the render queue
       for (var i = 0; i < tmpl.dep_comps.length; i++) {
 
-        //Find the configuration of the dep composition to get the render settings and the path
+        //Find the configuration of the dep composition to get the render settin  gs and the path
         /**@type {DepCompSetts} */
         var dep_config = tmpl.dep_config[tmpl.dep_comps[i].id];
+
+        //If disabled, skip
+        if (!dep_config.enabled) continue;
 
         var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
 
@@ -1317,7 +1320,7 @@ function RenderDeps(tmpl, props_layer) {
             error: prop_error_str
           });
         }
-      }
+      }//Loop dep comps
 
     } catch (e) {
       dep_result.row_results.push({
@@ -1328,7 +1331,7 @@ function RenderDeps(tmpl, props_layer) {
     }
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
-  }
+  } //loop template rows
 }
 
 // POLYFILLS //

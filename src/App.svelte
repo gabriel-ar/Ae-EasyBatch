@@ -409,12 +409,12 @@
   function RenderRow(row_i) {
     switch (setts.out_mode) {
       case "render":
-        BatchRender(row_i);
         setts.active_tab = Tabs.Output;
+        BatchRender(row_i);
         break;
       case "dependant":
-        BatchOneToMany(row_i);
         setts.active_tab = Tabs.Output;
+        BatchOneToMany(row_i);
         break;
     }
   }
@@ -527,6 +527,7 @@
       send_templ = setts.tmpls[setts.sel_tmpl];
     }
 
+    send_templ.UpdateRows();
     send_templ.ResolveCompsNames();
     send_templ.ResolveAltSrcPaths();
     send_templ.ResolveSavePathDeps();
