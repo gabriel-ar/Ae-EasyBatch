@@ -697,11 +697,12 @@ function _ComparePaths(path1, path2) {
  *  and open it in the viewer.
  * @param {string} s_template
  * @param {number} row_i
+ * @param {boolean} open_prev If true, the composition will be opened in the viewer.
  */
-function PreviewRow(s_template, row_i, is_auto_prev) {
+function PreviewRow(s_template, row_i, open_prev) {
   _EscapeArgs(arguments);
-  if (is_auto_prev === undefined) {
-    is_auto_prev = false;
+  if (open_prev === undefined) {
+    open_prev = false;
   }
 
   /** @type {PreviewRowResult} */
@@ -756,7 +757,7 @@ function PreviewRow(s_template, row_i, is_auto_prev) {
       }
     }
 
-    if (!is_auto_prev) render_comp.openInViewer();
+    if (open_prev) render_comp.openInViewer();
 
     return JSON.stringify(result);
   } catch (e) {

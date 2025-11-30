@@ -329,11 +329,16 @@
     l.debug("DeleteRow called with row index:", row_i);
   }
 
-  function PreviewRow(row_i, live = false) {
-    l.debug("PreviewRow called with row index:", row_i, "and live:", live);
-    if (!setts.auto_preview && live) return;
+  /**
+   * 
+   * @param row_i
+   * @param prop_changed True if the preview is being called due to a property change
+   */
+  function PreviewRow(row_i, prop_changed = false) {
+    l.debug("PreviewRow called with row index:", row_i, "and live:", prop_changed);
+    if (!setts.auto_preview && prop_changed) return;
 
-    if (!setts.auto_preview) live = false;
+    let show_prev_comp = !setts.auto_preview;
 
     //Trim the template to contain only the modified row
 
@@ -350,9 +355,9 @@
     send_templ.generate_names = [send_templ.generate_names[0]];
 
     let s_templt = JSON.stringify(send_templ);
-    l.debug(`Previewing Row:`, s_templt, row_i, live);
+    l.debug(`Previewing Row:`, s_templt, row_i, show_prev_comp);
 
-    csa.Eval("PreviewRow", s_templt, 0, live).then((s_result) => {
+    csa.Eval("PreviewRow", s_templt, 0, show_prev_comp).then((s_result) => {
       l.debug(`Preview Row Result`, s_result);
 
       let result;
@@ -365,7 +370,7 @@
 
       if (result.success == false) {
         l.error("Failed to preview row", result.error_obj);
-        if (!live)
+        if (!prop_changed)
           m_message.Open(
             result.error_obj.map((e) => e.message).join("<br>"),
             "Error While Previewing Row",
@@ -373,7 +378,7 @@
         return;
       }
 
-      if (result.errors !== undefined && result.errors.length > 0 && !live) {
+      if (result.errors !== undefined && result.errors.length > 0 && !prop_changed) {
         m_message.Open(
           result.errors.map((e) => e.message).join("<br>"),
           "Errors While Previewing Row",
@@ -774,7 +779,7 @@
     ac.AddListener(
       "preview",
       () => {
-        PreviewRow(curr_row_i, true);
+        PreviewRow(curr_row_i);
       },
       "p",
     );
@@ -1054,7 +1059,7 @@
                 }}
                 data-selected={row_i === curr_row_i}>
                 <td>
-                  {row_i}
+                  {row_i + 1}
                   <button
                     class="delete_row"
                     data-tooltip="Row menu"
@@ -1108,9 +1113,10 @@
             <input
               type="number"
               min="0"
-              max={setts.tmpls[setts.sel_tmpl].rows.length - 1}
-              bind:value={curr_row_i} />
-            / {setts.tmpls[setts.sel_tmpl].rows.length - 1}
+              max={setts.tmpls[setts.sel_tmpl].rows.length}
+              onchange={(e)=>curr_row_i = +(e.target as HTMLInputElement).value - 1}
+              value={curr_row_i+1} />
+            / {setts.tmpls[setts.sel_tmpl].rows.length}
             <button
               onclick={NextRow}
               data-tooltip="Next Row"
