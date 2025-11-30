@@ -85,7 +85,7 @@
 
   onMount(() => {
     StartupSequence();
-    InitializeShortcuts();
+    SetupShortcuts();
   });
 
   async function StartupSequence() {
@@ -728,12 +728,11 @@
     l.debug("Edit view modal closed with new table_cols:", new_table_cols);
   }
 
-  function InitializeShortcuts() {
+  function SetupShortcuts() {
     //csa.KeyRegisterOverride();
     ac.Init();
     csa.RegisterKeyEventsInterest([
       //MAC
-
       { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
       { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
 
@@ -744,13 +743,14 @@
       { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
 
       { keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false }, // S
-      { keyCode: 0x0F, ctrlKey: false, altKey: false, shiftKey: false }, // R
+      { keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false }, // R
       { keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false }, // P
-      { keyCode: 0x2D, ctrlKey: false, altKey: false, shiftKey: false }, // N
-      { keyCode: 0x2D, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
+      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false }, // N
+      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
 
       { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: true }, // T
       { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: true }, // D
+
     ]);
 
     //File Actions
@@ -804,7 +804,7 @@
       "Delete",
     );
 
-        ac.AddListener(
+    ac.AddListener(
       "delete",
       () => {
         DeleteRow(curr_row_i);
@@ -813,11 +813,11 @@
     );
 
     ac.AddListener(
-      "add_before",
+      "add_after",
       () => {
-        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
+        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
         setts = setts;
-        curr_row_i--;
+        NextRow();
       },
       "N",
       false,
@@ -825,11 +825,10 @@
     );
 
     ac.AddListener(
-      "add_after",
+      "add_before",
       () => {
-        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
+        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
         setts = setts;
-        curr_row_i++;
       },
       "N",
       false,
@@ -876,7 +875,7 @@
       "arrowup",
       false,
       false,
-      true
+      true,
     );
     ac.AddListener(
       "next_row",
@@ -886,7 +885,7 @@
       "arrowdown",
       false,
       false,
-      true
+      true,
     );
   }
 
@@ -1552,7 +1551,7 @@
 
 {#if no_templs}
   <div class="fs_no_tmpls">
-    No Essentials Graphics Templates Found
+    No Essential Graphics Templates Found
     <span>Create one and reload the extension</span>
     <div><button onclick={StartupSequence}><Update /> Reload</button></div>
   </div>

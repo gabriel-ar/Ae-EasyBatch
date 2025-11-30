@@ -100,6 +100,8 @@
 
     // @ts-ignore
     __adobe_cep__.evalScript(`$.colorPicker(${color_int})`, (color) => {
+      if(color === "-1") return; //User cancelled color picker
+
       let color_int = parseInt(color, 10);
       let hex = color_int.toString(16).padStart(6, "0");
 
@@ -254,7 +256,7 @@
     style="background-color: #{hex_color};"
     onclick={PromptColor}
     aria-label="Select Color"></button>
-  <button style="width: 22px;" data-variant="discrete" onclick={DropperPicker}>
+  <button style="width: 22px; vertical-align: top;" data-variant="discrete" onclick={DropperPicker}>
     <EyeDropper />
   </button>
   <div>
@@ -330,6 +332,10 @@
 
   input[type="number"] {
     width: 50px;
+  }
+
+  textarea {
+    width: -webkit-fill-available;
   }
 
   .inline_input {
