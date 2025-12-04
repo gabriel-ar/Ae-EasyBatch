@@ -458,6 +458,16 @@ class Template {
     this.rows = this.#AsRows();
   }
 
+  ResolveAltSrcPathsRow(index) {
+    this.NormalizeRows();
+    this.columns.forEach((col) => {
+      if (col.type === Column.PropertyValueType.SRC_ALTERNATE) {
+        col.ResolveAltSrcPathsRow(index, this.columns);
+      }
+    });
+    this.rows = this.#AsRows();
+  }
+
   AddRow() {
     let last_row = this.#AsRows().pop();
 
@@ -476,14 +486,14 @@ class Template {
 
   AddRowAfter(index) {
     //Check if row index is valid
-     if (this.rows.length===0){
+    if (this.rows.length === 0) {
       this.AddRow();
       return;
     } else
-    if (index < 0 || index >= this.rows.length) {
-      console.warn("AddRowAfter: Invalid row index", index);
-      return;
-    }
+      if (index < 0 || index >= this.rows.length) {
+        console.warn("AddRowAfter: Invalid row index", index);
+        return;
+      }
 
     //Row data to copy
     let row_data = this.#AsRows()[index];
@@ -500,15 +510,15 @@ class Template {
   }
 
   AddRowBefore(index) {
-     if (this.rows.length===0){
+    if (this.rows.length === 0) {
       this.AddRow();
       return;
     } else
-    //Check if row index is valid
-    if (index < 0 || index >= this.rows.length) {
-      console.warn("AddRowBefore: Invalid row index", index);
-      return;
-    }
+      //Check if row index is valid
+      if (index < 0 || index >= this.rows.length) {
+        console.warn("AddRowBefore: Invalid row index", index);
+        return;
+      }
 
     //Row data to copy
     let row_data = this.#AsRows()[index];
@@ -737,6 +747,16 @@ class Column {
       else
         this.values.push(old_values[i]);
     }
+  }
+
+  ResolveAltSrcPathsRow(index, columns: Column[]) {
+    let old_values = this.values;
+    this.values = [];
+
+    if (!old_values[index].startsWith("<b>"))
+      this.values.push(this.ResolveAltSrcPath(index, columns));
+    else
+      this.values.push(old_values[index]);
   }
 
   /**

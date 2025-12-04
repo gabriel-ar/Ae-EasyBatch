@@ -340,17 +340,15 @@
 
     let show_prev_comp = !setts.auto_preview;
 
-    //Trim the template to contain only the modified row
+    setts.tmpls[setts.sel_tmpl].ResolveAltSrcPathsRow(row_i);
+    setts.tmpls[setts.sel_tmpl] = setts.tmpls[setts.sel_tmpl]; //Force reactivity to update path previews
 
-    //TODO this is a hack, find a better way to do this
-    let send_templ = Template.FromJson(
-      JSON.parse(JSON.stringify(setts.tmpls[setts.sel_tmpl])),
-    );
+    //Trim the template to contain only the modified row
+    let send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
+
     for (let col of send_templ.columns) {
       col.values = [col.values[row_i]];
     }
-
-    send_templ.ResolveAltSrcPaths();
     send_templ.save_paths = [send_templ.save_paths[0]];
     send_templ.generate_names = [send_templ.generate_names[0]];
 
@@ -790,7 +788,7 @@
         SampleRow(curr_row_i);
       },
       "s",
-      true,
+      false,
     );
 
     ac.AddListener(
@@ -1112,7 +1110,7 @@
               data-tt-pos="bottom"><ArrowLeft /></button>
             <input
               type="number"
-              min="0"
+              min="1"
               max={setts.tmpls[setts.sel_tmpl].rows.length}
               onchange={(e)=>curr_row_i = +(e.target as HTMLInputElement).value - 1}
               value={curr_row_i+1} />
@@ -1835,6 +1833,7 @@
   }
 
   .dets_field h5 {
+    font-size: 0.93rem;
     margin: 0 0 7px 0;
   }
 

@@ -81,7 +81,7 @@
           <span class="c_shortcut">P</span></button>
         <button
           class="c_item"
-          onclick={() => Selected("copy")}
+          onclick={() => Selected("copy_from_preview")}
           data-tooltip="Copy data from properties panel"
           ><Crosshair2 />Copy from Preview<span class="c_shortcut">S</span
           ></button>
