@@ -112,7 +112,7 @@
       is_color_update = true;
       value = [r, g, b];
       hex_color = hex;
-      DebounceChange();
+      CallChange();
     });
     l.debug("[PropInput] PromptColor called");
   }
@@ -134,6 +134,7 @@
       }
 
       value = result;
+      CallChange();
     });
   }
 
@@ -167,7 +168,7 @@
       .then((file) => {
         if (file !== undefined && file !== null) {
           value = `<b>${file}</b>`;
-          DebounceChange();
+          CallChange();
         } else if (file === null) {
           l.debug("[PropInput] File selection cancelled by user");
           value = current_file;
