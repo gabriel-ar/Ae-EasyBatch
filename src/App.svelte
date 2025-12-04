@@ -330,7 +330,6 @@
   }
 
   /**
-   * 
    * @param row_i
    * @param prop_changed True if the preview is being called due to a property change
    */
@@ -401,7 +400,10 @@
         result = JSON.parse(s_result);
 
         setts.tmpls[setts.sel_tmpl].CopyValuesFromPreview(result, row_i);
+        setts.tmpls[setts.sel_tmpl].ResolveAltSrcPathsRow(row_i);
         setts = setts;
+
+        PreviewRow(row_i, true);
       } catch (e) {
         l.error("Failed to parse sample row result", s_result);
         return;
