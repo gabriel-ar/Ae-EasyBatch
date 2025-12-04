@@ -452,7 +452,7 @@ class Template {
     this.NormalizeRows();
     this.columns.forEach((col) => {
       if (col.type === Column.PropertyValueType.SRC_ALTERNATE) {
-        col.ResolveAltSrcPaths(this.columns);
+        col.ResolveColumnAltSrcPaths(this.columns);
       }
     });
     this.rows = this.#AsRows();
@@ -462,7 +462,7 @@ class Template {
     this.NormalizeRows();
     this.columns.forEach((col) => {
       if (col.type === Column.PropertyValueType.SRC_ALTERNATE) {
-        col.ResolveAltSrcPathsRow(index, this.columns);
+        col.ResolveColumnAltSrcPathsRow(index, this.columns);
       }
     });
     this.rows = this.#AsRows();
@@ -735,7 +735,7 @@ class Column {
     return pattern;
   }
 
-  ResolveAltSrcPaths(columns: Column[]) {
+  ResolveColumnAltSrcPaths(columns: Column[]) {
     let row_count = this.values.length;
 
     let old_values = this.values;
@@ -749,14 +749,9 @@ class Column {
     }
   }
 
-  ResolveAltSrcPathsRow(index, columns: Column[]) {
-    let old_values = this.values;
-    this.values = [];
-
-    if (!old_values[index].startsWith("<b>"))
-      this.values.push(this.ResolveAltSrcPath(index, columns));
-    else
-      this.values.push(old_values[index]);
+  ResolveColumnAltSrcPathsRow(index, columns: Column[]) {
+    if (!this.values[index].startsWith("<b>"))
+      this.values[index] = this.ResolveAltSrcPath(index, columns);
   }
 
   /**

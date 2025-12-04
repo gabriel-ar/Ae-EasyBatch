@@ -700,7 +700,7 @@
     setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].alt_src_pattern =
       pattern;
 
-    setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].ResolveAltSrcPaths(
+    setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].ResolveColumnAltSrcPaths(
       setts.tmpls[setts.sel_tmpl].columns,
     );
   }
