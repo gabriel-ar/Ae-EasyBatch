@@ -1292,7 +1292,7 @@ function RenderDeps(tmpl, props_layer) {
         var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
 
         //Check if the render is a single frame
-        if (dep_config.single_frame) {
+        if (dep_config.render_out_module_templ === "EB_Single_Frame_PNG") {
           _CreateSubfolders(dep_config.save_paths[dep_render_row]);
           var file = new File(dep_config.save_paths[dep_render_row] + ".png");
           dep_comp.saveFrameToPng(0, file);

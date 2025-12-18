@@ -334,7 +334,12 @@
    * @param prop_changed True if the preview is being called due to a property change
    */
   function PreviewRow(row_i, prop_changed = false) {
-    l.debug("PreviewRow called with row index:", row_i, "and live:", prop_changed);
+    l.debug(
+      "PreviewRow called with row index:",
+      row_i,
+      "and live:",
+      prop_changed,
+    );
     if (!setts.auto_preview && prop_changed) return;
 
     let show_prev_comp = !setts.auto_preview;
@@ -375,7 +380,11 @@
         return;
       }
 
-      if (result.errors !== undefined && result.errors.length > 0 && !prop_changed) {
+      if (
+        result.errors !== undefined &&
+        result.errors.length > 0 &&
+        !prop_changed
+      ) {
         m_message.Open(
           result.errors.map((e) => e.message).join("<br>"),
           "Errors While Previewing Row",
@@ -700,9 +709,9 @@
     setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].alt_src_pattern =
       pattern;
 
-    setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].ResolveColumnAltSrcPaths(
-      setts.tmpls[setts.sel_tmpl].columns,
-    );
+    setts.tmpls[setts.sel_tmpl].columns[
+      alt_src_modal_col
+    ].ResolveColumnAltSrcPaths(setts.tmpls[setts.sel_tmpl].columns);
   }
 
   let edit_dep_comp_id;
@@ -1023,17 +1032,7 @@
               <th></th>
               {#each setts.tmpls[setts.sel_tmpl].table_cols as col_i, view_i}
                 <th class="table_header">
-                  <Dropdown
-                    variant="discrete"
-                    options={setts.tmpls[setts.sel_tmpl].columns.map((col) =>
-                      setts.tmpls[setts.sel_tmpl].columns.indexOf(col),
-                    )}
-                    labels={setts.tmpls[setts.sel_tmpl].columns.map(
-                      (col) => col.cont_name,
-                    )}
-                    bind:value={
-                      setts.tmpls[setts.sel_tmpl].table_cols[view_i]
-                    } />
+                  {setts.tmpls[setts.sel_tmpl].columns[col_i].cont_name}
                   {#if setts.tmpls[setts.sel_tmpl].columns[col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
                     <button
                       class="delete_col"
@@ -1113,8 +1112,9 @@
               type="number"
               min="1"
               max={setts.tmpls[setts.sel_tmpl].rows.length}
-              onchange={(e)=>curr_row_i = +(e.target as HTMLInputElement).value - 1}
-              value={curr_row_i+1} />
+              onchange={(e) =>
+                (curr_row_i = +(e.target as HTMLInputElement).value - 1)}
+              value={curr_row_i + 1} />
             / {setts.tmpls[setts.sel_tmpl].rows.length}
             <button
               onclick={NextRow}
@@ -1427,9 +1427,11 @@
                 >?</button>
             </h5>
             <div class="setting">
-              <div >
+              <div>
                 {setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                  .save_pattern}<button
+                  .save_pattern}
+                  <button
+                  style="vertical-align: middle; margin-left: 8px;"
                   data-tooltip="Edit the pattern that will determine the save path for this render."
                   data-tt-pos="top-right"
                   data-tt-width="large"
@@ -1439,7 +1441,8 @@
 
               <div class="out_prev">
                 <span>Preview:</span>
-                <span style="text-overflow: ellipsis; max-width: 100%; display: inline-block;"
+                <span
+                  style="text-overflow: ellipsis; max-width: 100%; display: inline-block;"
                   >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
                     .save_path}</span>
               </div>
@@ -1474,32 +1477,15 @@
               <label for="sel_render_out_module">Output Module</label>
 
               <Dropdown
-                variant={setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                  .single_frame
-                  ? "disabled"
-                  : ""}
-                labels={render_setts_templs.output_modules_templs.filter(
+                labels={["<b>Single Frame PNG</b>", ...render_setts_templs.output_modules_templs.filter(
                   (templ) => !templ.startsWith("_HIDDEN"),
-                )}
-                options={render_setts_templs.output_modules_templs.filter(
+                )]}
+                options={["EB_Single_Frame_PNG", ...render_setts_templs.output_modules_templs.filter(
                   (templ) => !templ.startsWith("_HIDDEN"),
-                )}
+                )]}
                 bind:value={
                   setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
                     .render_out_module_templ
-                } />
-            </div>
-
-            <div class="setting">
-              <label
-                for="sel_render_out_module"
-                data-tooltip="Will attempt to render the composition as a single frame PNG image, removing the '0000' that After Effects attaches to image sequences. May not work in Mac."
-                data-tt-pos="top-right"
-                data-tt-width="large">As Single Frame PNG</label>
-              <input
-                type="checkbox"
-                bind:checked={
-                  setts.tmpls[setts.sel_tmpl].dep_config[dc.id].single_frame
                 } />
             </div>
           </div>
@@ -1780,13 +1766,12 @@
     word-break: break-all;
     display: flex;
     overflow: hidden;
-
   }
 
-  .out_prev span{
+  .out_prev span {
     display: inline-block;
     color: var(--color-text-sec);
-    text-overflow: ellipsis;  
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -1795,7 +1780,7 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-    .out_sub_render summary>*{
+  .out_sub_render summary > * {
     vertical-align: middle;
   }
 
@@ -1803,7 +1788,7 @@
     color: rgb(255 255 255 / 30%);
   }
 
-    .out_sub_render:hover summary::marker {
+  .out_sub_render:hover summary::marker {
     color: rgb(255 255 255 / 90%);
   }
 

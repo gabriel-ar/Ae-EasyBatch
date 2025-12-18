@@ -327,7 +327,6 @@ class Template {
       save_pattern: "{base_path}/{comp_name}_{row_number}",
       save_path: "",
       save_paths: [],
-      single_frame: false,
     };
 
     this.ResolveSavePathFirstDeps(0);
@@ -877,7 +876,6 @@ type DepCompSetts = {
   save_pattern: string;
   save_path: string;
   save_paths: string[];
-  single_frame: boolean;
 }
 
 const enum OutMode {
