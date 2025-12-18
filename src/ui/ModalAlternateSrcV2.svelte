@@ -2,6 +2,7 @@
   import CSAdapter from "../lib/CSAdapter.ts";
   import { getContext, onMount } from "svelte";
   import { l } from "./States.svelte.ts";
+    import Dropdown from "./Dropdown.svelte";
 
   let {
     show = $bindable(false),
@@ -94,16 +95,23 @@
         <div>
           <button onclick={SelectBasePath}>Pick Base Path</button>
 
-          <select style="margin-left: 15px;" bind:value={sel_add_field}>
-            <option value="base_path">Base Path</option>
-            <option value="row_number">Row Number</option>
-            <option value="increment:0000">Increment</option>
-            {#each tmpl.columns as col}
-              <option value={col.cont_name}>{col.cont_name}</option>
-            {/each}
-          </select>
-
-          <button onclick={AddField}>Add Field</button>
+          <Dropdown 
+            bind:value={sel_add_field}
+            labels={[
+              "<b>Base Path</b>",
+              "<b>Row Number</b>",
+              "<b>Increment</b>",
+              ...tmpl.columns.map((col) => col.cont_name),
+            ]}
+            options={[
+              "base_path",
+              "row_number",
+              "increment:0000",
+              ...tmpl.columns.map((col) => col.cont_name),
+            ]}
+            title="Add Field..."
+            onselect={() => AddField()}
+            />
         </div>
       </div>
 
