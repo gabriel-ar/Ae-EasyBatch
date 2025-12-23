@@ -34,7 +34,7 @@
     type DepCompSetts,
     type Comp,
     Tabs,
-  } from "./lib/Settings";
+  } from "./lib/Settings.svelte.ts";
 
   import Logger from "./lib/Logger";
 
@@ -63,25 +63,26 @@
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import { l } from "./ui/States.svelte.ts";
+  import { app_state as a } from "./lib/AppState.svelte.ts";
 
   let csa = new CSAdapter();
-  let setts = new Settings();
+  let setts = $state(new Settings());
   let ac = new ActionCoordinator();
 
-  let no_templs = false;
-  let false_blur = false;
+  let false_blur = $state(false);
 
   let m_file_pattern: ModalFilePattern;
   let m_message: ModalMessage;
   let m_edit_view: ModalEditView;
   let menu_row: MenuRow;
-  let curr_row_i = 0;
+  
+  let curr_row_i = $state(0);
 
   //Update the log level of the logger when the settings changes
-  $: {
+  $effect(() => {
     l.log_lvl = setts.log_level;
     setContext("logger", l);
-  }
+  });
 
   onMount(() => {
     StartupSequence();
@@ -92,8 +93,8 @@
     let n_tmpls = (await GetTemplates()) as Template[];
     l.debug("StartupSequence called with templates:", n_tmpls);
 
-    no_templs = n_tmpls.length == 0;
-    if (no_templs) return;
+    a.no_templs = n_tmpls.length == 0;
+    if (a.no_templs) return;
 
     let loaded_setts = await GetSettings().catch((e) => {
       if (e.reasons !== undefined && e.reasons.not_found) {
@@ -105,10 +106,10 @@
       }
     });
 
-    let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
+    let loaded_render_setts = (await GetRenderSettsTempls().catch((e): undefined => {
       l.error("StartupSequence-> GetRenderSettsTempls error:", e);
-      return;
-    });
+      return undefined;
+    })) as RenderSettsResults | undefined;
 
     render_setts_templs = loaded_render_setts;
 
@@ -179,7 +180,9 @@
     });
   }
 
-  $: DebouncedSaveSetts(setts);
+  $effect(() => {
+    DebouncedSaveSetts(setts);
+  });
 
   let last_sett_time;
 
@@ -199,7 +202,7 @@
       setts.sel_tmpl === undefined ||
       setts.sel_tmpl == -1 ||
       setts === undefined ||
-      no_templs
+      a.no_templs
     )
       return;
 
@@ -231,7 +234,7 @@
           return;
         } else if (e.reasons !== undefined && e.reasons.no_templates) {
           l.warn(`No templates to save.`);
-          no_templs = true;
+          a.no_templs = true;
           return;
         } else {
           l.error("Failed to save settings", result.error_obj);
@@ -244,14 +247,12 @@
     });
   }
 
-  let last_opened_tab = null;
-
   //Updates the render settings templates when the output tab is opened
-  $: {
-    if (setts.active_tab === "output" && last_opened_tab !== "output") {
+  $effect(() => {
+    if (setts.active_tab === "output" && a.last_opened_tab !== "output") {
       //Check if there's any template selected, otherwise just select the first one
 
-      if (setts.tmpls[setts.sel_tmpl] !== undefined) {
+      if (setts.tmpls[setts.sel_tmpl] !== undefined && render_setts_templs) {
         if (setts.tmpls[setts.sel_tmpl].render_setts_templ == "") {
           setts.tmpls[setts.sel_tmpl].render_setts_templ =
             render_setts_templs.render_templs[
@@ -267,11 +268,10 @@
         }
       }
     }
-    last_opened_tab = setts.active_tab;
-  }
+    a.last_opened_tab = setts.active_tab;
+  });
 
-  /** @type {RenderSettsResults}*/
-  let render_setts_templs;
+  let render_setts_templs = $state<RenderSettsResults | undefined>();
 
   function GetRenderSettsTempls() {
     return new Promise((resolve, reject) => {
@@ -305,27 +305,25 @@
     })) as Template[];
 
     if (n_tmpls.length == 0) {
-      no_templs = true;
+      a.no_templs = true;
       return;
     } else {
-      no_templs = false;
+      a.no_templs = false;
     }
 
-    let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
+    let loaded_render_setts = (await GetRenderSettsTempls().catch((e): undefined => {
       l.error(e);
-      return;
-    });
+      return undefined;
+    })) as RenderSettsResults | undefined;
 
     render_setts_templs = loaded_render_setts;
 
     setts.UpdateTemplates(n_tmpls);
-    setts = setts;
     l.debug("F_Reload called with templates:", n_tmpls);
   }
 
   function DeleteRow(row_i) {
     setts.tmpls[setts.sel_tmpl].DeleteRow(row_i);
-    setts = setts;
     l.debug("DeleteRow called with row index:", row_i);
   }
 
@@ -340,7 +338,6 @@
     let show_prev_comp = !setts.auto_preview;
 
     setts.tmpls[setts.sel_tmpl].ResolveAltSrcPathsRow(row_i);
-    setts.tmpls[setts.sel_tmpl] = setts.tmpls[setts.sel_tmpl]; //Force reactivity to update path previews
 
     //Trim the template to contain only the modified row
     let send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
@@ -401,7 +398,6 @@
 
         setts.tmpls[setts.sel_tmpl].CopyValuesFromPreview(result, row_i);
         setts.tmpls[setts.sel_tmpl].ResolveAltSrcPathsRow(row_i);
-        setts = setts;
 
         PreviewRow(row_i, true);
       } catch (e) {
@@ -424,8 +420,8 @@
     }
   }
 
-  //User facing render results
-  let render_results: RowRenderResult[] = [];
+  let render_results = $state<RowRenderResult[]>([]);
+  
   function BatchRender(row_i = -1) {
     l.log("BatchRender called");
 
@@ -514,7 +510,8 @@
     });
   }
 
-  let dep_row_results: RowRenderResult[] = [];
+  let dep_row_results = $state<RowRenderResult[]>([]);
+  
   function BatchOneToMany(row_i = -1) {
     l.log("BatchOneToMany called");
 
@@ -591,15 +588,16 @@
   /**
    * Updates the preview of the save path based on the current save pattern
    */
-  $: {
+  $effect(() => {
     if (setts.tmpls[setts.sel_tmpl] !== undefined) {
       setts.tmpls[setts.sel_tmpl].save_paths[0] = setts.tmpls[
         setts.sel_tmpl
       ].ResolveSavePath(setts.tmpls[setts.sel_tmpl].save_pattern, 0);
     }
-  }
+  });
 
-  let sel_add_field = "base_path";
+  let sel_add_field = $state("base_path");
+  
   function AddField() {
     let save_pattern_ta: HTMLTextAreaElement =
       document.querySelector("#save_pattern_ta");
@@ -615,15 +613,16 @@
   }
 
   //Updates the preview of the generate names based on the current generate pattern
-  $: {
+  $effect(() => {
     if (setts.tmpls[setts.sel_tmpl] !== undefined) {
       setts.tmpls[setts.sel_tmpl].generate_names[0] = setts.tmpls[
         setts.sel_tmpl
       ].ResolveCompName(setts.tmpls[setts.sel_tmpl].generate_pattern, 0);
     }
-  }
+  });
 
-  let all_comps: Comp[] = [];
+  let all_comps = $state<Comp[]>([]);
+  
   function GetAllComps() {
     csa.Eval("GetAllComps").then((s_result) => {
       /**@type {GetAllCompsResult}*/
@@ -646,7 +645,8 @@
     });
   }
 
-  let selected_comp = "";
+  let selected_comp = $state("");
+  
   function AddCompToDependents() {
     if (selected_comp !== "") {
       let comp = all_comps.find((c) => c.id === selected_comp);
@@ -671,7 +671,8 @@
       setts.tmpls[setts.sel_tmpl].dep_comps;
   }
 
-  let sel_add_field_gen = "row_number";
+  let sel_add_field_gen = $state("row_number");
+  
   function AddField_Gen() {
     let pattern_ta: HTMLTextAreaElement =
       document.querySelector("#generate_proj_ta");
@@ -686,8 +687,8 @@
       old_val.slice(cursor_pos);
   }
 
-  let show_alt_src_modal = false;
-  let alt_src_modal_col;
+  let show_alt_src_modal = $state(false);
+  let alt_src_modal_col = $state<number>(0);
 
   function SetupAlternateSource(col_i) {
     show_alt_src_modal = true;
@@ -705,7 +706,8 @@
     );
   }
 
-  let edit_dep_comp_id;
+  let edit_dep_comp_id = $state<string>("");
+  
   function DepFilePatternModalOpen(dep_comp_id) {
     edit_dep_comp_id = dep_comp_id;
 
@@ -729,7 +731,6 @@
 
   function EditViewModalClosed(new_table_cols: number[]) {
     setts.tmpls[setts.sel_tmpl].table_cols = new_table_cols;
-    setts = setts; // Force reactivity
     l.debug("Edit view modal closed with new table_cols:", new_table_cols);
   }
 
@@ -821,7 +822,6 @@
       "add_after",
       () => {
         setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
-        setts = setts;
         NextRow();
       },
       "N",
@@ -833,7 +833,6 @@
       "add_before",
       () => {
         setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
-        setts = setts;
       },
       "N",
       false,
@@ -952,8 +951,6 @@
         let decoded = decodeURIComponent(result);
 
         setts.tmpls[setts.sel_tmpl].LoadFromCSV(decoded);
-
-        setts = setts;
       });
   }
 
@@ -1555,7 +1552,7 @@
 <ModalEditView bind:this={m_edit_view}></ModalEditView>
 <MenuRow bind:this={menu_row} onselect={RowMenuSelected}></MenuRow>
 
-{#if no_templs}
+{#if a.no_templs}
   <div class="fs_no_tmpls">
     No Essential Graphics Templates Found
     <span>Create one and reload the extension</span>
