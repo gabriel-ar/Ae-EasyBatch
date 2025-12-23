@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Column, Template, type DepCompSetts } from "../lib/Settings.ts";
+  import { Column, Template, type DepCompSetts } from "../lib/Settings.svelte.ts";
   import CSAdapter from "../lib/CSAdapter.ts";
   import { getContext, onMount } from "svelte";
   import { l } from "./States.svelte.ts";

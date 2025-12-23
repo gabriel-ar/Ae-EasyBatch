@@ -1,6 +1,6 @@
 <script>
   import { getContext } from "svelte";
-  import { Column } from "../lib/Settings.ts";
+  import { Column } from "../lib/Settings.svelte.ts";
   import { l } from "./States.svelte.ts";
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "../lib/CSAdapter.ts";

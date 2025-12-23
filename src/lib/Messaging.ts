@@ -1,4 +1,4 @@
-import { Settings, Template } from "./Settings.ts"
+import { Settings, Template } from "./Settings.svelte.ts"
 
 export type ResponseErrorBase = {
   /** If the project name is not found */

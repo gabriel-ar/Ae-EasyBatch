@@ -2,7 +2,7 @@
   import { getContext } from "svelte";
   import Logger from "../lib/Logger.ts";
   import { l } from "./States.svelte.ts";
-  import { Settings, Template } from "../lib/Settings.ts";
+  import { Settings, Template } from "../lib/Settings.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
   import type CSAdapter from "../lib/CSAdapter.ts";
 
