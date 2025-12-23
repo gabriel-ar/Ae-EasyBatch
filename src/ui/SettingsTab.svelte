@@ -136,6 +136,6 @@
     margin: 0;
     line-height: 0.8em;
     font-size: 0.8em;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-sec);
   }
 </style>

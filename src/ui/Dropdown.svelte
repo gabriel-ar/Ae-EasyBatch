@@ -7,6 +7,7 @@
     value = $bindable(),
     options,
     labels,
+    title = null,
     variant = "",
     style = "",
     style_list = "",
@@ -16,8 +17,9 @@
   let sel_label = $state();
 
   function Selected(e, option, index) {
-    e.preventDefault();
     e.target.blur();
+    e.target.parentElement.blur();
+    e.preventDefault();
     value = option;
     l.debug(
       "[Dropdown] Selected called with option:",
@@ -29,6 +31,9 @@
   }
 
   $effect(() => {
+    if(title !== null) {
+      sel_label = title;
+    }else
     if (labels !== undefined) {
       sel_label = labels[options.indexOf(value)];
     } else {
@@ -41,7 +46,7 @@
 
 <div class={["dropdown", variant]} {style}>
   <button class="dropbtn"
-    >{sel_label}<ChevronDown style="vertical-align:middle; margin-left: 5px;" />
+    >{@html sel_label}<ChevronDown style="vertical-align:middle; margin-left: 5px;" />
   </button>
   <div class="dropdown-content" style={style_list}>
     {#if options.length === 0}
@@ -49,7 +54,7 @@
     {/if}
     {#each options as option, opt_i}
       <button onclick={(e) => Selected(e, option, opt_i)}
-        >{labels[opt_i]}</button>
+        >{@html labels[opt_i]}</button>
     {/each}
   </div>
 </div>
@@ -86,6 +91,7 @@
 
     text-decoration: none;
     text-align: left;
+    justify-content: flex-start;
 
     border: none;
     background: none;
