@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Template } from "../lib/Settings.svelte.ts";
+    import { Template } from "../lib/Settings.ts";
     import { l } from "./States.svelte.ts";
     import { DragHandleDots2, EyeOpen, EyeClosed } from "radix-icons-svelte";
 
