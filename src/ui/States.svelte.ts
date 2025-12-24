@@ -1,2 +1,3 @@
 import Logger from "../lib/Logger";
-export const l = new Logger(Logger.Levels.Warn, "APP"); 
+import { Settings } from "../lib/Settings";
+export const l = new Logger(Logger.Levels.Warn, "APP");

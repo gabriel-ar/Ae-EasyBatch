@@ -36,8 +36,6 @@
     Tabs,
   } from "./lib/Settings";
 
-  import Logger from "./lib/Logger";
-
   import { SaveSettsRequest } from "./lib/Messaging";
   import type {
     GetTmplsResult,
@@ -76,6 +74,9 @@
   let m_edit_view: ModalEditView;
   let menu_row: MenuRow;
   let curr_row_i = 0;
+
+  let footer_txt;
+  let footer_txt_long;
 
   //Update the log level of the logger when the settings changes
   $: {
@@ -370,25 +371,39 @@
         return;
       }
 
+      //General failure
       if (result.success == false) {
         l.error("Failed to preview row", result.error_obj);
-        if (!prop_changed)
+        if (!prop_changed) {
           m_message.Open(
             result.error_obj.map((e) => e.message).join("<br>"),
             "Error While Previewing Row",
           );
+        } else {
+          UpdateStatusFooter(
+            "⚠️ Error While Previewing Row: " + row_i,
+            result.error_obj.map((e) => e.message).join("<br>"),
+          );
+        }
         return;
       }
 
-      if (
-        result.errors !== undefined &&
-        result.errors.length > 0 &&
-        !prop_changed
-      ) {
-        m_message.Open(
-          result.errors.map((e) => e.message).join("<br>"),
-          "Errors While Previewing Row",
-        );
+      //No critical errors happened
+      else if (result.errors !== undefined && result.errors.length > 0) {
+        if (prop_changed) {
+          UpdateStatusFooter(
+            "⚠️ Errors While Previewing Row " + row_i,
+            result.errors.map((e) => e.message).join("<br>"),
+          );
+          return;
+        } else {
+          m_message.Open(
+            result.errors.map((e) => e.message).join("<br>"),
+            "Errors While Previewing Row",
+          );
+        }
+      } else {
+        UpdateStatusFooter("Previewed Row " + row_i);
       }
     });
   }
@@ -415,6 +430,9 @@
         PreviewRow(row_i, true);
       } catch (e) {
         l.error("Failed to parse sample row result", s_result);
+        if (row_i !== -1) {
+          UpdateStatusFooter("⚠️ Error While Sampling Row " + row_i, s_result);
+        }
         return;
       }
     });
@@ -478,6 +496,13 @@
             result.error_obj.message,
             "Error While Batch Rendering",
           );
+
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Error While Queuing Row " + row_i,
+              result.error_obj.message,
+            );
+          }
           return;
         }
 
@@ -485,12 +510,25 @@
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`Batch Render completed with errors`, result.errors);
           render_results = result.row_results;
+
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Errors While Queuing Row " + row_i,
+              result.errors.map((e) => e.message).join("<br>"),
+            );
+          }
+          return;
         }
 
         //All rows queued up successfully
         else {
           l.debug(`Batch Render Results`, render_results);
           render_results = result.row_results;
+
+          if (row_i !== -1) {
+            UpdateStatusFooter("Row Queued Successfully");
+          }
+          return;
         }
       });
   }
@@ -975,6 +1013,17 @@
         if (result == "null") return;
       });
   }
+
+  function UpdateStatusFooter(txt: string, long_msg = "") {
+    footer_txt = txt;
+    footer_txt_long = long_msg;
+  }
+
+  function OpenStatusLongMsg() {
+    if (footer_txt_long !== undefined && footer_txt_long !== "") {
+      m_message.Open(footer_txt_long, "Details");
+    }
+  }
 </script>
 
 <!-- HEADER -->
@@ -1164,6 +1213,14 @@
       {/if}
     {/if}
   </main>
+
+  <footer>
+    {footer_txt}
+    {#if footer_txt_long !== undefined && footer_txt_long !== ""}
+      <button data-variant="discrete" onclick={OpenStatusLongMsg}
+        >Details</button>
+    {/if}
+  </footer>
 {:else if setts.active_tab === "output"}
   <!-- OUTPUT -->
   <main class="output">
@@ -1428,9 +1485,8 @@
             </h5>
             <div class="setting">
               <div>
-                {setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                  .save_pattern}
-                  <button
+                {setts.tmpls[setts.sel_tmpl].dep_config[dc.id].save_pattern}
+                <button
                   style="vertical-align: middle; margin-left: 8px;"
                   data-tooltip="Edit the pattern that will determine the save path for this render."
                   data-tt-pos="top-right"
@@ -1477,12 +1533,18 @@
               <label for="sel_render_out_module">Output Module</label>
 
               <Dropdown
-                labels={["<b>Single Frame PNG</b>", ...render_setts_templs.output_modules_templs.filter(
-                  (templ) => !templ.startsWith("_HIDDEN"),
-                )]}
-                options={["EB_Single_Frame_PNG", ...render_setts_templs.output_modules_templs.filter(
-                  (templ) => !templ.startsWith("_HIDDEN"),
-                )]}
+                labels={[
+                  "<b>Single Frame PNG</b>",
+                  ...render_setts_templs.output_modules_templs.filter(
+                    (templ) => !templ.startsWith("_HIDDEN"),
+                  ),
+                ]}
+                options={[
+                  "EB_Single_Frame_PNG",
+                  ...render_setts_templs.output_modules_templs.filter(
+                    (templ) => !templ.startsWith("_HIDDEN"),
+                  ),
+                ]}
                 bind:value={
                   setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
                     .render_out_module_templ
@@ -1725,6 +1787,27 @@
   .delete_col:hover {
     cursor: pointer;
     background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  footer {
+    grid-area: footer;
+    height: 22px;
+    padding: 4px 10px;
+    overflow: hidden;
+
+    color: var(--color-text-sec);
+
+    border-top: solid 1px var(--color-border-p0);
+  }
+
+  footer button {
+    background-color: transparent;
+    border: none;
+    color: var(--color-text-sec);
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 10px;
   }
 
   /*/////OUTPUT/////*/
