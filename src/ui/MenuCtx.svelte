@@ -87,7 +87,7 @@
           ></button>
         <button
           class="c_item"
-          onclick={() => Selected("render")}
+          onclick={() => Selected("render_row")}
           data-tooltip="Render this row"
           ><Camera />Render<span class="c_shortcut">R</span></button>
 
