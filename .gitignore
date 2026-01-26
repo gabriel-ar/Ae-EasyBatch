@@ -21,3 +21,8 @@ dist-ssr
 *.sln
 *.sw?
 package-lock.json
+
+# Playwright test results
+tests/test-results/
+playwright-report/
+test-results/

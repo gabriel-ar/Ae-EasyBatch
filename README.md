@@ -51,3 +51,42 @@ Svelte source files. Mainly the files that have to do with UI/User Interaction.
 
 #### host/index.js
 This is the ExtendScript side of our app. ExtendScript is based on ECMAScript 3 and is the language used by scripts to interact with Adobe applications. Our Svelte application can't access directly the methods of ExtendScript. For that, we need to call `__adobe_cep__.evalScript()`.
+
+## Testing
+
+The extension uses Playwright for end-to-end testing by connecting to the live After Effects CEF instance.
+
+### Quick Start
+
+1. **Install test dependencies:**
+   ```bash
+   npm install
+   npx playwright install chromium
+   ```
+3. **Run tests:**
+   ```bash
+   # Start After Effects and load test project
+   # Open EasyBatch extension
+   
+   # Run tests
+   npm run test:e2e          # Headless
+   npm run test:e2e:ui       # With UI (recommended)
+   npm run test:e2e:headed   # With visible browser
+   ```
+
+### Test Architecture
+
+Tests connect to the running After Effects CEF instance (port 8009) and interact with the real extension:
+
+- **No mocks needed** - Tests against actual After Effects API
+- **Real ExtendScript execution** - Validates host.jsx functions
+- **True integration testing** - Catches boundary issues between UI and AE
+
+See `tests/README.md` for complete documentation.
+
+### Available Test Suites
+
+- `startup.spec.ts` - Extension loading and initialization
+
+**Note:** These are manual QA tests, not automated CI/CD tests. They require After Effects running with the extension loaded.
+
