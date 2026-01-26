@@ -6,7 +6,7 @@
   let {
     value = $bindable(),
     options,
-    labels,
+    labels = null,
     title = null,
     variant = "",
     style = "",
@@ -17,8 +17,8 @@
 
   let sel_label = $state();
   let search_term = $state("");
-  let show_options = $state(options);
-  let show_labels = $state(labels);
+  let show_options = $state([]);
+  let show_labels = $state([]);
 
   function Selected(e, option, index) {
     e.target.blur();
@@ -64,14 +64,20 @@
     }
   }
 
+  //Update displayed options when original options or labels change
+    $effect(() => {
+    show_options = options;
+    show_labels = labels !== undefined ? labels : options;
+  });
+
+  //Update selected label when value changes
   $effect(() => {
     if (title !== null) {
       sel_label = title;
-    } else if (labels !== undefined) {
+    } else if (labels !== null) {
       sel_label = labels[options.indexOf(value)];
     } else {
       sel_label = value;
-      labels = options;
     }
   });
 </script>
