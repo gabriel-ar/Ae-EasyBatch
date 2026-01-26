@@ -377,11 +377,11 @@
         if (!prop_changed) {
           m_message.Open(
             result.error_obj.map((e) => e.message).join("<br>"),
-            "Error While Previewing Row",
+            "Error Previewing Row",
           );
         } else {
           UpdateStatusFooter(
-            "⚠️ Error While Previewing Row: " + row_i,
+            "⚠️ Error Previewing Row " + row_i,
             result.error_obj.map((e) => e.message).join("<br>"),
           );
         }
@@ -392,14 +392,14 @@
       else if (result.errors !== undefined && result.errors.length > 0) {
         if (prop_changed) {
           UpdateStatusFooter(
-            "⚠️ Errors While Previewing Row " + row_i,
+            "⚠️ Error Previewing Row " + row_i,
             result.errors.map((e) => e.message).join("<br>"),
           );
           return;
         } else {
           m_message.Open(
             result.errors.map((e) => e.message).join("<br>"),
-            "Errors While Previewing Row",
+            "Error Previewing Row",
           );
         }
       } else {
