@@ -1442,6 +1442,7 @@
 
       <div class="setting">
         <Dropdown
+        search_enabled={true}
           labels={[
             "Select a Composition",
             ...all_comps.map((comp) => comp.name),

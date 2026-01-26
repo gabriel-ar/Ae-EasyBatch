@@ -311,25 +311,41 @@ class Template {
 
   /** We call a dependant composition one that contains a layer with the composition referenced by this template */
   AddDependantComp(comp: Comp, render_templs: RenderSettsResults) {
-    //Check if the comp is already a dependant comp
-    if (this.dep_comps.some((dc) => dc.id === comp.id)) {
-      return;
+
+
+    //find the last dep comp tha was aded to the list so we add the new one with the same settings
+    let last_dep_comp_setts: DepCompSetts | null = null;
+    if (this.dep_comps.length > 0) {
+      let last_dep_comp = this.dep_comps[this.dep_comps.length - 1];
+      last_dep_comp_setts = this.dep_config[last_dep_comp.id];
     }
+
     this.dep_comps.push(comp);
-
+    
     //Add the new composition to the settings with id as key
-    this.dep_config[comp.id.toString()] = {
-      id: comp.id,
-      name: comp.name,
-      enabled: true,
-      render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
-      render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
-      save_pattern: "{base_path}/{comp_name}_{row_number}",
-      save_path: "",
-      save_paths: [],
-    };
+    if (last_dep_comp_setts !== null) {
+      //Copy the settings from the last dep comp
+      this.dep_config[comp.id.toString()] = {
+        ...structuredClone(last_dep_comp_setts),
+        id: comp.id,
+        name: comp.name,
+        enabled: true,
+      };
 
-    this.ResolveSavePathFirstDeps(0);
+    } else {
+      this.dep_config[comp.id.toString()] = {
+        id: comp.id,
+        name: comp.name,
+        enabled: true,
+        render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
+        render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
+        save_pattern: "{base_path}/{comp_name}_{row_number}",
+        save_path: "",
+        save_paths: [],
+      };
+
+      this.ResolveSavePathFirstDeps(0);
+    }
   }
 
   RemoveDependantComp(id: string) {
