@@ -11,10 +11,14 @@
     variant = "",
     style = "",
     style_list = "",
+    search_enabled = false,
     onselect = (option, index) => {},
   } = $props();
 
   let sel_label = $state();
+  let search_term = $state("");
+  let show_options = $state(options);
+  let show_labels = $state(labels);
 
   function Selected(e, option, index) {
     e.target.blur();
@@ -27,34 +31,72 @@
       "and index:",
       index,
     );
+
+    //reset search
+    show_options = options;
+    show_labels = labels !== undefined ? labels : options;
+    search_term = "";
+
     onselect(option, index);
   }
 
+  function OnSearchInput(e) {
+    if (search_term.length === 0) {
+      show_options = options;
+      show_labels = labels !== undefined ? labels : options;
+      return;
+    } else {
+      show_options = [];
+      show_labels = [];
+
+      for (let i = 0; i < options.length; i++) {
+        let opt =
+          typeof options[i] === "string" ? options[i] : options[i].toString();
+        let lab = labels !== undefined ? labels[i] : opt;
+        if (
+          lab.toLowerCase().includes(search_term) ||
+          opt.toLowerCase().includes(search_term)
+        ) {
+          show_options.push(options[i]);
+          show_labels.push(lab);
+        }
+      }
+    }
+  }
+
   $effect(() => {
-    if(title !== null) {
+    if (title !== null) {
       sel_label = title;
-    }else
-    if (labels !== undefined) {
+    } else if (labels !== undefined) {
       sel_label = labels[options.indexOf(value)];
     } else {
       sel_label = value;
       labels = options;
     }
-    //l.debug('Effect triggered with value:', value, 'and labels:', labels);
   });
 </script>
 
-<div class={["dropdown", variant]} {style}>
+<div
+  class={["dropdown", variant, search_enabled ? "search-enabled" : ""]}
+  {style}>
+  <input
+    class="dropsearch"
+    type="text"
+    placeholder="Search..."
+    bind:value={search_term}
+    oninput={OnSearchInput} />
   <button class="dropbtn"
-    >{@html sel_label}<ChevronDown style="vertical-align:middle; margin-left: 5px;" />
+    >{@html sel_label}<ChevronDown
+      style="vertical-align:middle; margin-left: 5px;" />
   </button>
+
   <div class="dropdown-content" style={style_list}>
-    {#if options.length === 0}
+    {#if show_options.length === 0}
       <p>No options available</p>
     {/if}
-    {#each options as option, opt_i}
+    {#each show_options as option, opt_i}
       <button onclick={(e) => Selected(e, option, opt_i)}
-        >{@html labels[opt_i]}</button>
+        >{@html show_labels[opt_i]}</button>
     {/each}
   </div>
 </div>
@@ -121,5 +163,18 @@
 
   .disabled .dropbtn {
     color: var(--color-text-disabled);
+  }
+
+  .search-enabled.dropdown:focus-within .dropbtn {
+    opacity: 0;
+    position: absolute;
+  }
+
+  .search-enabled.dropdown:focus-within .dropsearch {
+    display: flex !important;
+  }
+
+  .dropsearch {
+    display: none;
   }
 </style>
