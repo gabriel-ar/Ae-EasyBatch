@@ -18,6 +18,7 @@ Internal use functions are prefixed with an underscore `_`.
  * @typedef {import('../src/lib/Settings').DepCompSetts} DepCompSetts
  * @typedef {import('../src/lib/Messaging').GetSettsResult} GetSettsResult
  * @typedef {import('../src/lib/Messaging').GetAllCompsResult} GetAllCompsResult
+ * @typedef {import('../src/lib/Messaging').GetSelectedCompsResult} GetSelectedCompsResult
  * @typedef {import('../src/lib/Messaging').SaveSettingsResults} SaveSettingsResults
  * @typedef {import('../src/lib/Messaging').BatchRenderResult} BatchRenderResult
  * @typedef {import('../src/lib/Messaging').RenderSettsResults} RenderSettsResults
@@ -202,6 +203,35 @@ function GetAllComps(used_in_id) {
     result.success = false;
     result.error_obj = e;
     result.error_obj.source = "index.jsx @ GetAllComps";
+  }
+
+  return JSON.stringify(result);
+}
+
+/**
+ * Returns the selected compositions in the project.
+ * @returns {string} Stringified JSON of `GetSelectedCompsResult` object
+ */
+function GetSelectedComps() {
+  /**@type {GetSelectedCompsResult} */
+  var result = {
+    comps: [],
+    success: true
+  };
+
+  try {
+    var sel_items = app.project.selection;
+
+    for (var i = 0; i < sel_items.length; i++) {
+      var item = sel_items[i];
+      if (item instanceof CompItem) {
+        result.comps.push({ id: item.id, name: item.name });
+      }
+    }
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "index.jsx @ GetSelectedComps";
   }
 
   return JSON.stringify(result);

@@ -36,7 +36,10 @@
     Tabs,
   } from "./lib/Settings";
 
-  import { SaveSettsRequest } from "./lib/Messaging";
+  import {
+    SaveSettsRequest,
+    type GetSelectedCompsResult,
+  } from "./lib/Messaging";
   import type {
     GetTmplsResult,
     GetSettsResult,
@@ -709,6 +712,42 @@
     }
   }
 
+  function AddSelectedCompsToDependents() {
+    csa.Eval("GetSelectedComps").then((s_result) => {
+      let result: GetSelectedCompsResult;
+
+      try {
+        result = JSON.parse(s_result);
+
+        l.debug(`Got selected Comps`, result);
+
+        for (let comp_info of result.comps) {
+          let comp = all_comps.find((c) => c.id === comp_info.id);
+
+          if (comp) {
+            setts.tmpls[setts.sel_tmpl].AddDependantComp(
+              comp,
+              render_setts_templs,
+            );
+          }
+        }
+
+          setts.tmpls[setts.sel_tmpl].dep_comps =
+          setts.tmpls[setts.sel_tmpl].dep_comps;
+
+        setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
+      } catch (e) {
+        l.error("Failed to parse selected comps", s_result);
+        return;
+      }
+
+      if (result.success == false) {
+        l.error("Failed to get selected comps", result.error_obj);
+        return;
+      }
+    });
+  }
+
   function DeleteDependantComp(dep_comp_id) {
     setts.tmpls[setts.sel_tmpl].RemoveDependantComp(dep_comp_id);
     setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
@@ -1044,7 +1083,7 @@
       class:curr_tab={setts.active_tab === "output"}
       onclick={() => {
         setts.active_tab = Tabs.Output;
-        if (setts.out_mode === "dependant") GetAllComps();
+        GetAllComps();
       }}>Output</button>
     <button
       class:curr_tab={setts.active_tab === "settings"}
@@ -1442,7 +1481,7 @@
 
       <div class="setting">
         <Dropdown
-        search_enabled={true}
+          search_enabled={true}
           labels={[
             "Select a Composition",
             ...all_comps.map((comp) => comp.name),
@@ -1454,6 +1493,11 @@
           onclick={() => {
             AddCompToDependents();
           }}>Add</button>
+        <button
+        style="margin-left: 12px;"
+          onclick={() => {
+            AddSelectedCompsToDependents();
+          }}>Add Selected</button>
       </div>
 
       <!-- Dependant Compositions -->

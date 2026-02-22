@@ -69,6 +69,11 @@ export interface GetAllCompsResult extends Result {
   comps?: {id: string; name: string; is_dependent: boolean}[];
 }
 
+export interface GetSelectedCompsResult extends Result {
+  /** Collection of selected after effects compositions*/
+  comps?: {id: string; name: string;}[];
+}
+
 /** Result for rendering settings */
 export interface RenderSettsResults extends Result {
   /** Render templates */
