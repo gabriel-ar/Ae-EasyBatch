@@ -115,6 +115,7 @@
             labels={[
               "<b>Base Path</b>",
               "<b>Template Name</b>",
+              "<b>Composition</b>",
               "<b>Row Number</b>",
               "<b>Increment</b>",
               ...tmpl.columns.map((col) => col.cont_name),
@@ -122,6 +123,7 @@
             options={[
               "base_path",
               "template_name",
+              "comp_name",
               "row_number",
               "increment:0000",
               ...tmpl.columns.map((col) => col.cont_name),
