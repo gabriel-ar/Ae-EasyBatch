@@ -13,7 +13,7 @@ const version = packageJson.version;
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
 
-  console.log(`VITE RUNNING Command: ${command}, Mode: ${mode}`);
+  console.log(`VITE - Command: ${command}, Mode: ${mode}`);
 
   return {
     define: {
@@ -22,6 +22,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       svelte(),
       copy({
+        
         targets: [
           // Copy the manifest file, and update the version and main file path depending on mode
           {
