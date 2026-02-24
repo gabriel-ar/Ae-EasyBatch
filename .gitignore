@@ -24,5 +24,6 @@ package-lock.json
 
 # Playwright test results
 tests/test-results/
+tests/projects/Adobe*
 playwright-report/
 test-results/

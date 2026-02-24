@@ -13,6 +13,7 @@ export default defineConfig({
   // Specify test files in logical order (instead of alphabetical)
   testMatch: [
     '**/startup.spec.ts',
+    '**/otm.spec.ts',
   ],
   
   // Timeout for each test

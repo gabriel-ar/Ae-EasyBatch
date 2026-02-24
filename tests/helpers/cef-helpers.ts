@@ -1,7 +1,5 @@
-import { test as base } from '@playwright/test';
-import { expect } from '@playwright/test';
 import puppeteer from 'puppeteer-core';
-import type { Browser, Page } from 'puppeteer-core';
+import type { Browser, ElementHandle, Page } from 'puppeteer-core';
 
 /**
  * Helper utilities for connecting to and interacting with 
@@ -11,104 +9,143 @@ import type { Browser, Page } from 'puppeteer-core';
  * browser context management that Playwright expects
  */
 
-let sharedBrowser: Browser | null = null;
-let sharedPage: Page | null = null;
-
 /**
- * Connect to the CEF instance using Puppeteer
- * This connects to the existing CEF browser without trying to manage it
+ * Manages connection to the CEF (Chromium Embedded Framework) instance
+ * running in After Effects. Maintains a singleton connection to avoid
+ * reconnecting for each test.
  */
-async function connectToCEF(): Promise<{ browser: Browser; page: Page }> {
-  if (sharedBrowser && sharedPage) {
-    return { browser: sharedBrowser, page: sharedPage };
+export class CEFConnection {
+  private browser: Browser | null = null;
+  page: Page | null = null;
+  private readonly debugPort: number;
+  private readonly pageSelectors: string[];
+
+  constructor(debugPort: number = 8009, pageSelectors: string[] = ['index.html', 'dev.html', 'localhost:5173']) {
+    this.debugPort = debugPort;
+    this.pageSelectors = pageSelectors;
+
+    this.Connect();
   }
 
-  try {
-    // Connect to CEF via browserURL (Puppeteer feature)
-    sharedBrowser = await puppeteer.connect({
-      browserURL: 'http://localhost:8009',
-      defaultViewport: null,
-    });
-    
-    // Get all pages (tabs) from the browser
-    const pages = await sharedBrowser.pages();
+  /**
+   * Connect to the CEF instance being used by AE using Puppeteer
+   * Returns the browser and page, reusing existing connection if available
+   */
+  async Connect() {
+    try {
+      // Connect to CEF via browserURL (Puppeteer feature)
+      this.browser = await puppeteer.connect({
+        browserURL: `http://localhost:${this.debugPort}`,
+        defaultViewport: null,
+      });
 
-    // Find the extension page
-    let extensionPage = pages.find(
-      (p) =>
-        p.url().includes('index.html') ||
-        p.url().includes('dev.html') ||
-        p.url().includes('localhost:5173')
+      // Get all pages (tabs) from the browser
+      const pages = await this.browser.pages();
+
+      // Find the extension page
+      let extensionPage = pages.find((p) =>
+        this.pageSelectors.some((selector) => p.url().includes(selector))
+      );
+
+      if (!extensionPage) {
+        extensionPage = pages[0];
+        console.warn(
+          `Could not find extension page. Using first available page: ${extensionPage?.url()}`
+        );
+      }
+
+      if (!extensionPage) {
+        throw new Error(
+          'No pages found in CEF. Is the extension loaded in After Effects?'
+        );
+      }
+
+      // Wait for the app to be ready
+      await extensionPage.waitForSelector('#app', { timeout: 10000 });
+      console.log('Connected to CEF page:', extensionPage.url());
+
+      this.page = extensionPage;
+    } catch (error) {
+      console.error('Failed to connect to CEF:', error);
+      throw error;
+    }
+  }
+
+
+  /**
+   * Disconnect from CEF
+   */
+  async Disconnect(): Promise<void> {
+    if (this.browser) {
+      try {
+        await this.browser.disconnect();
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+      this.browser = null;
+      this.page = null;
+    }
+  }
+
+  /**
+   * Check if currently connected
+   */
+  IsConnected(): boolean {
+    return this.browser !== null && this.page !== null;
+  }
+
+  /** * Helper to select an option from a dropdown in the extension UI
+   * @param selector - CSS selector for the dropdown element
+   * @param option - Visible text of the option to select
+   */
+  async DropdownSelect(selector: string, option: string, base_node: ElementHandle | null = null): Promise<boolean> {
+    if (!this.page)
+      return false;
+
+    let dropdown = base_node !== null ? await base_node.$(selector) : await this.page.$(selector);
+    if (!dropdown) throw new Error(`Dropdown not found: ${selector}`);
+
+
+
+    //wait until options are loaded ('No options available' text disappears from the dropdown content)
+    await this.page.waitForFunction(
+      (sel) => {
+        const dropdownContent = document.querySelector(sel);
+        if (!dropdownContent) return false;
+        return !dropdownContent.textContent?.trim().includes('No options available');
+      },
+      { timeout: 15000, polling: 900 },
+      selector + ' .dropdown-content'
     );
 
-    if (!extensionPage) {
-      extensionPage = pages[0];
-      console.warn(
-        `Could not find extension page. Using first available page: ${extensionPage?.url()}`
-      );
+
+    // Re-query the dropdown because page.goto
+    dropdown = base_node !== null ? await base_node.$(selector) : await this.page.$(selector);
+    if (!dropdown) throw new Error(`Dropdown not found after possible reload: ${selector}`);
+
+    await dropdown.tap(); // Open the dropdown
+
+    const opts = await dropdown.$$(`.dropdown-content button`);
+    for (const opt of opts) {
+      const text = await opt.evaluate((el) => el.textContent?.trim());
+
+      if (text === option) {
+        await opt.tap();
+        return true;
+      }
     }
 
-    if (!extensionPage) {
-      throw new Error(
-        'No pages found in CEF. Is the extension loaded in After Effects?'
-      );
-    }
-
-    // Wait for the app to be ready
-    await extensionPage.waitForSelector('#app', { timeout: 10000 });
-
-    sharedPage = extensionPage;
-    return { browser: sharedBrowser, page: sharedPage };
-  } catch (error) {
-    console.error('Failed to connect to CEF:', error);
-    throw error;
+    throw new Error(`Option "${option}" not found in dropdown: ${selector}`);
   }
 }
 
-/**
- * Disconnect from CEF
- */
-async function disconnectFromCEF() {
-  if (sharedBrowser) {
-    try {
-      await sharedBrowser.disconnect();
-    } catch (e) {
-      // Ignore disconnect errors
-    }
-    sharedBrowser = null;
-    sharedPage = null;
+// Singleton instance for convenience
+const con = new CEFConnection();
+
+export const GetConnection = async () => {
+  if (!con.IsConnected()) {
+    await con.Connect();
   }
-}
-
-/**
- * Export base Playwright test (we'll use Puppeteer for browser, Playwright for test framework)
- */
-export const test = base;
-
-// Re-export expect
-export { expect };
-
-/**
- * Helper to manually get the CEF page
- * Use this in tests: const page = await getCEFPage();
- */
-export async function getCEFPage(): Promise<Page> {
-  const { page } = await connectToCEF();
-  return page;
-}
-
-/**
- * Helper to disconnect (call in afterAll if needed)
- */
-export async function closeCEFConnection() {
-  await disconnectFromCEF();
-}
-
-/**
- * Helper to wait for ExtendScript evaluation to complete
- * CEP extensions communicate async with After Effects
- */
-export async function waitForExtendScript(page: Page, maxWait = 3000) {
-  await new Promise(resolve => setTimeout(resolve, maxWait));
+  return con;
 }
 

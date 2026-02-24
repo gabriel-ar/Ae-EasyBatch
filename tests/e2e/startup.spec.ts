@@ -1,4 +1,4 @@
-import { test, expect, getCEFPage } from '../helpers/cef-helpers';
+import { test, expect, con} from '../helpers/cef-helpers';
 import type { Page } from 'puppeteer-core';
 
 /**
@@ -14,7 +14,7 @@ test.describe('Extension Startup', () => {
     let page: Page;
 
     test.beforeAll(async () => {
-        page = await getCEFPage();
+        page = con.page!;
     });
 
     test('should connect to CEF instance', async () => {
