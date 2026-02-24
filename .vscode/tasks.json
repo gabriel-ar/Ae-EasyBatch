@@ -34,6 +34,35 @@
 			"script": "preview",
 			"label": "npm_preview",
 			"problemMatcher": []
-		}
+		},
+		{
+			"type": "npm",
+			"script": "test:e2e:ui",
+			"label": "npm_test",
+			"problemMatcher": {
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}"
+				],
+				"pattern": {
+					"regexp": "^\\s*at (?:new )?([^ ]+) \\(([^:]+):([0-9]+):([0-9]+)\\)$",
+					"file": 2,
+					"line": 3,
+					"column": 4
+				}
+			}
+		},
+		 {
+			"type": "npm",
+			"script": "symlink:windows",
+			"label": "make_symlink_windows",
+			"problemMatcher": []
+		},
+		 {
+			"type": "npm",
+			"script": "symlink:macos",
+			"label": "make_symlink_macos",
+			"problemMatcher": []
+		 }
 	]
 }
