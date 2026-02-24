@@ -111,25 +111,27 @@ class CSAdapter {
 
   /**
    * Uses the CEP API to open a folder selection dialog. Returns a path relative to the project folder.
-   * @param {string} initial_folder 
+   * @param {string} starting_folder 
    * @returns {Promise<string|null>} The selected folder path or null if the user cancels the dialog.
    */
-  async OpenFolderDialog(initial_folder = ""): Promise<string | null> {
+  async OpenFolderDialog(starting_folder = ""): Promise<string | null> {
 
-    if (initial_folder !== "" && initial_folder !== undefined && initial_folder !== null) {
-      let proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`);
+      const proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`) as string;
 
+    if (starting_folder !== "" && starting_folder !== undefined && starting_folder !== null) {
       let path = cep_node.require("path");
-      initial_folder = path.join(proj_folder, initial_folder);
+      starting_folder = path.join(proj_folder, starting_folder);
+    }else{
+      starting_folder = proj_folder;
     }
 
-    console.log("Initial folder: " + initial_folder);
+    console.log("[CSAdapter:OpenFolderDialog] Initial folder: " + starting_folder);
 
     let res = cep.fs.showOpenDialogEx(
       false,
       true,
       "Select a Folder",
-      initial_folder
+      starting_folder
     );
 
     if (res.data[0] !== undefined && res.data[0] !== null) {

@@ -1641,7 +1641,7 @@
   </main>
 {:else if setts.active_tab == "settings"}
   <!-- SETTINGS -->
-  <SettingsPanel bind:setts bind:csa />
+  <SettingsPanel bind:setts bind:csa SaveSettings={SaveSettings} />
 {/if}
 
 {#if setts.tmpls[setts.sel_tmpl] !== undefined && show_alt_src_modal}

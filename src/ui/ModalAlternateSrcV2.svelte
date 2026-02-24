@@ -45,7 +45,7 @@
   function SelectBasePath() {
     let csa = new CSAdapter();
 
-    csa.OpenFolderDialog(base_path).then((result) => {
+    csa.OpenFolderDialog(base_path?base_path:undefined).then((result) => {
       if (result === null) return;
 
       base_path = result;
