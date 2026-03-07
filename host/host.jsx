@@ -838,11 +838,12 @@ function GetCurrentValues(s_template) {
     }
 
     //Go through the Essential Properties and extract the values
-    var e_props = avl_templ.essentialProperty;
+    var props = _GetPropertiesFromGroup(avl_templ.essentialProperty);
 
-    for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
-      var templ_prop = e_props.property(i_prop);
+    for (var i_prop = 0; i_prop < props.length; i_prop++) {
+      var templ_prop = props[i_prop];
       var val;
+
       if (templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT) {
         val = templ_prop.value.text;
       } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE) {
@@ -861,6 +862,25 @@ function GetCurrentValues(s_template) {
     result.error_obj.source = "index.jsx @ GetCurrentValues";
     return JSON.stringify(result);
   }
+}
+
+
+function _GetPropertiesFromGroup(pg){
+    var props = [];
+
+   for (var i_prop = 1; i_prop <= pg.numProperties; i_prop++) {
+      var prop = pg.property(i_prop);
+
+      if (prop.propertyType === PropertyType.INDEXED_GROUP || prop.propertyType === PropertyType.NAMED_GROUP) {
+        //This is a group, go deeper
+        var group_props = _GetPropertiesFromGroup(prop);
+        props = props.concat(group_props);
+      } else {
+        props.push(prop);
+      }
+    }
+
+    return props;
 }
 
 
