@@ -21,10 +21,17 @@ class Logger {
         console.log("Logger created with prefix: " + this.prefix);
 
         //Resolve the documents folder
-        const docs_folder = new CSAdapter().GetSystemPath(CSAdapter.SystemPath.MY_DOCUMENTS);
+        let docs_folder = new CSAdapter().GetSystemPath(CSAdapter.SystemPath.MY_DOCUMENTS);
+
+        // Fix for CEP on Mac: sometimes it returns the path without the leading root slash
+        if (os.platform() === 'darwin' && !docs_folder.startsWith('/')) {
+            docs_folder = '/' + docs_folder;
+        }
         const log_filename = `${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
 
         this.log_path = path.join(docs_folder, "EasyBatch Logs", log_filename);
+
+        console.log("Log file path: " + this.log_path);
     }
 
     /**
