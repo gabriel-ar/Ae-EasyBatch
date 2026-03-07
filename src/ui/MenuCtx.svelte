@@ -108,12 +108,12 @@
           class="c_item"
           onclick={() => Selected("view_table")}
           data-tooltip="Show data as table"
-          ><Table />Show Table<span class="c_shortcut">Shift + T</span></button>
+          ><Table />Show Table<span class="c_shortcut">T</span></button>
         <button
           class="c_item"
           onclick={() => Selected("view_detail")}
           data-tooltip="Export data to CSV file"
-          ><ActivityLog />Show Detail<span class="c_shortcut">Shift + D</span
+          ><ActivityLog />Show Detail<span class="c_shortcut">D</span
           ></button>
         <div class="c_divider"></div>
                 <button
