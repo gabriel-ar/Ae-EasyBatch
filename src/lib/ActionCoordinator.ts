@@ -67,7 +67,10 @@ export default class ActionCoordinator {
         this.listeners[key].callback(e); 
 
         //Prevent default if the user choose to
-        if (this.listeners[key].prevent) e.preventDefault();
+        if (this.listeners[key].prevent){
+           e.preventDefault();
+           e.stopPropagation(); 
+        }
       }
     }
   }

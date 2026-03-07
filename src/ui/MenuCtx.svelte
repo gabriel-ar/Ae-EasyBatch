@@ -9,6 +9,8 @@
     Enter,
     Exit,
     Columns,
+    ArrowUp,
+    ArrowDown,
   } from "radix-icons-svelte";
   import AddAfter from "../assets/AddAfter.svelte";
   import AddBefore from "../assets/AddBefore.svelte";
@@ -90,13 +92,6 @@
           onclick={() => Selected("render_row")}
           data-tooltip="Render this row"
           ><Camera />Render<span class="c_shortcut">R</span></button>
-
-        <button
-          class="c_item"
-          onclick={() => Selected("detail")}
-          data-tooltip="Open this row in detail view"
-          ><ActivityLog />View in detail<span class="c_shortcut">Shift + D</span
-          ></button>
       {:else if mode === "file"}
         <button
           class="c_item"
@@ -121,6 +116,18 @@
           ><ActivityLog />Show Detail<span class="c_shortcut">Shift + D</span
           ></button>
         <div class="c_divider"></div>
+                <button
+          class="c_item"
+          onclick={() => Selected("previous_row")}
+          data-tooltip="Move to the previous row in the table"
+          ><ArrowUp />Previous Row<span class="c_shortcut">Opt + ↑</span></button>
+        <button
+          class="c_item"
+          onclick={() => Selected("next_row")}
+          data-tooltip="Move to the next row in the table"
+          ><ArrowDown />Next Row<span class="c_shortcut">Opt + ↓</span
+          ></button>
+                <div class="c_divider"></div>
                   <button
           class="c_item"
           onclick={() => Selected("edit_view")}

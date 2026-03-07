@@ -15,23 +15,23 @@
             "type": "node"
         },
         {
-            "name": "Attach to Ae's CEF",
+            "name": "Attach to Chrome",
             "type": "chrome",
             "request": "attach",
             "port": 8009,
             "webRoot": "${workspaceFolder}/src",
         },
         {
-            "name": "Attach to CEP Ae",
+            "name": "Attach to CEP",
             "type": "extendscript-debug",
-            "hostAppSpecifier": "aftereffects-25.0",
+            "hostAppSpecifier": "aftereffects-26.0",
             "request": "attach",
         },
         {
-            "name": "Launch in CEP Ae",
+            "name": "Launch in CEP",
             "type": "extendscript-debug",
             "request": "launch",
-            "hostAppSpecifier": "aftereffects-25.0",
+            "hostAppSpecifier": "aftereffects-26.0",
             "script": "${workspaceFolder}/host/host.jsx",
             "bringToFront": false,
         },

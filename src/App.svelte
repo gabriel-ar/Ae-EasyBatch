@@ -379,13 +379,13 @@
         l.error("Failed to preview row", result.error_obj);
         if (!prop_changed) {
           m_message.Open(
-            result.error_obj.map((e) => e.message).join("<br>"),
+            result.error_obj.message,
             "Error Previewing Row",
           );
         } else {
           UpdateStatusFooter(
             "⚠️ Error Previewing Row " + row_i,
-            result.error_obj.map((e) => e.message).join("<br>"),
+            result.error_obj.message,
           );
         }
         return;
@@ -827,8 +827,8 @@
       { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
       { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
 
-      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down ALT
-      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up ALT
+      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down Opt
+      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up Opt
 
       { keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
       { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
@@ -839,8 +839,8 @@
       { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false }, // N
       { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
 
-      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: true }, // T
-      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: true }, // D
+      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false }, // T
+      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false }, // D
     ]);
 
     //File Actions
@@ -932,9 +932,7 @@
       () => {
         setts.data_mode = "detail";
       },
-      "D",
-      false,
-      true,
+      "D"
     );
 
     ac.AddListener(
@@ -942,9 +940,7 @@
       () => {
         setts.data_mode = "table";
       },
-      "T",
-      false,
-      true,
+      "T"
     );
 
     ac.AddListener(
@@ -967,6 +963,7 @@
       false,
       true,
     );
+    
     ac.AddListener(
       "next_row",
       () => {
