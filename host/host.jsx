@@ -82,37 +82,22 @@ function GetTemplates() {
         var av_templ_comp = render_comp.layers.add(templ_comp);
 
         //Access the Essential Properties of the layer and chance the values to the template data
-        var e_props = av_templ_comp.essentialProperty;
+        var e_props = _FlattenPropertyGroup(av_templ_comp.essentialProperty, true);
 
         //Loop through the properties and extract the name and type
-        for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
-          var templ_prop = e_props.property(i_prop);
+        for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
+          var templ_prop = e_props[i_prop];
 
-          if (templ_prop.isDropdownEffect) {
-            //todo: handle dropdowns
-            // var org_prop = templ_prop.essentialPropertySource.parentProperty.property(2);
-            // var dummy = 5;
-          }
-
-          var val =
-            templ_prop.propertyValueType === PropertyValueType.NO_VALUE
-              ? ""
-              : templ_prop.value;
           var t_type = templ_prop.propertyValueType;
+          var val = "";
 
-          //Check if the property is a replaceable and change the type so the client handles it correctly
-          if (
-            templ_prop.canSetAlternateSource &&
-            templ_prop.matchName === "ADBE Layer Source Alternate"
-          ) {
-            t_type = 9001;
-          }
-
-          //Check if the property is a text document and extract the text
-          else if (
-            templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
-          ) {
-            val = val.text;
+          if (templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT) {
+            val = templ_prop.value.text;
+          } else if (templ_prop.canSetAlternateSource && templ_prop.matchName === "ADBE Layer Source Alternate") {
+            t_type = 9001; //Custom type for replaceable sources, the client will handle it accordingly
+          } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE 
+            && templ_prop.matchName !== "ADBE Layer Overrides Comment") {
+            val = templ_prop.value;
           }
 
           cols.push({
@@ -121,9 +106,6 @@ function GetTemplates() {
             values: [val],
           });
         }
-
-        //Finally check if the composition is included in other compositions
-        //var deps = _GetDependentComps(templ_comp);
 
         out_tmpls.push({
           comp: templ_comp.name,
@@ -575,11 +557,11 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
   var errors = [];
 
   //Access the Essential Properties of the layer
-  var e_props = layer.essentialProperty;
+  var e_props = _FlattenPropertyGroup(layer.essentialProperty);
 
   //Loop through the properties and set the values
-  for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
-    var ess_prop = e_props.property(i_prop);
+  for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
+    var ess_prop = e_props[i_prop];
 
     //find the column in the template that matches the property name
     var col;
@@ -838,7 +820,7 @@ function GetCurrentValues(s_template) {
     }
 
     //Go through the Essential Properties and extract the values
-    var props = _GetPropertiesFromGroup(avl_templ.essentialProperty);
+    var props = _FlattenPropertyGroup(avl_templ.essentialProperty);
 
     for (var i_prop = 0; i_prop < props.length; i_prop++) {
       var templ_prop = props[i_prop];
@@ -864,25 +846,40 @@ function GetCurrentValues(s_template) {
   }
 }
 
+/**
+ * Flattens a property group into a list of properties, going through all the groups inside it.
+ * If keep_comments is true, it will pass groups labeled as ADBE Layer Overrides Comment
+ * * @param {PropertyGroup} pg
+ * @param {boolean} keep_comments
+ * @returns {Property[]}
+ */
+function _FlattenPropertyGroup(pg, keep_comments) {
+  if (keep_comments === undefined) {
+    keep_comments = false;
+  }
 
-function _GetPropertiesFromGroup(pg){
-    var props = [];
+  var props = [];
 
-   for (var i_prop = 1; i_prop <= pg.numProperties; i_prop++) {
-      var prop = pg.property(i_prop);
+  for (var i_prop = 1; i_prop <= pg.numProperties; i_prop++) {
+    var prop = pg.property(i_prop);
 
-      if (prop.propertyType === PropertyType.INDEXED_GROUP || prop.propertyType === PropertyType.NAMED_GROUP) {
-        //This is a group, go deeper
-        var group_props = _GetPropertiesFromGroup(prop);
-        props = props.concat(group_props);
-      } else {
+    if (prop.propertyType === PropertyType.INDEXED_GROUP || prop.propertyType === PropertyType.NAMED_GROUP) {
+
+      //Comments can be used to hold arbitrary data for patterns in the client side, so we can keep them
+      if (prop.matchName === "ADBE Layer Overrides Comment" && keep_comments) {
         props.push(prop);
+      } else {
+        //This is a group, go deeper
+        var group_props = _FlattenPropertyGroup(prop, keep_comments);
+        props = props.concat(group_props);
       }
+    } else {
+      props.push(prop);
     }
+  }
 
-    return props;
+  return props;
 }
-
 
 function BatchRender(str_template, folder) {
   _EscapeArgs(arguments);

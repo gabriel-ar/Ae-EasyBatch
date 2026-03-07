@@ -1806,6 +1806,7 @@
 
   .table_header {
     white-space: nowrap;
+    padding: 0 7px;
   }
 
   .table_cell {
