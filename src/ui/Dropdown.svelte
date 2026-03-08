@@ -1,7 +1,6 @@
 <script lang="ts">
   import { ChevronDown } from "radix-icons-svelte";
   import { l } from "./States.svelte.ts";
-  import { getContext } from "svelte";
 
   let {
     value = $bindable(),

@@ -1,35 +1,26 @@
 <script lang="ts">
-  import { Column, Template, type DepCompSetts } from "../lib/Settings.ts";
-  import CSAdapter from "../lib/CSAdapter.ts";
-  import { getContext, onMount } from "svelte";
-  import { l } from "./States.svelte.ts";
+  import { TemplateHelper } from "../lib/Settings.ts";
+  import { l, s, csa } from "./States.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
 
   type OnCloseFunc = (base_path: string, pattern: string) => void;
 
-  let show: boolean;
-  let pick_base: boolean;
-  let sel_add_field: string = "base_path";
+  let show =  $state(false);
+  let pick_base = $state(false);
+  let sel_add_field = $state("base_path");
 
-  let tmpl: Template;
-  let dc_id: string;
+  let tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
+  let dc_id = $state<string>();
 
   let onclose: OnCloseFunc;
 
   export function Open(
-    template: Template,
     dep_comp_id: string,
     on_close_callback: OnCloseFunc,
     pick_base: boolean = false,
   ) {
-    l.debug("[ModalDepFile] Open called with template:", template);
+    l.debug("[ModalDepFile] Open called with template:", tmpl);
 
-    if (template === undefined) {
-      l.error("[ModalDepFile] Template is undefined");
-      return;
-    }
-
-    tmpl = template;
     dc_id = dep_comp_id;
     pick_base = pick_base;
 
@@ -66,7 +57,7 @@
   }
 
   function UpdatePreview() {
-    tmpl.ResolveSavePathFirstDeps(0);
+    TemplateHelper.ResolveSavePathFirstDeps(tmpl, 0);
     tmpl.dep_config = tmpl.dep_config;
   }
 
@@ -74,7 +65,6 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    let csa = new CSAdapter();
 
     csa.OpenFolderDialog(tmpl.base_path).then((result) => {
       if (result === null) return;

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionList>
-    <Extension Id="com.settools.easybatch.panel">
+    <Extension Id="_EXTENSION_ID_.panel">
         <HostList>
             <Host Name="AEFT" Port="8009"/>
         </HostList>
     </Extension>
-</ExtensionList>
+</ExtensionList>    

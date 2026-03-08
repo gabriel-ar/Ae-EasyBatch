@@ -1,12 +1,11 @@
 <script>
-  import CSAdapter from "../lib/CSAdapter.ts";
-  import { getContext, onMount } from "svelte";
-  import { l } from "./States.svelte.ts";
-    import Dropdown from "./Dropdown.svelte";
+  import { onMount } from "svelte";
+  import { l, s, csa } from "./States.svelte.ts";
+  import Dropdown from "./Dropdown.svelte";
+  import { ColumnHelper } from "../lib/SettingsHelper.ts";
 
   let {
     show = $bindable(false),
-    tmpl,
     col_i,
     onclose = $bindable(() => {}),
   } = $props();
@@ -16,6 +15,8 @@
 
   let pattern = $state();
   let base_path = $state();
+
+  const tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
   onMount(() => {
     pattern = tmpl.columns[col_i].alt_src_pattern;
@@ -35,7 +36,6 @@
       `{${sel_add_field}}` +
       old_val.slice(cursor_pos);
 
-    tmpl = tmpl;
     l.debug("[ModalAltSrc] AddField called with pattern:", pattern);
   }
 
@@ -43,9 +43,8 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    let csa = new CSAdapter();
-
-    csa.OpenFolderDialog(base_path?base_path:undefined).then((result) => {
+    
+    csa.OpenFolderDialog(base_path ? base_path : undefined).then((result) => {
       if (result === null) return;
 
       base_path = result;
@@ -54,7 +53,6 @@
 
   $effect(() => {
     UpdatePreview(pattern, base_path);
-    //l.debug('Effect triggered: UpdatePreview');
   });
 
   function UpdatePreview(dummy, dummy2) {
@@ -63,7 +61,7 @@
     col.alt_src_pattern = pattern;
     col.alt_src_base = base_path;
 
-    preview = col.ResolveAltSrcPath(0, tmpl.columns);
+    preview = ColumnHelper.ResolveAltSrcPath(col, 0, tmpl.columns);
     l.debug(
       "[ModalAltSrc] UpdatePreview called with pattern:",
       pattern,
@@ -95,7 +93,7 @@
         <div>
           <button onclick={SelectBasePath}>Pick Base Path</button>
 
-          <Dropdown 
+          <Dropdown
             bind:value={sel_add_field}
             labels={[
               "<b>Base Path</b>",
@@ -110,8 +108,7 @@
               ...tmpl.columns.map((col) => col.cont_name),
             ]}
             title="Add Field..."
-            onselect={() => AddField()}
-            />
+            onselect={() => AddField()} />
         </div>
       </div>
 

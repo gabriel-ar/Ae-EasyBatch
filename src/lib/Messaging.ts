@@ -1,4 +1,4 @@
-import { Settings, Template } from "./Settings.ts"
+import { type ProjSettings, type ProjData, type TemplateData } from "./Settings.ts"
 
 export type ResponseErrorBase = {
   /** If the project name is not found */
@@ -15,6 +15,14 @@ export type ResponseErrorBase = {
 
   /** If the project name is not found */
   no_project_name?: boolean;
+
+  reasons?: {
+    not_found?: boolean;
+    id_mismatch?: boolean;
+    no_templates?: boolean;
+    no_settings?: boolean;
+    no_project_name?: boolean;
+  };
 }
 
 export type ResponseError = ResponseErrorBase & Error;
@@ -31,10 +39,17 @@ export class SaveSettsRequest extends Request {
 
   /** Project name */
   project_name: string;
-  /** Settings object */
-  setts: Settings;
+  
+    /** Project data to save */
+  proj_data?: ProjData;
+
+  /** Settings to save */
+  proj_settings?: ProjSettings;
+
   /** Defined if we should save the settings on a project that doesn't have any */
   is_new?: boolean;
+
+  project_id: string;
 }
 
 /** Base result type */
@@ -49,8 +64,9 @@ export interface Result {
 
 /** Result for getting settings */
 export interface GetSettsResult extends Result {
-  /** Stringified JSON of the `Settings` object */
-  setts?: string;
+  proj_data: ProjData;
+  proj_settings: ProjSettings;
+
   /** True if not found */
   not_found?: boolean;
   /** Project name */
@@ -60,7 +76,7 @@ export interface GetSettsResult extends Result {
 /** Result for getting templates */
 export interface GetTmplsResult extends Result {
   /** Array of templates */
-  tmpls?: Template[];
+  tmpls?: TemplateData[];
 }
 
 /** Result for getting settings */

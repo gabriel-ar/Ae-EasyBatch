@@ -1,12 +1,11 @@
 <script lang="ts">
-    import { Template } from "../lib/Settings.ts";
-    import { l } from "./States.svelte.ts";
+    import { l, s} from "./States.svelte.ts";
     import { DragHandleDots2, EyeOpen, EyeClosed } from "radix-icons-svelte";
 
     type OnCloseFunc = (table_cols: number[]) => void;
 
     let show = $state(false);
-    let tmpl = $state<Template>();
+    let tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
     let onclose = $state<OnCloseFunc>();
 
     // Local state for managing the view
@@ -15,25 +14,22 @@
     let dropTargetIndex = $state<number | null>(null);
 
     export function Open(
-        template: Template,
         on_close_callback: OnCloseFunc,
     ) {
-        l.debug("[ModalEditView] Open called with template:", template);
-
-        tmpl = template;
+        l.debug("[ModalEditView] Open called with template:", tmpl);
         onclose = on_close_callback;
 
         // Initialize viewColumns based on current table_cols
         viewColumns = [];
         
         // First, add all visible columns in their current order
-        for (let col_i of template.table_cols) {
+        for (let col_i of tmpl.table_cols) {
             viewColumns.push({ col_index: col_i, visible: true });
         }
 
         // Then, add all hidden columns at the end
-        for (let i = 0; i < template.columns.length; i++) {
-            if (!template.table_cols.includes(i)) {
+        for (let i = 0; i < tmpl.columns.length; i++) {
+            if (!tmpl.table_cols.includes(i)) {
                 viewColumns.push({ col_index: i, visible: false });
             }
         }

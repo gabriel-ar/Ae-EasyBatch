@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8' standalone="no"?>
-<ExtensionManifest ExtensionBundleId="com.settools.easybatch" ExtensionBundleName="EasyBatch" ExtensionBundleVersion="_VERSION_" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ExtensionManifest ExtensionBundleId="_EXTENSION_ID_" ExtensionBundleName="EasyBatch" ExtensionBundleVersion="_VERSION_" Version="7.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.settools.easybatch.panel" Version="_VERSION_" />
+    <Extension Id="_EXTENSION_ID_.panel" Version="_VERSION_" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -15,7 +15,7 @@
     </RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>
-    <Extension Id="com.settools.easybatch.panel">
+    <Extension Id="_EXTENSION_ID_.panel">
       <HostList>
         <Host Name="AEFT" Version="[24,99]" />
       </HostList>

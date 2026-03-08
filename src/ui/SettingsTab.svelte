@@ -1,23 +1,21 @@
 <script lang="ts">
-  import { getContext } from "svelte";
   import Logger from "../lib/Logger.ts";
-  import { l } from "./States.svelte.ts";
-  import { Settings, Template } from "../lib/Settings.ts";
+  import { l, s, csa } from "./States.svelte.ts";
+  import { SettingsHelper } from "../lib/Settings.ts";
+  import type { ProjData } from "../lib/Settings.ts";
   import Dropdown from "./Dropdown.svelte";
   import type CSAdapter from "../lib/CSAdapter.ts";
 
+  type AppSettings = typeof SettingsHelper.DefaultProjSettings;
+
   let {
-    setts = $bindable<Settings>(),
-    csa = $bindable<CSAdapter>(),
     SaveSettings,
   }: {
-    setts: Settings;
-    csa: CSAdapter;
     SaveSettings?: (bool) => void;
-  } = $props();
+  }= $props();
 
   function SaveJSON() {
-    let content = JSON.stringify(setts);
+    let content = JSON.stringify({ setts: s.setts, proj: s.proj });
     l.debug("[SettingsTab] SaveJSON called");
 
     csa.Eval("ExportFile", content).then((result) => {
@@ -31,20 +29,26 @@
       if (result === "null") return;
 
       let decoded = decodeURIComponent(result);
+      let loaded = JSON.parse(decoded);
 
-      let json_setts = JSON.parse(decoded);
-
-      setts.FromJson(json_setts);
-      setts.id = setts.MakeId();
+      if (loaded.setts && loaded.proj) {
+        Object.assign(s.setts, SettingsHelper.DefaultProjSettings, loaded.setts);
+        Object.assign(s.proj, SettingsHelper.DefaultProjectData, loaded.proj);
+      } else {
+        // Fallback legacy support
+        Object.assign(s.setts, SettingsHelper.DefaultProjSettings, loaded);
+        Object.assign(s.proj, SettingsHelper.LoadProjectData(loaded));
+      }
+      
       if (SaveSettings !== undefined) SaveSettings(true);
-      setts = setts;
     });
   }
 
   function ResetSettings() {
-    setts = new Settings();
-    setts.sel_tmpl = 0;
-    setts = setts;
+    Object.assign(s.setts, SettingsHelper.DefaultProjSettings);
+    Object.assign(s.proj, SettingsHelper.DefaultProjectData);
+
+    s.proj.sel_tmpl = 0;
     l.debug("[SettingsTab] ResetSettings called");
     SaveSettings(true);
     setTimeout(() => window.location.reload(), 1000);
@@ -59,23 +63,23 @@
     <input
       id="in_gen_folder"
       type="text"
-      bind:value={setts.render_comps_folder} />
+      bind:value={s.setts.render_comps_folder} />
   </div>
 
   <div class="setting">
     <label for="in_imported_folder">
       Automatically preview when changing values
-      <input type="checkbox" bind:checked={setts.auto_preview} />
+      <input type="checkbox" bind:checked={s.setts.auto_preview} />
     </label>
   </div>
 
-  <h4>Template Settings ({setts.tmpls[setts.sel_tmpl].name})</h4>
+  <h4>Template Settings ({s.proj.tmpls[s.proj.sel_tmpl].name})</h4>
   <div class="setting">
     <label for="in_imported_folder">Imported Footage Folder</label>
     <input
       id="in_gen_folder"
       type="text"
-      bind:value={setts.tmpls[setts.sel_tmpl].imported_footage_folder} />
+  bind:value={s.proj.tmpls[s.proj.sel_tmpl].imported_footage_folder} />
   </div>
 
   <h4>Logging</h4>
@@ -89,7 +93,7 @@
           val + " - " + (key === "Warn" ? key + " (Default)" : key),
       )}
       options={Object.entries(Logger.Levels).map(([key, val]) => val)}
-      bind:value={setts.log_level} />
+      bind:value={s.setts.log_level} />
   </div>
   <div class="setting">
     <label for="in_imported_folder"

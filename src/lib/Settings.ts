@@ -3,49 +3,70 @@ import { type RenderSettsResults, type SaveSettsRequest } from "./Messaging";
 import "./ces.t.ts"
 import Logger from "./Logger.js";
 
-class Settings {
-  constructor() {
-    this.id = this.MakeId();
+export interface ProjSettings {
+  active_tab: Tabs;
+  data_mode: "table" | "detail";
+  log_level: number;
+  render_comps_folder: string;
+  out_mode: OutMode;
+  auto_preview: boolean;
+  update_visible_col_only: boolean;
+}
+
+export interface ProjData {
+  id: string;
+  tmpls: TemplateData[];
+  sel_tmpl: number;
+}
+
+export class SettingsHelper {
+  static get DefaultProjSettings(): ProjSettings {
+    return {
+      active_tab: Tabs.Data,
+      data_mode: "table",
+      log_level: Logger.Levels.Warn,
+      render_comps_folder: "~Automator Comps",
+      out_mode: OutMode.Render,
+      auto_preview: true,
+      update_visible_col_only: true,
+    };
   }
-  /**
-   * Creates a Settings object from a JSON version of Settings
-   * @param {Settings | Object} json
-   */
-  FromJson(json) {
 
-    Object.assign(this, json);
-
-    this.tmpls = [];
-
-    if (json.tmpls !== undefined)
-      json.tmpls.forEach((templ) => {
-        this.tmpls.push(Template.FromJson(templ));
-      });
+  static get DefaultProjectData(): ProjData {
+    return {
+      id: SettingsHelper.MakeId(),
+      tmpls: [],
+      sel_tmpl: -1,
+    };
   }
 
-  /**
-   * Updates the templates stored in settings with the templates retrieved from the host
-   * @param host_templates 
-   */
-  UpdateTemplates(host_templates: object[]) {
-    let scanned_templs: Template[] = [];
+  static MakeId(): string {
+    return (
+      Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15)
+    );
+  }
+
+  static UpdateTemplates(project: ProjData, host_templates: any[]) {
+    // Ported from Settings.UpdateTemplates
+    let scanned_templs: TemplateData[] = [];
     host_templates.forEach((templ) => {
-      scanned_templs.push(Template.FromJson(templ));
+      scanned_templs.push(TemplateHelper.FromJson(templ));
     });
 
     //Get the templates that don't exist in the current array
     let new_templs = scanned_templs.filter((s_templ) => {
-      return !this.tmpls.some((old_templ) => old_templ.comp_id === s_templ.comp_id);
+      return !project.tmpls.some((old_templ) => old_templ.comp_id === s_templ.comp_id);
     });
 
     //Add the new templates to the current ones
     new_templs.forEach((new_templ) => {
-      this.tmpls.push(new_templ);
-      new_templ.InitTableColumns();
+      project.tmpls.push(new_templ);
+      TemplateHelper.InitTableColumns(new_templ);
     });
 
     //Filter the templates that exist in the current array but not in the new one
-    let old_templs = this.tmpls.filter((old_templ) => {
+    let old_templs = project.tmpls.filter((old_templ) => {
       return !scanned_templs.some(
         (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
@@ -53,11 +74,11 @@ class Settings {
 
     //Delete the old templates
     old_templs.forEach((old_templ) => {
-      this.tmpls.splice(this.tmpls.indexOf(old_templ), 1);
+      project.tmpls.splice(project.tmpls.indexOf(old_templ), 1);
     });
 
     //Find the templates that are in both
-    let same_tmpls = this.tmpls.filter((old_templ) => {
+    let same_tmpls = project.tmpls.filter((old_templ) => {
       return scanned_templs.some(
         (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
@@ -68,272 +89,184 @@ class Settings {
       let new_templ = scanned_templs.find(
         (new_templ) => new_templ.comp_id === s_tmpl.comp_id
       );
-      s_tmpl.Update(new_templ);
+      if (new_templ) TemplateHelper.Update(s_tmpl, new_templ);
     });
   }
 
-  static version = _VERSION_;
-
-  /**
-   * Stores data from Essential GFXs templates that have automated data
-   * @type {Array<Template>}
-   */
-  tmpls: Template[] = [];
-
-  /**
-   * Selected template to edit
-   * @type {number}
-   */
-  sel_tmpl = -1;
-
-  active_tab: Tabs = Tabs.Data;
-
-  /** Mode of the data view, table or detail */
-  data_mode: "table" | "detail" = "table";
-
-  log_level = Logger.Levels.Warn;
-
-  /**
-   * When the user Batch Renders, the intermediate compositions used to render are stored here
-   */
-  render_comps_folder = "~Automator Comps";
-
-  out_mode: OutMode = OutMode.Render;
-
-  auto_preview = true;
-
-  /**
-   * At render time, only update the columns that are visible in the table
-   */
-  update_visible_col_only = true;
-
-  /**Unique ID created by the constructor */
-  id = null;
-
-  MakeId(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
-    );
+  static LoadProjectData(json: any): ProjData {
+    let proj: ProjData = { ...this.DefaultProjectData, ...json};
+    if (!proj.id) proj.id = this.MakeId();
+    
+    proj.tmpls = [];
+    if (json.tmpls !== undefined) {
+      json.tmpls.forEach((templ: any) => {
+        proj.tmpls.push(TemplateHelper.FromJson(templ));
+      });
+    }
+    return proj;
   }
 }
 
-class Template {
-
-  /** Template name */
+export interface TemplateData {
   name: string;
-
-  /** Name of the composition associated with the template */
   comp: string;
-
-  /** ID Assigned by after effects, unique in this project */
   comp_id: number;
+  active: boolean;
+  columns: ColumnData[];
+  rows: any[][];
+  base_path: string;
+  save_pattern: string;
+  render_setts_templ: string;
+  render_out_module_templ: string;
+  generate_pattern: string;
+  save_paths: string[];
+  generate_names: string[];
+  imported_footage_folder: string;
+  gen_comps_folder: string;
+  table_cols: number[];
+  dep_comps: Comp[];
+  dep_config: { [key: string]: DepCompSetts };
+  import_file_lasts: {
+    csv_folder: string | null;
+    config_folder: string | null;
+  };
+  save_file_lasts: {
+    csv_folder: string | null;
+    config_folder: string | null;
+  };
+}
 
-  active = true;
+export interface ColumnData {
+  cont_name: string;
+  type: number;
+  values: any[];
+  menu_params: string[];
+  alt_src_pattern: string;
+  alt_src_base: string;
+}
 
-  /** Each column is an essential graphic controller associated with the template */
-  columns: Column[] = [];
-
-  /** Returns the template as a table */
-  rows = [];
-
-  /** Relative base path used in the pattern for saving renders */
-  base_path = "";
-
-  /** The pattern used to save rendered compositions. This pattern will be resolved at render time */
-  save_pattern = "{base_path}/{template_name}_{row_number}";
-
-  render_setts_templ = "";
-  render_out_module_templ = "";
-
-  /** Pattern used to name generated compositions */
-  generate_pattern = "Generated_{increment:0000}";
-
-  /** Array of save paths calculated from the save pattern */
-  save_paths: string[] = [];
-
-  generate_names = [];
-
-  /**When importing footage to fulfill a replaceable, we place it in this folder inside the project */
-  imported_footage_folder = "~Imported by EasyBatch";
-
-  /** When generating comps, we place them in this folder */
-  gen_comps_folder = "~Generated by EasyBatch";
-
-  /** Determines which columns are shown in the Data view from the indexes of `columns` */
-  table_cols = [0];
-
-  /**
-   * These are the compositions that have the current templates as a layer.
-   * Called dependant comps in the UI
-   */
-  dep_comps: Comp[] = [];
-
-  /** Settings belonging to the dependant comps */
-  dep_config: { [key: string]: DepCompSetts } = {};
-
-
-  /** Used to remember the last path of the Save File dialogues, per categories */
-  import_file_lasts = {
-    csv_folder: null,
-    config_folder: null,
+export class TemplateHelper {
+  static DefaultTemplate(eg_name = "", comp_name = "", columns: ColumnData[] = []): TemplateData {
+    let tmpl: TemplateData = {
+      name: eg_name,
+      comp: comp_name,
+      comp_id: -1,
+      active: true,
+      columns: columns,
+      rows: [],
+      base_path: "",
+      save_pattern: "{base_path}/{template_name}_{row_number}",
+      render_setts_templ: "",
+      render_out_module_templ: "",
+      generate_pattern: "Generated_{increment:0000}",
+      save_paths: [],
+      generate_names: [],
+      imported_footage_folder: "~Imported by EasyBatch",
+      gen_comps_folder: "~Generated by EasyBatch",
+      table_cols: [0],
+      dep_comps: [],
+      dep_config: {},
+      import_file_lasts: {
+        csv_folder: null,
+        config_folder: null,
+      },
+      save_file_lasts: {
+        csv_folder: null,
+        config_folder: null,
+      }
+    };
+    tmpl.rows = this.AsRows(tmpl);
+    return tmpl;
   }
 
-  /** Used to remember the last path of the Open File dialogues, per categories */
-  save_file_lasts = {
-    csv_folder: null,
-    config_folder: null,
-  }
-
-  /**
- * @param {string} eg_name Name of the template given in the Essential Graphics panel
- * @param {*} comp_name Name of the composition associated with the template
- * @param {Column[]} columns Array of columns associated with 'controllers' in the Essential Graphics panel
- */
-  constructor(eg_name = "", comp_name = "", columns = []) {
-    this.name = eg_name;
-    this.comp = comp_name;
-    this.columns = columns;
-    this.rows = this.#AsRows();
-  }
-
-  /**
-   * Creates a Template object from a JSON version of Template
-   * @param {Template} json
-   */
-  static FromJson(json) {
-
-    let templ = Object.assign(new Template(), json);
+  static FromJson(json: any): TemplateData {
+    let templ = Object.assign({}, this.DefaultTemplate(), json);
     templ.columns = [];
 
-    if (json.columns !== undefined)
-      json.columns.forEach((col) => {
-        templ.columns.push(Column.FromJson(col));
+    if (json.columns !== undefined) {
+      json.columns.forEach((col: any) => {
+        templ.columns.push(ColumnHelper.FromJson(col));
       });
+    }
 
-    templ.rows = templ.#AsRows();
-
+    templ.rows = this.AsRows(templ);
     return templ;
   }
 
-  static MakeCopy(template: Template) {
-    return Template.FromJson(structuredClone(template));
-  }
+  static Update(tmpl: TemplateData, new_template: TemplateData) {
+    tmpl.name = new_template.name;
 
-
-
-  /**
-   * Updates the columns stored in settings with the new template retrieved from the host
-   * @param {Template} new_template
-   */
-  Update(new_template) {
-    this.name = new_template.name;
-
-    //Find the columns that are in the new template but not in the old one
     let new_cols = new_template.columns.filter((new_col) => {
-      return !this.columns.some(
-        (old_col) => old_col.cont_name === new_col.cont_name
-      );
+      return !tmpl.columns.some((old_col) => old_col.cont_name === new_col.cont_name);
     });
 
-    //Add the new columns to the template
     new_cols.forEach((new_col) => {
+      let base_val = new_col.values[0] || ColumnHelper.ValidateValue("", new_col.type);
 
-      //Fill the new column with empty values
-      //Not using fill() method because it copies the objects by reference
-
-      let base_val = new_col.values[0] || Column.ValidateValue("", new_col.type);
-
-      new_col.values = new Array(this.rows.length);
-      this.rows.forEach((row, i) => {
+      new_col.values = new Array(tmpl.rows.length);
+      tmpl.rows.forEach((row, i) => {
         new_col.values[i] = Object.assign({}, base_val);
       });
 
-      this.columns.push(new_col);
-
-      //Add to the table view
-      this.table_cols.push(this.columns.indexOf(new_col));
+      tmpl.columns.push(new_col);
+      tmpl.table_cols.push(tmpl.columns.indexOf(new_col));
     });
 
-    //Find the columns that are in the old template but not in the new one
-    let old_cols = this.columns.filter((old_col) => {
-      return !new_template.columns.some(
-        (new_col) => new_col.cont_name === old_col.cont_name
-      );
+    let old_cols = tmpl.columns.filter((old_col) => {
+      return !new_template.columns.some((new_col) => new_col.cont_name === old_col.cont_name);
     });
 
-    //Delete the old columns from the template
     old_cols.forEach((old_col) => {
-      this.columns.splice(this.columns.indexOf(old_col), 1);
+      tmpl.columns.splice(tmpl.columns.indexOf(old_col), 1);
     });
 
-    //find the columns that are in both templates
-    let same_cols = this.columns.filter((old_col) => {
-      return new_template.columns.some(
-        (new_col) => new_col.cont_name === old_col.cont_name
-      );
+    let same_cols = tmpl.columns.filter((old_col) => {
+      return new_template.columns.some((new_col) => new_col.cont_name === old_col.cont_name);
     });
 
-    //Update the existing columns with the new data
     same_cols.forEach((old_col) => {
-      let new_col = new_template.columns.find(
-        (new_col) => new_col.cont_name === old_col.cont_name
-      );
-      old_col.Update(new_col);
+      let new_col = new_template.columns.find((new_col) => new_col.cont_name === old_col.cont_name);
+      if(new_col) ColumnHelper.Update(old_col, new_col);
     });
 
-    //Make sure that the table view columns are referencing an existing column
-    this.table_cols = this.table_cols.filter((col_i) => {
-      return this.columns[col_i] !== undefined;
+    tmpl.table_cols = tmpl.table_cols.filter((col_i) => {
+      return tmpl.columns[col_i] !== undefined;
     });
 
-    this.rows = this.#AsRows();
-
-    //this.UpdateDependantComps(new_template.dep_comps);
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  /** Updates the dependant comps of the template and the settings associated with them */
-  CleanupDependantComps(all_comps: Comp[]) {
-
-    //Check current dependant comps against all comps to remove references to comps that no longer exist
-    this.dep_comps = this.dep_comps.filter((dc) => {
+  static CleanupDependantComps(tmpl: TemplateData, all_comps: Comp[]) {
+    tmpl.dep_comps = tmpl.dep_comps.filter((dc) => {
       return all_comps.some((comp) => comp.id === dc.id);
     });
 
-    for (let i_conf in this.dep_config) {
-      //Delete stray dep config settings that are not in the new dependant comps
-      if (!this.dep_comps.some((dep_comp) => dep_comp.id === this.dep_config[i_conf].id)) {
-        console.log("Deleting stray settings for comp", this.dep_config[i_conf].id);
-        delete this.dep_config[i_conf];
+    for (let i_conf in tmpl.dep_config) {
+      if (!tmpl.dep_comps.some((dep_comp) => dep_comp.id === tmpl.dep_config[i_conf].id)) {
+        console.log("Deleting stray settings for comp", tmpl.dep_config[i_conf].id);
+        delete tmpl.dep_config[i_conf];
       }
     }
   }
 
-  /** We call a dependant composition one that contains a layer with the composition referenced by this template */
-  AddDependantComp(comp: Comp, render_templs: RenderSettsResults) {
-
-
-    //find the last dep comp tha was aded to the list so we add the new one with the same settings
+  static AddDependantComp(tmpl: TemplateData, comp: Comp, render_templs: RenderSettsResults) {
     let last_dep_comp_setts: DepCompSetts | null = null;
-    if (this.dep_comps.length > 0) {
-      let last_dep_comp = this.dep_comps[this.dep_comps.length - 1];
-      last_dep_comp_setts = this.dep_config[last_dep_comp.id];
+    if (tmpl.dep_comps.length > 0) {
+      let last_dep_comp = tmpl.dep_comps[tmpl.dep_comps.length - 1];
+      last_dep_comp_setts = tmpl.dep_config[last_dep_comp.id];
     }
 
-    this.dep_comps.push(comp);
+    tmpl.dep_comps.push(comp);
     
-    //Add the new composition to the settings with id as key
     if (last_dep_comp_setts !== null) {
-      //Copy the settings from the last dep comp
-      this.dep_config[comp.id.toString()] = {
+      tmpl.dep_config[comp.id.toString()] = {
         ...structuredClone(last_dep_comp_setts),
         id: comp.id,
         name: comp.name,
         enabled: true,
       };
-
     } else {
-      this.dep_config[comp.id.toString()] = {
+      tmpl.dep_config[comp.id.toString()] = {
         id: comp.id,
         name: comp.name,
         enabled: true,
@@ -343,246 +276,210 @@ class Template {
         save_path: "",
         save_paths: [],
       };
-
-      this.ResolveSavePathFirstDeps(0);
+      this.ResolveSavePathFirstDeps(tmpl, 0);
     }
   }
 
-  RemoveDependantComp(id: string) {
-    this.dep_comps = this.dep_comps.filter((dc) => dc.id !== id);
-    delete this.dep_config[id];
+  static RemoveDependantComp(tmpl: TemplateData, id: string) {
+    tmpl.dep_comps = tmpl.dep_comps.filter((dc) => dc.id !== id);
+    delete tmpl.dep_config[id];
   }
 
-  /** Adds all columns to the table view, when the template is opened for the first time */
-  InitTableColumns() {
-    this.table_cols = [];
-    for (let col of this.columns) {
-      this.table_cols.push(this.columns.indexOf(col));
+  static InitTableColumns(tmpl: TemplateData) {
+    tmpl.table_cols = [];
+    for (let col of tmpl.columns) {
+      tmpl.table_cols.push(tmpl.columns.indexOf(col));
     }
-    this.rows = this.#AsRows();
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  /** Resolves the save path for the render of a given row */
-  ResolveSavePath(pattern, index, comp_name?: string) {
-    pattern = pattern.replaceAll("{base_path}", this.base_path);
-    pattern = pattern.replaceAll("{row_number}", index);
-    pattern = pattern.replaceAll("{template_name}", this.name);
-    pattern = pattern.replaceAll("{comp_name}", comp_name || this.comp);
+  static ResolveSavePath(tmpl: TemplateData, pattern: string, index: number, comp_name?: string): string {
+    pattern = pattern.replaceAll("{base_path}", tmpl.base_path);
+    pattern = pattern.replaceAll("{row_number}", index.toString());
+    pattern = pattern.replaceAll("{template_name}", tmpl.name);
+    pattern = pattern.replaceAll("{comp_name}", comp_name || tmpl.comp);
 
-    //Replace the increment pattern
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
-
       let incr_str = incr.toString().padStart(p1.length, "0");
-
-      //cero fill the increment
       return incr_str;
     });
 
-    for (let i_col in this.columns) {
+    for (let i_col in tmpl.columns) {
       pattern = pattern.replaceAll(
-        `{${this.columns[i_col].cont_name}}`,
-        this.columns[i_col].values[index]
+        `{${tmpl.columns[i_col].cont_name}}`,
+        tmpl.columns[i_col].values[index]
       );
     }
     return pattern;
   }
 
-  ResolveSavePaths() {
-    this.save_paths = [];
-    for (let i = 0; i < this.rows.length; i++) {
-      this.save_paths.push(this.ResolveSavePath(this.save_pattern, i));
+  static ResolveSavePaths(tmpl: TemplateData) {
+    tmpl.save_paths = [];
+    for (let i = 0; i < tmpl.rows.length; i++) {
+      tmpl.save_paths.push(this.ResolveSavePath(tmpl, tmpl.save_pattern, i));
     }
   }
 
-  /** Resolve the first save path of dependant compositions on dependant output mode */
-  ResolveSavePathFirstDeps(index) {
-
+  static ResolveSavePathFirstDeps(tmpl: TemplateData, index: number) {
     console.log("Resolving sample save path for dependant comps", index);
 
-    for (let dc in this.dep_config) {
-      let dep_setts = this.dep_config[dc];
+    for (let dc in tmpl.dep_config) {
+      let dep_setts = tmpl.dep_config[dc];
 
       console.log("Resolving save path for dependant comp", dep_setts.id);
       console.log("Current save path", dep_setts.save_pattern);
-      dep_setts.save_path = this.ResolveSavePath(dep_setts.save_pattern, index, dep_setts.name);
+      dep_setts.save_path = this.ResolveSavePath(tmpl, dep_setts.save_pattern, index, dep_setts.name);
     }
   }
 
-
-  /**Resolve the save paths of dependant compositions on dependant mode */
-  ResolveSavePathDeps() {
-
+  static ResolveSavePathDeps(tmpl: TemplateData) {
     console.log("Resolving save paths for all rows of dependant comps");
 
-    for (let dc in this.dep_config) {
-      let dep_setts = this.dep_config[dc];
+    for (let dc in tmpl.dep_config) {
+      let dep_setts = tmpl.dep_config[dc];
 
       console.log("Resolving save path for dependant comp", dep_setts.id);
       console.log("Current save path", dep_setts.save_pattern);
       dep_setts.save_paths = [];
 
-      for (let row_i in this.rows) {
-        dep_setts.save_paths.push(this.ResolveSavePath(dep_setts.save_pattern, row_i, dep_setts.name));
+      for (let row_i = 0; row_i < tmpl.rows.length; row_i++) {
+        dep_setts.save_paths.push(this.ResolveSavePath(tmpl, dep_setts.save_pattern, row_i, dep_setts.name));
       }
     }
   }
 
+  static ResolveCompName(tmpl: TemplateData, pattern: string, index: number): string {
+    pattern = pattern.replace("{row_number}", index.toString());
+    pattern = pattern.replace("{template_name}", tmpl.name);
 
-  /** When generating comps, this pattern is used for the names */
-  ResolveCompName(pattern, index) {
-    pattern = pattern.replace("{row_number}", index);
-    pattern = pattern.replace("{template_name}", this.name);
-
-    //Replace the increment pattern
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
-
       let incr_str = incr.toString().padStart(p1.length, "0");
-
-      //cero fill the increment
       return incr_str;
     });
 
-    for (let i_col in this.columns) {
+    for (let i_col in tmpl.columns) {
       pattern = pattern.replace(
-        `{${this.columns[i_col].cont_name}}`,
-        this.columns[i_col].values[index]
+        `{${tmpl.columns[i_col].cont_name}}`,
+        tmpl.columns[i_col].values[index]
       );
     }
     return pattern;
   }
 
-  ResolveCompsNames() {
-    this.generate_names = [];
-    for (let i = 0; i < this.rows.length; i++) {
-      this.generate_names.push(this.ResolveCompName(this.generate_pattern, i));
+  static ResolveCompsNames(tmpl: TemplateData) {
+    tmpl.generate_names = [];
+    for (let i = 0; i < tmpl.rows.length; i++) {
+      tmpl.generate_names.push(this.ResolveCompName(tmpl, tmpl.generate_pattern, i));
     }
   }
 
-  /** Resolves the path for the alternate source for a given row
-   * Alternate sources are the name we give to the footage we import to fulfill a replaceable
-   */
-  ResolveAltSrcPaths() {
-    this.NormalizeRows();
-    this.columns.forEach((col) => {
-      if (col.type === Column.PropertyValueType.SRC_ALTERNATE) {
-        col.ResolveColumnAltSrcPaths(this.columns);
+  static ResolveAltSrcPaths(tmpl: TemplateData) {
+    this.NormalizeRows(tmpl);
+    tmpl.columns.forEach((col) => {
+      if (col.type === ColumnHelper.PropertyValueType.SRC_ALTERNATE) {
+        ColumnHelper.ResolveColumnAltSrcPaths(col, tmpl.columns);
       }
     });
-    this.rows = this.#AsRows();
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  ResolveAltSrcPathsRow(index) {
-    this.NormalizeRows();
-    this.columns.forEach((col) => {
-      if (col.type === Column.PropertyValueType.SRC_ALTERNATE) {
-        col.ResolveColumnAltSrcPathsRow(index, this.columns);
+  static ResolveAltSrcPathsRow(tmpl: TemplateData, index: number) {
+    this.NormalizeRows(tmpl);
+    tmpl.columns.forEach((col) => {
+      if (col.type === ColumnHelper.PropertyValueType.SRC_ALTERNATE) {
+        ColumnHelper.ResolveColumnAltSrcPathsRow(col, index, tmpl.columns);
       }
     });
-    this.rows = this.#AsRows();
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  AddRow() {
-    let last_row = this.#AsRows().pop();
+  static AddRow(tmpl: TemplateData) {
+    let last_row = this.AsRows(tmpl).pop();
 
-    for (let col in this.columns) {
-      this.columns[col].values.push(
+    for (let col in tmpl.columns) {
+      tmpl.columns[col].values.push(
         last_row === undefined ?
-          Column.ValidateValue("", this.columns[col].type)
-          : Column.ValidateValue(last_row[col], this.columns[col].type)
+          ColumnHelper.ValidateValue("", tmpl.columns[col].type)
+          : ColumnHelper.ValidateValue(last_row[Number(col)], tmpl.columns[col].type)
       );
     }
 
-    this.rows = this.#AsRows();
-    this.ResolveAltSrcPaths();
-    this.columns = this.columns;
+    tmpl.rows = this.AsRows(tmpl);
+    this.ResolveAltSrcPaths(tmpl);
   }
 
-  AddRowAfter(index) {
-    //Check if row index is valid
-    if (this.rows.length === 0) {
-      this.AddRow();
+  static AddRowAfter(tmpl: TemplateData, index: number) {
+    if (tmpl.rows.length === 0) {
+      this.AddRow(tmpl);
       return;
-    } else
-      if (index < 0 || index >= this.rows.length) {
-        console.warn("AddRowAfter: Invalid row index", index);
-        return;
-      }
+    } else if (index < 0 || index >= tmpl.rows.length) {
+      console.warn("AddRowAfter: Invalid row index", index);
+      return;
+    }
 
-    //Row data to copy
-    let row_data = this.#AsRows()[index];
+    let row_data = this.AsRows(tmpl)[index];
 
-    for (let col in this.columns) {
-      this.columns[col].values.splice(
+    for (let col in tmpl.columns) {
+      tmpl.columns[col].values.splice(
         index + 1,
         0,
-        Column.ValidateValue(row_data[col], this.columns[col].type)
+        ColumnHelper.ValidateValue(row_data[Number(col)], tmpl.columns[col].type)
       );
     }
-    this.rows = this.#AsRows();
-    this.ResolveAltSrcPaths();
+    tmpl.rows = this.AsRows(tmpl);
+    this.ResolveAltSrcPaths(tmpl);
   }
 
-  AddRowBefore(index) {
-    if (this.rows.length === 0) {
-      this.AddRow();
+  static AddRowBefore(tmpl: TemplateData, index: number) {
+    if (tmpl.rows.length === 0) {
+      this.AddRow(tmpl);
       return;
-    } else
-      //Check if row index is valid
-      if (index < 0 || index >= this.rows.length) {
-        console.warn("AddRowBefore: Invalid row index", index);
-        return;
-      }
+    } else if (index < 0 || index >= tmpl.rows.length) {
+      console.warn("AddRowBefore: Invalid row index", index);
+      return;
+    }
 
-    //Row data to copy
-    let row_data = this.#AsRows()[index];
+    let row_data = this.AsRows(tmpl)[index];
 
-    for (let col in this.columns) {
-      this.columns[col].values.splice(
+    for (let col in tmpl.columns) {
+      tmpl.columns[col].values.splice(
         index,
         0,
-        Column.ValidateValue(row_data[col], this.columns[col].type)
+        ColumnHelper.ValidateValue(row_data[Number(col)], tmpl.columns[col].type)
       );
     }
 
-    this.rows = this.#AsRows();
-    this.ResolveAltSrcPaths();
+    tmpl.rows = this.AsRows(tmpl);
+    this.ResolveAltSrcPaths(tmpl);
   }
 
-  /**
-   * Adds a column to the UI table
-   * It doesn't add a column to the template
-   */
-  AddColumn() {
-    this.table_cols.push(0);
-  }
-  /**
-   * Deletes a column from the UI table
-   * It doesn't delete a column from the template
-   */
-  DeleteColumn(index) {
-    this.table_cols.splice(index, 1);
+  static AddColumn(tmpl: TemplateData) {
+    tmpl.table_cols.push(0);
   }
 
-  DeleteRow(index) {
-    this.columns.forEach((col) => {
+  static DeleteColumn(tmpl: TemplateData, index: number) {
+    tmpl.table_cols.splice(index, 1);
+  }
+
+  static DeleteRow(tmpl: TemplateData, index: number) {
+    tmpl.columns.forEach((col) => {
       col.values.splice(index, 1);
     });
 
-    this.ResolveAltSrcPaths();
-    this.rows = this.#AsRows();
+    this.ResolveAltSrcPaths(tmpl);
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  /** Converts the array of `Column` objects to a 2D array of strings that represents the data */
-  #AsRows() {
-    this.NormalizeRows();
+  static AsRows(tmpl: TemplateData): any[][] {
+    this.NormalizeRows(tmpl);
 
-    let rows = [];
-    this.columns.forEach((col, i) => {
+    let rows: any[][] = [];
+    tmpl.columns.forEach((col, i) => {
       col.values.forEach((val, j) => {
         if (rows[j] === undefined) {
-          rows[j] = {};
+          rows[j] = [];
         }
 
         rows[j][i] = val;
@@ -591,88 +488,70 @@ class Template {
     return rows;
   }
 
-  /**
-   * Checks that all the columns have the same number of rows (values)
-   */
-  NormalizeRows() {
+  static NormalizeRows(tmpl: TemplateData) {
     let max = 0;
-    this.columns.forEach((col) => {
+    tmpl.columns.forEach((col) => {
       if (col.values.length > max) {
         max = col.values.length;
       }
     });
 
-    this.columns.forEach((col) => {
+    tmpl.columns.forEach((col) => {
       while (col.values.length < max) {
         col.values.push("");
       }
     });
   }
 
-  UpdateRows() {
-    this.rows = this.#AsRows();
+  static UpdateRows(tmpl: TemplateData) {
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  /**
-   * Loads the template from a CSV file
-   * @param {string} csv
-   */
-  LoadFromCSV(csv) {
-
+  static LoadFromCSV(tmpl: TemplateData, csv: string) {
     if (!csv || csv.trim() === "") return;
 
-    let csv_rows = papa.parse(csv, { skipEmptyLines: true }).data;
+    let csv_rows = papa.parse(csv, { skipEmptyLines: true }).data as any[][];
 
     if (csv_rows.length === 0) return;
 
-    //Try to match the header with the columns
     let header: any[] = csv_rows.shift() as any[];
 
-    this.columns.forEach((tmpl_col) => {
+    tmpl.columns.forEach((tmpl_col) => {
       let col_i = header.indexOf(tmpl_col.cont_name);
 
       if (col_i < 0) return;
 
       tmpl_col.values = csv_rows.map((csv_row) => {
         if (csv_row[col_i] === undefined) return null;
-        return Column.ValidateValue(csv_row[col_i], tmpl_col.type);
+        return ColumnHelper.ValidateValue(csv_row[col_i], tmpl_col.type);
       });
-
     });
 
-    this.ResolveAltSrcPaths();
-    this.ResolveCompsNames();
-
-    this.rows = this.#AsRows();
+    this.ResolveAltSrcPaths(tmpl);
+    this.ResolveCompsNames(tmpl);
+    tmpl.rows = this.AsRows(tmpl);
   }
 
-  MakeCSV() {
-    this.rows = this.#AsRows();
+  static MakeCSV(tmpl: TemplateData) {
+    tmpl.rows = this.AsRows(tmpl);
 
-    let cols = [];
-    this.columns.forEach((col) => {
+    let cols: string[] = [];
+    tmpl.columns.forEach((col) => {
       cols.push(col.cont_name);
     });
 
     let headers = papa.unparse([cols]);
-    let csv = papa.unparse(this.rows, {
+    let csv = papa.unparse(tmpl.rows, {
       header: false,
     });
 
     return headers + "\r\n" + csv;
   }
 
-  /**
-   * @param {GetCurrentValuesResults} data
-   * @param {number} row_i
-   */
-  CopyValuesFromPreview(data, row_i) {
-    //Match columns by name
-    this.columns.forEach((col) => {
-      let tmpl_col = data.values.find((val) => val.name === col.cont_name);
+  static CopyValuesFromPreview(tmpl: TemplateData, data: any, row_i: number) {
+    tmpl.columns.forEach((col) => {
+      let tmpl_col = data.values.find((val: any) => val.name === col.cont_name);
 
-      //TODO: Ignoring text documents because After Effects is returning the value of the original template comp and not the current value;
-      // This seems to be fixed
       if (tmpl_col !== undefined && col.type) {
         col.values[row_i] = tmpl_col.value;
       }
@@ -680,64 +559,46 @@ class Template {
   }
 }
 
-/**
- * Represents a 'controller' in the Essential Graphics panel.
- * In the UI this is represented as a column. Each row will become an individual render or a generated comp.
- */
-class Column {
-  constructor(name = "", values = []) {
-    this.cont_name = name;
-    this.values = values;
-    this.type = Column.PropertyValueType.TEXT_DOCUMENT;
+export class ColumnHelper {
+  static get PropertyValueType() {
+    return {
+      COLOR: 6418,
+      CUSTOM_VALUE: 6419,
+      LAYER_INDEX: 6421,
+      MARKER: 6420,
+      MASK_INDEX: 6422,
+      NO_VALUE: 6412,
+      OneD: 6417,
+      SHAPE: 6423,
+      TEXT_DOCUMENT: 6424,
+      ThreeD: 6414,
+      ThreeD_SPATIAL: 6413,
+      TwoD: 6416,
+      TwoD_SPATIAL: 6415,
+      SRC_ALTERNATE: 9001,
+    };
   }
 
-  /**
-   * Controller name assigned in the Essential Graphics panel
-   * @type {string}
-   */
-  cont_name;
+  static DefaultColumn(name = "", values: any[] = []): ColumnData {
+    return {
+      cont_name: name,
+      type: this.PropertyValueType.TEXT_DOCUMENT,
+      values: values,
+      menu_params: [],
+      alt_src_pattern: "",
+      alt_src_base: "",
+    };
+  }
 
-  /**
-   * Type of the controller/property/column
-   * @type {PropTypeType}
-   */
-  type;
+  static ResolveAltSrcPath(col: ColumnData, index: number, columns: ColumnData[]): string {
+    let pattern = col.alt_src_pattern;
 
-  values = [];
-
-  /**
-   * If the property/controller is a dropdown menu, these are the options
-   * TODO: Currently not implemented/ we don't seem to have a wat to get the menu items
-   * @type {string[]}
-   */
-  menu_params = [];
-
-  /**
-   * If the property is of type alternate source, this pattern determines the path of the alternate source
-   * @type {string}
-   */
-  alt_src_pattern = "";
-
-  alt_src_base = "";
-
-  /**
-   * Resolves the path for the alternate source for a given row
-   * @param {number} index
-   * @param {Column[]} columns
-   */
-  ResolveAltSrcPath(index, columns) {
-    let pattern = this.alt_src_pattern;
-
-    pattern = pattern.replace("{base_path}", this.alt_src_base);
+    pattern = pattern.replace("{base_path}", col.alt_src_base);
     pattern = pattern.replace("{row_number}", index.toString());
 
-    //Replace the increment pattern
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
-
       let incr_str = incr.toString().padStart(p1.length, "0");
-
-      //cero fill the increment
       return incr_str;
     });
 
@@ -750,57 +611,44 @@ class Column {
     return pattern;
   }
 
-  ResolveColumnAltSrcPaths(columns: Column[]) {
-    let row_count = this.values.length;
+  static ResolveColumnAltSrcPaths(col: ColumnData, columns: ColumnData[]) {
+    let row_count = col.values.length;
+    let old_values = col.values;
 
-    let old_values = this.values;
-
-    this.values = [];
+    col.values = [];
     for (let i = 0; i < row_count; i++) {
-      if (!old_values[i].startsWith("<b>"))
-        this.values.push(this.ResolveAltSrcPath(i, columns));
+      if (typeof old_values[i] === "string" && !old_values[i].startsWith("<b>"))
+        col.values.push(this.ResolveAltSrcPath(col, i, columns));
       else
-        this.values.push(old_values[i]);
+        col.values.push(old_values[i]);
     }
   }
 
-  ResolveColumnAltSrcPathsRow(index, columns: Column[]) {
-    if (!this.values[index].startsWith("<b>"))
-      this.values[index] = this.ResolveAltSrcPath(index, columns);
+  static ResolveColumnAltSrcPathsRow(col: ColumnData, index: number, columns: ColumnData[]) {
+    if (typeof col.values[index] === "string" && !col.values[index].startsWith("<b>"))
+      col.values[index] = this.ResolveAltSrcPath(col, index, columns);
   }
 
-  /**
-   * Creates a Column object from a JSON version of Column
-   * @param {Column} json
-   */
-  static FromJson(json) {
-    return Object.assign(new Column(), json);
+  static FromJson(json: any): ColumnData {
+    return Object.assign({}, this.DefaultColumn(), json);
   }
 
-  /**
-   * Updates the current column with the new one keeping the values
-   *  unless the type is different.
-   * @param {Column} new_col
-   */
-  Update(new_col) {
-    //Check if the column is the same type, otherwise reset the values
-    if (this.type !== new_col.type) {
-      this.type = new_col.type;
-
-      //todo fill with values of type
-      this.values = new Array(this.values.length).fill("");
+  static Update(col: ColumnData, new_col: ColumnData) {
+    if (col.type !== new_col.type) {
+      col.type = new_col.type;
+      col.values = new Array(col.values.length).fill("");
     }
   }
 
-  static ValidateValue(value, type) {
+  static ValidateValue(value: any, type: number) {
     switch (type) {
-      case Column.PropertyValueType.TEXT_DOCUMENT:
+      case this.PropertyValueType.TEXT_DOCUMENT:
         if (value === undefined || typeof value !== "string") {
           value = "";
         }
         break;
 
-      case Column.PropertyValueType.OneD:
+      case this.PropertyValueType.OneD:
         if (value === undefined || typeof value !== "number") {
           try {
             value = parseFloat(value);
@@ -810,17 +658,17 @@ class Column {
         }
         break;
 
-      case Column.PropertyValueType.TwoD:
-      case Column.PropertyValueType.TwoD_SPATIAL:
+      case this.PropertyValueType.TwoD:
+      case this.PropertyValueType.TwoD_SPATIAL:
         value = this.ValidateArray(value, 2);
         break;
 
-      case Column.PropertyValueType.ThreeD:
-      case Column.PropertyValueType.ThreeD_SPATIAL:
+      case this.PropertyValueType.ThreeD:
+      case this.PropertyValueType.ThreeD_SPATIAL:
         value = this.ValidateArray(value, 3);
         break;
 
-      case Column.PropertyValueType.COLOR:
+      case this.PropertyValueType.COLOR:
         value = this.ValidateArray(value, 4);
         break;
     }
@@ -828,7 +676,7 @@ class Column {
     return value;
   }
 
-  static ValidateArray(value, length) {
+  static ValidateArray(value: any, length: number) {
     if (value === undefined) {
       return new Array(length).fill(0);
     } else if (
@@ -852,30 +700,9 @@ class Column {
     }
     return value;
   }
-
-  /**
-   * @typedef {number} PropTypeType
-   * @enum {PropTypeType}
-   */
-  static PropertyValueType = {
-    COLOR: 6418,
-    CUSTOM_VALUE: 6419,
-    LAYER_INDEX: 6421,
-    MARKER: 6420,
-    MASK_INDEX: 6422,
-    NO_VALUE: 6412,
-    OneD: 6417,
-    SHAPE: 6423,
-    TEXT_DOCUMENT: 6424,
-    ThreeD: 6414,
-    ThreeD_SPATIAL: 6413,
-    TwoD: 6416,
-    TwoD_SPATIAL: 6415,
-    SRC_ALTERNATE: 9001,
-  };
 }
 
-type Comp = {
+export type Comp = {
   name: string;
   id: string;
 }
@@ -883,7 +710,7 @@ type Comp = {
 /**
  * Settings for the dependant compositions
  */
-type DepCompSetts = {
+export type DepCompSetts = {
   id: string;
   name: string;
   enabled: boolean;
@@ -894,16 +721,16 @@ type DepCompSetts = {
   save_paths: string[];
 }
 
-const enum OutMode {
+export const enum OutMode {
   Render = "render",
   Generate = "generate",
   Dependant = "dependant",
 }
 
-const enum Tabs {
+export const enum Tabs {
   Data = "data",
   Output = "output",
   Settings = "settings",
 }
 
-export { Settings, Template, Column, type Comp, type DepCompSetts, OutMode, Tabs };
+

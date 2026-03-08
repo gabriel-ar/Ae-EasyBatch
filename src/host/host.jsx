@@ -10,24 +10,26 @@ Internal use functions are prefixed with an underscore `_`.
 //@include "json2.js"
 //script EasyBatch
 
+
 /**
- * @typedef {import('../src/lib/Settings').Settings} Settings
- * @typedef {import('../src/lib/Settings').Template} Template
- * @typedef {import('../src/lib/Settings').Column} Column
- * @typedef {import('../src/lib/Settings').Comp} Comp
- * @typedef {import('../src/lib/Settings').DepCompSetts} DepCompSetts
- * @typedef {import('../src/lib/Messaging').GetSettsResult} GetSettsResult
- * @typedef {import('../src/lib/Messaging').GetAllCompsResult} GetAllCompsResult
- * @typedef {import('../src/lib/Messaging').GetSelectedCompsResult} GetSelectedCompsResult
- * @typedef {import('../src/lib/Messaging').SaveSettingsResults} SaveSettingsResults
- * @typedef {import('../src/lib/Messaging').BatchRenderResult} BatchRenderResult
- * @typedef {import('../src/lib/Messaging').RenderSettsResults} RenderSettsResults
- * @typedef {import('../src/lib/Messaging').BatchGenerateResult} BatchGenerateResult
- * @typedef {import('../src/lib/Messaging').GetCurrentValuesResults} GetCurrentValuesResults
- * @typedef {import('../src/lib/Messaging').GetTmplsResult} GetTmplsResult
- * @typedef {import('../src/lib/Messaging').PreviewRowResult} PreviewRowResult
- * @typedef {import('../src/lib/Messaging').SaveSettsRequest} SaveSettsRequest
- * @typedef {import('../src/lib/Messaging').IsSameProjectResult} IsSameProjectResult
+ * @typedef {import('../lib/Settings').ProjSettings} ProjSettings
+ * @typedef {import('../lib/Settings').ProjData} ProjData
+ * @typedef {import('../lib/Settings').TemplateData} TemplateData
+ * @typedef {import('../lib/Settings').ColumnData} ColumnData
+ * @typedef {import('../lib/Settings').Comp} Comp
+ * @typedef {import('../lib/Settings').DepCompSetts} DepCompSetts
+ * @typedef {import('../lib/Messaging').GetSettsResult} GetSettsResult
+ * @typedef {import('../lib/Messaging').GetAllCompsResult} GetAllCompsResult
+ * @typedef {import('../lib/Messaging').GetSelectedCompsResult} GetSelectedCompsResult
+ * @typedef {import('../lib/Messaging').SaveSettingsResults} SaveSettingsResults
+ * @typedef {import('../lib/Messaging').BatchRenderResult} BatchRenderResult
+ * @typedef {import('../lib/Messaging').RenderSettsResults} RenderSettsResults
+ * @typedef {import('../lib/Messaging').BatchGenerateResult} BatchGenerateResult
+ * @typedef {import('../lib/Messaging').GetCurrentValuesResults} GetCurrentValuesResults
+ * @typedef {import('../lib/Messaging').GetTmplsResult} GetTmplsResult
+ * @typedef {import('../lib/Messaging').PreviewRowResult} PreviewRowResult
+ * @typedef {import('../lib/Messaging').SaveSettsRequest} SaveSettsRequest
+ * @typedef {import('../lib/Messaging').IsSameProjectResult} IsSameProjectResult
  */
 
 function _HasTemplates() {
@@ -53,7 +55,7 @@ function GetTemplates() {
   var result = {};
 
   /**
-   * @type {Template[]}}
+   * @type {TemplateData[]}}
    */
   var out_tmpls = [];
 
@@ -66,10 +68,10 @@ function GetTemplates() {
         templ_comp instanceof CompItem &&
         templ_comp.motionGraphicsTemplateControllerCount > 0
       ) {
-        /**
-         * Extract the controllers from the template / called columns in the app
-         * @type {Column[]}}
-         */
+  /**
+   * Extract the controllers from the template / called columns in the app
+   * @type {ColumnData[]}}
+   */
         var cols = [];
 
         //Place the template composition inside the render comp to extract the controllers though the essential properties
@@ -95,7 +97,7 @@ function GetTemplates() {
             val = templ_prop.value.text;
           } else if (templ_prop.canSetAlternateSource && templ_prop.matchName === "ADBE Layer Source Alternate") {
             t_type = 9001; //Custom type for replaceable sources, the client will handle it accordingly
-          } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE 
+          } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE
             && templ_prop.matchName !== "ADBE Layer Overrides Comment") {
             val = templ_prop.value;
           }
@@ -125,7 +127,7 @@ function GetTemplates() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetTemplates";
+    result.error_obj.source = "host.jsx @ GetTemplates";
     return JSON.stringify(result);
   }
 }
@@ -184,7 +186,7 @@ function GetAllComps(used_in_id) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetAllComps";
+    result.error_obj.source = "host.jsx @ GetAllComps";
   }
 
   return JSON.stringify(result);
@@ -213,7 +215,7 @@ function GetSelectedComps() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetSelectedComps";
+    result.error_obj.source = "host.jsx @ GetSelectedComps";
   }
 
   return JSON.stringify(result);
@@ -232,9 +234,9 @@ function _SettingsExist() {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var uri = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(xmp, "AUTOMATOR_DATA", XMPConst.STRING);
+    var prop = mdata.getProperty(uri, "ProjectData", XMPConst.STRING);
 
     if (prop === undefined || prop.value === undefined) {
       return false;
@@ -251,30 +253,25 @@ function _SettingsId() {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var uri = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(xmp, "AUTOMATOR_DATA", XMPConst.STRING);
+    var prop = mdata.getProperty(uri, "ProjectData", XMPConst.STRING);
 
     if (prop === undefined || prop.value === undefined) {
-      not_found = true;
-      throw new ResponseError("No settings found in the project", {
-        not_found: true,
-      });
+      return null;
     }
 
-    var data = prop.value;
-
-    /**@type {Settings} */
-    var setts = JSON.parse(data);
-    return setts.id;
+  /**@type {ProjData} */
+  var ProjData = JSON.parse(prop.value);
+    return ProjData.id;
   } catch (e) {
     return null;
   }
 }
 
 function LoadSettings() {
-  /**@type {GetSettsResult} */
 
+  /**@type {GetSettsResult} */
   var result = {};
 
   try {
@@ -283,20 +280,20 @@ function LoadSettings() {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var xmp = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(xmp, "AUTOMATOR_DATA", XMPConst.STRING);
+    var p_proj_setts = mdata.getProperty(xmp, "ProjectSettings", XMPConst.STRING);
+    var p_proj_data = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
 
-    if (prop === undefined || prop.value === undefined) {
+    if (p_proj_setts === undefined || p_proj_setts.value === undefined) {
       not_found = true;
       throw new ResponseError("No settings found in the project", {
         not_found: true,
       });
     }
 
-    var data = prop.value;
-
-    result.setts = JSON.parse(data);
+    result.proj_data = JSON.parse(p_proj_data.value);
+    result.proj_settings = JSON.parse(p_proj_setts.value);
 
     if (app.project.file !== null) {
       result.project_name = app.project.file.name;
@@ -309,7 +306,7 @@ function LoadSettings() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ LoadSettings";
+    result.error_obj.source = "host.jsx @ LoadSettings";
   }
 
   return JSON.stringify(result);
@@ -321,12 +318,8 @@ function SaveSettings(s_request) {
   /**@type {SaveSettingsResults} */
   var response = {};
   try {
-    // load the XMPlibrary as an ExtendScript ExternalObject
-
     /** @type {SaveSettsRequest}*/
     var request = JSON.parse(s_request);
-
-    var str_setts = JSON.stringify(request.setts);
 
     //If this is the default project, we will not save the settings
     if (!_HasTemplates()) {
@@ -335,9 +328,13 @@ function SaveSettings(s_request) {
       });
     }
 
+    // load the XMPlibrary as an ExtendScript ExternalObject
+    if (ExternalObject.AdobeXMPScript === undefined) {
+      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+    }
+    
     var setts_id = _SettingsId();
-
-    if (!request.is_new && setts_id !== null && setts_id !== request.setts.id) {
+    if (!request.is_new && setts_id !== null && setts_id !== request.project_id) {
       throw new ResponseError(
         "The settings in the project have a different ID",
         {
@@ -346,13 +343,23 @@ function SaveSettings(s_request) {
       );
     }
 
-    if (ExternalObject.AdobeXMPScript === undefined) {
-      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
-    }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var uri = XMPMeta.getNamespaceURI("easybatch");
 
-    mdata.setProperty(xmp, "AUTOMATOR_DATA", str_setts, 0, XMPConst.STRING);
+    if (uri === undefined || uri === "") {
+      //Register a namespace to store our data in the XMP metadata of the project
+      XMPMeta.registerNamespace("http://easybatch.setreports.com/", "easybatch");
+      uri = XMPMeta.getNamespaceURI("easybatch");
+    }
+
+    if (request.proj_data !== undefined && request.proj_data !== null) {
+      mdata.setProperty(uri, "ProjectData", JSON.stringify(request.proj_data), 0, XMPConst.STRING);
+    }
+
+    if (request.proj_settings !== undefined && request.proj_settings !== null) {
+      mdata.setProperty(uri, "ProjectSettings", JSON.stringify(request.proj_settings), 0, XMPConst.STRING);
+    }
+
     var serialized = mdata.serialize();
     app.project.xmpPacket = serialized;
 
@@ -360,7 +367,7 @@ function SaveSettings(s_request) {
   } catch (e) {
     response.success = false;
     response.error_obj = e;
-    response.error_obj.source = "index.jsx @ SaveSettings";
+    response.error_obj.source = "host.jsx @ SaveSettings";
   }
 
   return JSON.stringify(response);
@@ -389,7 +396,7 @@ function IsSameProject(proj_id) {
   } catch (e) {
     response.success = false;
     response.error_obj = e;
-    response.error_obj.source = "index.jsx @ IsSameProject";
+    response.error_obj.source = "host.jsx @ IsSameProject";
     return JSON.stringify(response);
   }
 }
@@ -544,7 +551,7 @@ function _ResolveFootageItem(path, proj_folder) {
  * Replaces the values in the Essential Properties of a layer
  * with the values on the corresponding row of the template.
  * @param {*} layer
- * @param {Template} template
+ * @param {TemplateData} template
  * @param {number} row_i
  * @param {boolean} replace_orgs Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
  * @returns {errors[]{message: string, column: number}} List of errors found during the process
@@ -722,7 +729,7 @@ function PreviewRow(s_template, row_i, open_prev) {
 
   try {
 
-    /** @type {Template} */
+  /** @type {TemplateData} */
     var templ = JSON.parse(s_template);
 
     //Find the composition referenced by the template in the project
@@ -775,7 +782,7 @@ function PreviewRow(s_template, row_i, open_prev) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ PreviewRow";
+    result.error_obj.source = "host.jsx @ PreviewRow";
     return JSON.stringify(result);
   }
 }
@@ -796,7 +803,7 @@ function GetCurrentValues(s_template) {
     //The template composition will be loaded in our render comp
     var render_comp = _SetupTemplatePreviewComp(false);
 
-    /** @type {Template} */
+  /** @type {TemplateData} */
     var templ = JSON.parse(s_template);
 
     //Add a layer with the template composition to the render comp
@@ -841,7 +848,7 @@ function GetCurrentValues(s_template) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetCurrentValues";
+    result.error_obj.source = "host.jsx @ GetCurrentValues";
     return JSON.stringify(result);
   }
 }
@@ -888,7 +895,7 @@ function BatchRender(str_template, folder) {
   var result = { errors: [], row_results: [] };
 
   try {
-    /** @type {Template}*/
+  /** @type {TemplateData}*/
     var templ = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
@@ -965,7 +972,7 @@ function BatchRender(str_template, folder) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ BatchRender";
+    result.error_obj.source = "host.jsx @ BatchRender";
     return JSON.stringify(result);
   }
 }
@@ -976,7 +983,7 @@ function BatchGenerate(str_template) {
   var result = { errors: [] };
 
   try {
-    /** @type {Template}*/
+  /** @type {TemplateData}*/
     var tmpl_data = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
@@ -1018,7 +1025,7 @@ function BatchGenerate(str_template) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ BatchGenerate";
+    result.error_obj.source = "host.jsx @ BatchGenerate";
     return JSON.stringify(result);
   }
 }
@@ -1110,7 +1117,7 @@ function GetRenderTemplates() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetRenderTemplates";
+    result.error_obj.source = "host.jsx @ GetRenderTemplates";
   }
 
   return JSON.stringify(result);
@@ -1268,7 +1275,7 @@ function BatchRenderDepComps(str_template) {
 
     _SetGlobalCurrentPath();
 
-    /** @type {Template} */
+  /** @type {TemplateData} */
     var tmpl = JSON.parse(str_template);
 
     //Add the template composition to the render comp as a layer
@@ -1297,7 +1304,7 @@ function BatchRenderDepComps(str_template) {
   } catch (e) {
     dep_result.success = false;
     dep_result.error_obj = e;
-    dep_result.error_obj.source = "index.jsx @ BatchRenderDepComps";
+    dep_result.error_obj.source = "host.jsx @ BatchRenderDepComps";
     return JSON.stringify(dep_result);
   }
 }
@@ -1305,7 +1312,7 @@ function BatchRenderDepComps(str_template) {
 
 /**
  * Renders the dependent compositions
- * @param {Template} tmpl
+ * @param {TemplateData} tmpl
  */
 function RenderDeps(tmpl, props_layer) {
 
@@ -1382,7 +1389,10 @@ function RenderDeps(tmpl, props_layer) {
   } //loop template rows
 }
 
-// POLYFILLS //
+////////////
+//POLYFILLS
+////////////
+
 Object.create = function (o) {
   function F() { }
   F.prototype = o;
@@ -1404,7 +1414,11 @@ String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };
 
-// UTILS //
+
+/////////
+//UTILS
+/////////
+
 /**Escapes string arguments that are URI encoded */
 function _EscapeArgs(args) {
   if (!args || args.length === 0) return;
