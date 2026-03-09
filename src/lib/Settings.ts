@@ -260,7 +260,7 @@ export class TemplateHelper {
     
     if (last_dep_comp_setts !== null) {
       tmpl.dep_config[comp.id.toString()] = {
-        ...structuredClone(last_dep_comp_setts),
+        ...({...last_dep_comp_setts}),// clone the last settings to use as base for the new comp
         id: comp.id,
         name: comp.name,
         enabled: true,

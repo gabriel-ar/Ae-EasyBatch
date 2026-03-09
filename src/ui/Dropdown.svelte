@@ -64,7 +64,7 @@
   }
 
   //Update displayed options when original options or labels change
-    $effect(() => {
+  $effect(() => {
     show_options = options;
     show_labels = labels !== undefined ? labels : options;
   });

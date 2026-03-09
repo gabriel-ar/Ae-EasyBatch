@@ -63,7 +63,7 @@
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
-  import { l, s, csa} from "./ui/States.svelte.ts";
+  import { l, s, csa } from "./ui/States.svelte.ts";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
@@ -79,7 +79,7 @@
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
 
-    /**Selected template*/
+  /**Selected template*/
   let sel_tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
   //Update the log level of the logger when the settings changes
@@ -107,6 +107,8 @@
     render_setts_templs = await GetRenderSettsTempls();
 
     SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
+    GetAllComps();
+
     s.proj = l_proj;
     s.setts = l_setts;
 
@@ -188,7 +190,10 @@
   let last_p_sett_time;
   $effect(() => {
     //debug line actually triggers the effect
-    console.debug("Settings changed, scheduling save...", $state.snapshot(s.setts));
+    console.debug(
+      "Settings changed, scheduling save...",
+      $state.snapshot(s.setts),
+    );
 
     if (last_p_sett_time !== undefined) {
       clearTimeout(last_p_sett_time);
@@ -200,7 +205,10 @@
   let last_p_data_time;
   $effect(() => {
     //debug line actually triggers the effect
-    console.debug("Project data changed, scheduling save...", $state.snapshot(s.proj));
+    console.debug(
+      "Project data changed, scheduling save...",
+      $state.snapshot(s.proj),
+    );
 
     if (last_p_data_time !== undefined) {
       clearTimeout(last_p_data_time);
@@ -275,10 +283,7 @@
     if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
       //Check if there's any template selected, otherwise just select the first one
 
-      if (
-        sel_tmpl !== undefined &&
-        render_setts_templs !== undefined
-      ) {
+      if (sel_tmpl !== undefined && render_setts_templs !== undefined) {
         if (sel_tmpl.render_setts_templ == "") {
           sel_tmpl.render_setts_templ =
             render_setts_templs.render_templs[
@@ -322,7 +327,7 @@
   }
 
   async function F_Reload() {
-    let n_tmpls: any[] = await GetTemplates().catch((e) => {
+    let n_tmpls: any[] = await GetTemplates().catch((e) => {  
       l.error("F_Reload GetTemplates error:", e);
       return [];
     });
@@ -334,6 +339,7 @@
       no_tmpls = false;
     }
 
+    GetAllComps();
     render_setts_templs = await GetRenderSettsTempls();
 
     SettingsHelper.UpdateTemplates(s.proj, n_tmpls);
@@ -366,7 +372,7 @@
     sel_tmpl = sel_tmpl; //Force reactivity to update path previews
 
     //Trim the template to contain only the modified row
-    let send_templ =structuredClone($state.snapshot(sel_tmpl));
+    let send_templ = structuredClone($state.snapshot(sel_tmpl));
 
     for (let col of send_templ.columns) {
       col.values = [col.values[row_i]];
@@ -437,11 +443,7 @@
       try {
         result = JSON.parse(s_result);
 
-        TemplateHelper.CopyValuesFromPreview(
-          sel_tmpl,
-          result,
-          row_i,
-        );
+        TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
         TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
         s.proj = s.proj;
 
@@ -684,12 +686,11 @@
   //Updates the preview of the generate names based on the current generate pattern
   $effect(() => {
     if (sel_tmpl !== undefined) {
-      sel_tmpl.generate_names[0] =
-        TemplateHelper.ResolveCompName(
-          sel_tmpl,
-          sel_tmpl.generate_pattern,
-          0,
-        );
+      sel_tmpl.generate_names[0] = TemplateHelper.ResolveCompName(
+        sel_tmpl,
+        sel_tmpl.generate_pattern,
+        0,
+      );
     }
   });
 
@@ -722,19 +723,11 @@
       let comp = all_comps.find((c) => c.id === selected_comp);
 
       if (comp) {
-        TemplateHelper.AddDependantComp(
-          sel_tmpl,
-          comp,
-          render_setts_templs,
-        );
-        TemplateHelper.CleanupDependantComps(
-          sel_tmpl,
-          all_comps,
-        );
+        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
+        TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
 
         //force Svelte reactivity
-        sel_tmpl.dep_comps =
-          sel_tmpl.dep_comps;
+        sel_tmpl.dep_comps = sel_tmpl.dep_comps;
       }
     }
   }
@@ -745,28 +738,7 @@
 
       try {
         result = JSON.parse(s_result);
-
         l.debug(`Got selected Comps`, result);
-
-        for (let comp_info of result.comps) {
-          let comp = all_comps.find((c) => c.id === comp_info.id);
-
-          if (comp) {
-            TemplateHelper.AddDependantComp(
-              sel_tmpl,
-              comp,
-              render_setts_templs,
-            );
-          }
-        }
-
-        sel_tmpl.dep_comps =
-          sel_tmpl.dep_comps;
-
-        TemplateHelper.CleanupDependantComps(
-          sel_tmpl,
-          all_comps,
-        );
       } catch (e) {
         l.error("Failed to parse selected comps", s_result);
         return;
@@ -776,6 +748,20 @@
         l.error("Failed to get selected comps", result.error_obj);
         return;
       }
+
+      //Update the comps with the latest data
+      GetAllComps();
+
+      for (let comp_info of result.comps) {
+        let comp = all_comps.find((c) => c.id === comp_info.id);
+        
+        if (comp) {
+          //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
+          TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
+        }
+      }
+
+      TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
     });
   }
 
@@ -811,10 +797,8 @@
   }
 
   function AlertSrcModalClosed(base_path, pattern) {
-    sel_tmpl.columns[alt_src_modal_col].alt_src_base =
-      base_path;
-    sel_tmpl.columns[alt_src_modal_col].alt_src_pattern =
-      pattern;
+    sel_tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
+    sel_tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
 
     ColumnHelper.ResolveColumnAltSrcPaths(
       sel_tmpl.columns[alt_src_modal_col],
@@ -826,15 +810,11 @@
   function DepFilePatternModalOpen(dep_comp_id) {
     edit_dep_comp_id = dep_comp_id;
 
-    m_file_pattern.Open(
-      dep_comp_id,
-      DepFilePatternModalClosed,
-    );
+    m_file_pattern.Open(dep_comp_id, DepFilePatternModalClosed);
   }
 
   function DepFilePatternModalClosed(base_path, pattern) {
-    sel_tmpl.dep_config[edit_dep_comp_id].save_pattern =
-      pattern;
+    sel_tmpl.dep_config[edit_dep_comp_id].save_pattern = pattern;
 
     TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
   }
@@ -1090,6 +1070,8 @@
       m_message.Open(footer_txt_long, "Details");
     }
   }
+
+  console.error("HELLO");
 </script>
 
 <!-- HEADER -->
@@ -1188,11 +1170,7 @@
                         ColumnHelper.PropertyValueType.SRC_ALTERNATE,
                     }}>
                     <PropInput
-                      bind:value={
-                        sel_tmpl.columns[td_col_i].values[
-                          row_i
-                        ]
-                      }
+                      bind:value={sel_tmpl.columns[td_col_i].values[row_i]}
                       type={sel_tmpl.columns[td_col_i].type}
                       onchange={() => {
                         PreviewRow(row_i, true);
@@ -1263,11 +1241,7 @@
               <div class="dets_prop">
                 <PropInput
                   inline={false}
-                  bind:value={
-                    sel_tmpl.columns[td_col_i].values[
-                      curr_row_i
-                    ]
-                  }
+                  bind:value={sel_tmpl.columns[td_col_i].values[curr_row_i]}
                   type={sel_tmpl.columns[td_col_i].type}
                   onchange={() => {
                     PreviewRow(curr_row_i, true);
@@ -1434,8 +1408,7 @@
 
       <div class="setting">
         <span>Preview:</span>
-        <span class="out_prev"
-          >{sel_tmpl.generate_names[0]}</span>
+        <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
       </div>
 
       <div class="setting">
@@ -1529,9 +1502,7 @@
             <input
               type="checkbox"
               style="margin: 5px 5px 3px 7px;"
-              bind:checked={
-                sel_tmpl.dep_config[dc.id].enabled
-              } />
+              bind:checked={sel_tmpl.dep_config[dc.id].enabled} />
             <h4 style="display: inline;">{dc.name}</h4>
             <button
               class="delete_col"
@@ -1566,8 +1537,7 @@
                 <span>Preview:</span>
                 <span
                   style="text-overflow: ellipsis; max-width: 100%; display: inline-block;"
-                  >{sel_tmpl.dep_config[dc.id]
-                    .save_path}</span>
+                  >{sel_tmpl.dep_config[dc.id].save_path}</span>
               </div>
             </div>
 
@@ -1590,9 +1560,7 @@
                 options={render_setts_templs.render_templs.filter(
                   (templ) => !templ.startsWith("_HIDDEN"),
                 )}
-                bind:value={
-                  sel_tmpl.dep_config[dc.id].render_setts_templ
-                } />
+                bind:value={sel_tmpl.dep_config[dc.id].render_setts_templ} />
             </div>
 
             <div class="setting">
@@ -1612,8 +1580,7 @@
                   ),
                 ]}
                 bind:value={
-                  sel_tmpl.dep_config[dc.id]
-                    .render_out_module_templ
+                  sel_tmpl.dep_config[dc.id].render_out_module_templ
                 } />
             </div>
           </div>
