@@ -282,15 +282,19 @@ function LoadSettings() {
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
     var xmp = XMPMeta.getNamespaceURI("easybatch");
 
+    if (xmp === undefined || xmp === "") {
+      throw new ResponseError("No settings found in the project", { not_found: true });
+    }
+
     var p_proj_setts = mdata.getProperty(xmp, "ProjectSettings", XMPConst.STRING);
     var p_proj_data = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
 
-    if (p_proj_setts === undefined || p_proj_setts.value === undefined) {
-      not_found = true;
-      throw new ResponseError("No settings found in the project", {
-        not_found: true,
-      });
-    }
+    // if (p_proj_setts === undefined || p_proj_setts.value === undefined) {
+    //   not_found = true;
+    //   throw new ResponseError("No settings found in the project", {
+    //     not_found: true,
+    //   });
+    // }
 
     result.proj_data = JSON.parse(p_proj_data.value);
     result.proj_settings = JSON.parse(p_proj_setts.value);
@@ -568,6 +572,11 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
 
   //Loop through the properties and set the values
   for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
+
+    if(!isValid(e_props[i_prop])){
+      e_props = _FlattenPropertyGroup(layer.essentialProperty);
+    }
+
     var ess_prop = e_props[i_prop];
 
     //find the column in the template that matches the property name
