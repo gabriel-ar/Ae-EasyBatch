@@ -1,4 +1,4 @@
-import {CEFConnection, GetConnection } from '../helpers/cef-helpers';
+import { CEFConnection, GetConnection } from '../helpers/cef-helpers';
 import { test, expect } from '@playwright/test';
 import type { Page } from 'puppeteer-core';
 
@@ -10,16 +10,17 @@ import type { Page } from 'puppeteer-core';
  * - EasyBatch extension is open
  * - Test project (tests/fixtures/test-project.aep) is loaded with at least one Essential Graphics template
  */
+
+let page: Page;
+let con: CEFConnection;
+
 test.use({ trace: 'on' });
-test.describe('One to Many', async () => {
-    let page: Page;
-    let con: CEFConnection;
+test.beforeAll(async () => {
+    con = await GetConnection();
+    page = con.page!;
+});
 
-    test.beforeAll(async () => {
-        con = await GetConnection();
-        page = con.page!;
-    });
-
+test.describe('Basic Setup', async () => {
     test('should load the main UI', async () => {
         // Verify we're connected to the extension
         const appElement = await page.$('#app');
@@ -31,7 +32,7 @@ test.describe('One to Many', async () => {
         const settingsTab = await page.$('.header_tabs button::-p-text(Settings)');
         expect(settingsTab, 'has Settings tab button').toBeTruthy();
         await settingsTab!.tap();
-        
+
         // Click the "Reset to Default" button
         const resetButton = await page.$('main.settings button::-p-text(Reset Settings)');
         expect(resetButton, 'has Reset to Default button').toBeTruthy();
@@ -90,7 +91,7 @@ test.describe('One to Many', async () => {
         const modal_header = await page.waitForSelector('#alternate_modal h4::-p-text(File Path Pattern)');
         expect(modal_header, 'shows File Path Pattern modal').toBeTruthy();
 
-        const input_field =  await page.$('#alternate_modal #alt_src_pattern_ta');
+        const input_field = await page.$('#alternate_modal #alt_src_pattern_ta');
         expect(input_field, 'has input field for file path pattern').toBeTruthy();
 
         // Enter a file path pattern
@@ -106,7 +107,7 @@ test.describe('One to Many', async () => {
         await input_field!.type('.jpg');
 
         expect(await input_field!.evaluate(el => (el as HTMLInputElement).value),
-         'input field has updated pattern with file extension').toBe('./assets/headshot{row_number}.jpg');
+            'input field has updated pattern with file extension').toBe('./assets/headshot{row_number}.jpg');
 
         const preview = await page.$('#alternate_modal .out_prev');
         expect(await preview?.evaluate(el => el.textContent), 'preview was updated as expected').toBe('./assets/headshot0.jpg');
@@ -119,12 +120,93 @@ test.describe('One to Many', async () => {
         // Verify that the modal closed and the new pattern is displayed in the table header
         const modal = await page.$('#alternate_modal');
         expect(modal, 'modal is closed after saving').toBeNull();
-        
+
         const pattern_preview = await page.$eval('.dat_table tbody tr:first-child td:nth-child(6)', el => el.textContent.trim());
         expect(pattern_preview, 'table cell shows updated pattern preview').toBe('./assets/headshot0.jpg');
 
-    
+
     });
-    
+
 
 });
+
+test.describe('Filling Data', async () => {
+    test('add new row', async () => {
+        const edit_btn = await page.$('nav button::-p-text(Edit)');
+        expect(edit_btn, 'has Edit button in nav bar').toBeTruthy();
+        await edit_btn!.tap();
+
+        const add_row_btn = await page.$('.c_menu button::-p-text(Add Row After N)');
+        expect(add_row_btn, 'has Add Row After button in Edit menu').toBeTruthy();
+        await add_row_btn!.tap();
+
+        const new_row = await page.$('.dat_table tbody tr:nth-child(2)');
+        expect(new_row, 'new row is added to the table').toBeTruthy();
+
+        const td1 = await new_row?.$('td:nth-child(1)');
+        expect(await td1?.evaluate(el => el.textContent?.trim()), 'new row has correct row number').toBe("2");
+
+        const text_in = await new_row?.$('td:nth-child(2) textarea');
+        expect(await text_in?.evaluate(el => el.value), 'new row has text input cell').toBe("Linked text");
+
+        const color_in = await new_row?.$('td:nth-child(3) input');
+        expect(await color_in?.evaluate(el => el.value), 'new row has color input cell').toBe("00ffdc");
+
+        const single_dim_in = await new_row?.$('td:nth-child(4) input[type="number"]');
+        expect(await single_dim_in?.evaluate(el => el.value), 'new row has single dimension number input cell').toBe("55");
+
+        const triple_in1 = await new_row?.$('td:nth-child(5) input[type="number"]:nth-of-type(1)');
+        expect(await triple_in1?.evaluate(el => el.value), 'new row has triple dimension number input cell with default X value').toBe("10");
+
+        const triple_in2 = await new_row?.$('td:nth-child(5) input[type="number"]:nth-of-type(2)');
+        expect(await triple_in2?.evaluate(el => el.value), 'new row has triple dimension number input cell with default Y value').toBe("20");
+
+        const triple_in3 = await new_row?.$('td:nth-child(5) input[type="number"]:nth-of-type(3)');
+        expect(await triple_in3?.evaluate(el => el.value), 'new row has triple dimension number input cell with default Z value').toBe("0");
+
+        const img_in = await new_row?.$('td:nth-child(6)');
+        expect(await img_in?.$('button'), 'new row has image input cell with setup button').toBeTruthy();
+        expect(await img_in?.evaluate(el => el.textContent?.trim()), 'new row has image input cell with expected file path').toBe("./assets/headshot1.jpg");
+    });
+
+    test('edit the contents of the second row', async () => {
+        const second_row = await page.$('.dat_table tbody tr:nth-child(2)');
+        expect(second_row, 'has second row in the table').toBeTruthy();
+
+        const text_in = await second_row!.$('td:nth-child(2) textarea');
+        await text_in!.click({ clickCount: 3 });
+        await text_in!.type('New Linked Text');
+
+        const color_in = await second_row!.$('td:nth-child(3) input');
+        await color_in!.click({ clickCount: 3 });
+        await color_in!.type('ff0000');
+
+        const single_dim_in = await second_row!.$('td:nth-child(4) input[type="number"]');
+        await single_dim_in!.click({ clickCount: 3 });
+        await single_dim_in!.type('75');
+
+        const triple_in1 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(1)');
+        await triple_in1!.click({ clickCount: 3 });
+        await triple_in1!.type('50');
+
+        const triple_in2 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(2)');
+        await triple_in2!.click({ clickCount: 3 });
+        await triple_in2!.type('60');
+
+        const triple_in3 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(3)');
+        await triple_in3!.click({ clickCount: 3 });
+        await triple_in3!.type('10');
+
+        // Verify the changes
+        expect(await text_in?.evaluate(el => el.value), 'text input cell was updated').toBe('New Linked Text');
+        expect(await color_in?.evaluate(el => el.value), 'color input cell was updated').toBe('ff0000');
+        expect(await single_dim_in?.evaluate(el => el.value), 'single dimension number input cell was updated').toBe('75');
+        expect(await triple_in1?.evaluate(el => el.value), 'triple dimension number input cell was updated for X').toBe('50');
+        expect(await triple_in2?.evaluate(el => el.value), 'triple dimension number input cell was updated for Y').toBe('60');
+        expect(await triple_in3?.evaluate(el => el.value), 'triple dimension number input cell was updated for Z').toBe('10');
+       
+        const footerInfo = await page.waitForSelector('footer::-p-text(Previewed Row 1 )', { timeout: 5000 });
+        expect(footerInfo, 'footer text was updated to "Previewed Row 1"').toBeTruthy();
+    });
+});
+
