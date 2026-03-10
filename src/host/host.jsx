@@ -68,10 +68,10 @@ function GetTemplates() {
         templ_comp instanceof CompItem &&
         templ_comp.motionGraphicsTemplateControllerCount > 0
       ) {
-  /**
-   * Extract the controllers from the template / called columns in the app
-   * @type {ColumnData[]}}
-   */
+        /**
+         * Extract the controllers from the template / called columns in the app
+         * @type {ColumnData[]}}
+         */
         var cols = [];
 
         //Place the template composition inside the render comp to extract the controllers though the essential properties
@@ -261,8 +261,8 @@ function _SettingsId() {
       return null;
     }
 
-  /**@type {ProjData} */
-  var ProjData = JSON.parse(prop.value);
+    /**@type {ProjData} */
+    var ProjData = JSON.parse(prop.value);
     return ProjData.id;
   } catch (e) {
     return null;
@@ -336,7 +336,7 @@ function SaveSettings(s_request) {
     if (ExternalObject.AdobeXMPScript === undefined) {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
-    
+
     var setts_id = _SettingsId();
     if (!request.is_new && setts_id !== null && setts_id !== request.project_id) {
       throw new ResponseError(
@@ -560,24 +560,31 @@ function _ResolveFootageItem(path, proj_folder) {
  * @param {boolean} replace_orgs Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
  * @returns {errors[]{message: string, column: number}} List of errors found during the process
  */
-function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
+function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
   if (replace_orgs === undefined) {
     replace_orgs = false;
   }
 
   var errors = [];
 
-  //Access the Essential Properties of the layer
-  var e_props = _FlattenPropertyGroup(layer.essentialProperty);
+  //This function is recursive, if no e_props will get them from the layer
+  //Donde this way because properties become invalid when flattened
+  if (e_props === undefined) {
+    //Access the Essential Properties of the layer
+    var e_props = layer.essentialProperty;
+  }
 
   //Loop through the properties and set the values
-  for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
+  for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
 
-    if(!isValid(e_props[i_prop])){
-      e_props = _FlattenPropertyGroup(layer.essentialProperty);
+    var ess_prop = e_props.property(i_prop);
+
+    if (ess_prop.propertyType === PropertyType.INDEXED_GROUP || ess_prop.propertyType === PropertyType.NAMED_GROUP) {
+      //This is a group, go deeper
+      var group_errors = _ApplyTemplProps(layer, template, row_i, replace_orgs, ess_prop);
+      errors = errors.concat(group_errors);
+      continue;
     }
-
-    var ess_prop = e_props[i_prop];
 
     //find the column in the template that matches the property name
     var col;
@@ -594,7 +601,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       continue;
     }
 
-    //REPLACEABLE / ALT SOURCE
+    //>>>REPLACEABLE / ALT SOURCE
     if (
       ess_prop.canSetAlternateSource &&
       ess_prop.matchName === "ADBE Layer Source Alternate"
@@ -653,7 +660,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       continue;
     } //if replaceable
 
-    //TEXT
+    //>>>TEXT
     else if (
       ess_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
     ) {
@@ -674,12 +681,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       continue;
     }
 
-    //MOGRAPH COMMENT
+    //>>>MOGRAPH COMMENT
     else if (ess_prop.matchName === "ADBE Layer Overrides Comment") {
       continue;
     }
 
-    //COLOR / POSITION / SCALE / ROTATION
+    //>>>COLOR / POSITION / SCALE / ROTATION
     else {
       //Check if is different from the current value
       if (
@@ -699,7 +706,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
   }
 
 
-  return { errors: errors };
+  return errors;
 }
 
 function _ComparePaths(path1, path2) {
@@ -738,7 +745,7 @@ function PreviewRow(s_template, row_i, open_prev) {
 
   try {
 
-  /** @type {TemplateData} */
+    /** @type {TemplateData} */
     var templ = JSON.parse(s_template);
 
     //Find the composition referenced by the template in the project
@@ -773,15 +780,15 @@ function PreviewRow(s_template, row_i, open_prev) {
       templ_layer = render_comp.layers.add(templ_comp);
     }
 
-    var props_res = _ApplyTemplProps(templ_layer, templ, row_i);
+    var props_errors = _ApplyTemplProps(templ_layer, templ, row_i);
 
     //If errors while applying the properties, transfer them to the result object
-    if (props_res.errors.length > 0) {
+    if (props_errors.length > 0) {
 
       result.errors = [];
       //Transfer the errors to the result object
-      for (var i_err = 0; i_err < props_res.errors.length; i_err++) {
-        result.errors.push({ message: props_res.errors[i_err].message, type: "property", row: row_i });
+      for (var i_err = 0; i_err < props_errors.length; i_err++) {
+        result.errors.push({ message: props_errors[i_err].message, type: "property", row: row_i });
       }
     }
 
@@ -812,7 +819,7 @@ function GetCurrentValues(s_template) {
     //The template composition will be loaded in our render comp
     var render_comp = _SetupTemplatePreviewComp(false);
 
-  /** @type {TemplateData} */
+    /** @type {TemplateData} */
     var templ = JSON.parse(s_template);
 
     //Add a layer with the template composition to the render comp
@@ -904,7 +911,7 @@ function BatchRender(str_template, folder) {
   var result = { errors: [], row_results: [] };
 
   try {
-  /** @type {TemplateData}*/
+    /** @type {TemplateData}*/
     var templ = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
@@ -992,7 +999,7 @@ function BatchGenerate(str_template) {
   var result = { errors: [] };
 
   try {
-  /** @type {TemplateData}*/
+    /** @type {TemplateData}*/
     var tmpl_data = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
@@ -1284,7 +1291,7 @@ function BatchRenderDepComps(str_template) {
 
     _SetGlobalCurrentPath();
 
-  /** @type {TemplateData} */
+    /** @type {TemplateData} */
     var tmpl = JSON.parse(str_template);
 
     //Add the template composition to the render comp as a layer
