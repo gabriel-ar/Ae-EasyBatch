@@ -215,6 +215,28 @@ test.describe('Filling Data', async () => {
             { timeout: 5000 }
         );
         expect(await footerInfo, 'footer text was updated to "Previewed Row 1"').toBeTruthy();
+
+
     });
+
+    test('cep connection', async () => {
+        const ver = await CsaEval('app.version', page);
+        console.log("After eval, version is: ", ver);
+    });
+
 });
+
+
+/**Helper function to evaluate a script in the CEP environment */
+async function CsaEval(script: string, page: Page) {
+    return page.evaluate((script: string) => {
+        // @ts-ignore
+        const a_cep = window.__adobe_cep__;
+        return new Promise((resolve) => {
+            a_cep.evalScript(script, (result: string) => {
+                resolve(result);
+            });
+        });
+    }, script);//evaluate
+}
 
