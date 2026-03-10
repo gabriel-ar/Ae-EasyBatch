@@ -54,6 +54,7 @@ test.describe('Basic Setup', async () => {
         expect(await page.$('.dat_table th::-p-text(RepSlider )'), 'table has RepSlider header').toBeTruthy();
         expect(await page.$('.dat_table th::-p-text(RepPos )'), 'table has RepPos header').toBeTruthy();
         expect(await page.$('.dat_table th::-p-text(RepImage )'), 'table has RepImage header').toBeTruthy();
+        expect(await page.$('.dat_table th::-p-text(CommentField )'), 'table has CommentField header').toBeTruthy();
     });
 
     test('should display the default data from the template', async () => {
@@ -187,11 +188,11 @@ test.describe('Filling Data', async () => {
 
         const triple_in1 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(1)');
         await triple_in1!.click({ clickCount: 3 });
-        await triple_in1!.type('50');
+        await triple_in1!.type('80');
 
         const triple_in2 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(2)');
         await triple_in2!.click({ clickCount: 3 });
-        await triple_in2!.type('60');
+        await triple_in2!.type('20');
 
         const triple_in3 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(3)');
         await triple_in3!.click({ clickCount: 3 });
@@ -201,12 +202,19 @@ test.describe('Filling Data', async () => {
         expect(await text_in?.evaluate(el => el.value), 'text input cell was updated').toBe('New Linked Text');
         expect(await color_in?.evaluate(el => el.value), 'color input cell was updated').toBe('ff0000');
         expect(await single_dim_in?.evaluate(el => el.value), 'single dimension number input cell was updated').toBe('75');
-        expect(await triple_in1?.evaluate(el => el.value), 'triple dimension number input cell was updated for X').toBe('50');
-        expect(await triple_in2?.evaluate(el => el.value), 'triple dimension number input cell was updated for Y').toBe('60');
+        expect(await triple_in1?.evaluate(el => el.value), 'triple dimension number input cell was updated for X').toBe('80');
+        expect(await triple_in2?.evaluate(el => el.value), 'triple dimension number input cell was updated for Y').toBe('20');
         expect(await triple_in3?.evaluate(el => el.value), 'triple dimension number input cell was updated for Z').toBe('10');
-       
-        const footerInfo = await page.waitForSelector('footer::-p-text(Previewed Row 1 )', { timeout: 5000 });
-        expect(footerInfo, 'footer text was updated to "Previewed Row 1"').toBeTruthy();
+
+
+        let footerInfo = page.waitForFunction(
+            () => {
+                const footer = document.querySelector('footer');
+                return footer?.textContent?.trim() === 'Previewed Row 1';
+            },
+            { timeout: 5000 }
+        );
+        expect(await footerInfo, 'footer text was updated to "Previewed Row 1"').toBeTruthy();
     });
 });
 
