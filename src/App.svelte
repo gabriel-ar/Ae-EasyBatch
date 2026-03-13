@@ -292,7 +292,7 @@
   }
 
   async function F_Reload() {
-    let n_tmpls: any[] = await GetTemplates().catch((e) => {  
+    let n_tmpls: any[] = await GetTemplates().catch((e) => {
       l.error("F_Reload GetTemplates error:", e);
       return [];
     });
@@ -348,41 +348,43 @@
     let s_templt = JSON.stringify(send_templ);
     l.debug(`Previewing Row:`, s_templt, row_i, show_prev_comp);
 
-    csa.Exec<PreviewRowResult>("PreviewRow", s_templt, 0, show_prev_comp).then((result) => {
-      l.debug(`Preview Row Result`, result);
+    csa
+      .Exec<PreviewRowResult>("PreviewRow", s_templt, 0, show_prev_comp)
+      .then((result) => {
+        l.debug(`Preview Row Result`, result);
 
-      //General failure
-      if (!result.success) {
-        l.error("Failed to preview row", result.error_obj);
-        if (!prop_changed) {
-          m_message.Open(result.error_obj.message, "Error Previewing Row");
-        } else {
-          UpdateStatusFooter(
-            "⚠️ Error Previewing Row " + row_i,
-            result.error_obj.message,
-          );
-        }
-        return;
-      }
-
-      //No critical errors happened
-      else if (result.errors !== undefined && result.errors.length > 0) {
-        if (prop_changed) {
-          UpdateStatusFooter(
-            "⚠️ Error Previewing Row " + row_i,
-            result.errors.map((e) => e.message).join("<br>"),
-          );
+        //General failure
+        if (!result.success) {
+          l.error("Failed to preview row", result.error_obj);
+          if (!prop_changed) {
+            m_message.Open(result.error_obj.message, "Error Previewing Row");
+          } else {
+            UpdateStatusFooter(
+              "⚠️ Error Previewing Row " + row_i,
+              result.error_obj.message,
+            );
+          }
           return;
-        } else {
-          m_message.Open(
-            result.errors.map((e) => e.message).join("<br>"),
-            "Error Previewing Row",
-          );
         }
-      } else {
-        UpdateStatusFooter("Previewed Row " + row_i);
-      }
-    });
+
+        //No critical errors happened
+        else if (result.errors !== undefined && result.errors.length > 0) {
+          if (prop_changed) {
+            UpdateStatusFooter(
+              "⚠️ Error Previewing Row " + row_i,
+              result.errors.map((e) => e.message).join("<br>"),
+            );
+            return;
+          } else {
+            m_message.Open(
+              result.errors.map((e) => e.message).join("<br>"),
+              "Error Previewing Row",
+            );
+          }
+        } else {
+          UpdateStatusFooter("Previewed Row " + row_i);
+        }
+      });
   }
 
   /**
@@ -393,26 +395,28 @@
     let s_templt = JSON.stringify(sel_tmpl);
     l.debug("SampleRow called with row index:", row_i);
 
-    csa.Exec<GetCurrentValuesResults>("GetCurrentValues", s_templt).then((result) => {
-      l.debug(`Sample Row Result:`, result);
+    csa
+      .Exec<GetCurrentValuesResults>("GetCurrentValues", s_templt)
+      .then((result) => {
+        l.debug(`Sample Row Result:`, result);
 
-      if (!result.success) {
-        l.error("Failed to sample row", result.error_obj);
-        if (row_i !== -1) {
-          UpdateStatusFooter(
-            "⚠️ Error While Sampling Row " + row_i,
-            result.error_obj?.message,
-          );
+        if (!result.success) {
+          l.error("Failed to sample row", result.error_obj);
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Error While Sampling Row " + row_i,
+              result.error_obj?.message,
+            );
+          }
+          return;
         }
-        return;
-      }
 
-      TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
-      TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
-      s.proj = s.proj;
+        TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
+        TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
+        s.proj = s.proj;
 
-      PreviewRow(row_i, true);
-    });
+        PreviewRow(row_i, true);
+      });
   }
 
   function RenderRow(row_i) {
@@ -455,7 +459,11 @@
     l.debug("String sent to csa:", string_templt);
 
     csa
-      .Exec<BatchRenderResult>("BatchRender", string_templt, s.setts.render_comps_folder)
+      .Exec<BatchRenderResult>(
+        "BatchRender",
+        string_templt,
+        s.setts.render_comps_folder,
+      )
       .then((result) => {
         if (!result.success) {
           l.error("Failed to batch render", result.error_obj);
@@ -508,14 +516,16 @@
     l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
-    csa.Exec<BatchGenerateResult>("BatchGenerate", string_templt).then((result) => {
-      if (!result.success) {
-        l.error("Failed to batch generate", result.error_obj);
-        return;
-      } else {
-        l.debug(`Batch Generate Started`);
-      }
-    });
+    csa
+      .Exec<BatchGenerateResult>("BatchGenerate", string_templt)
+      .then((result) => {
+        if (!result.success) {
+          l.error("Failed to batch generate", result.error_obj);
+          return;
+        } else {
+          l.debug(`Batch Generate Started`);
+        }
+      });
   }
 
   let dep_row_results = $state<RowRenderResult[]>([]);
@@ -544,29 +554,31 @@
     let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
 
-    csa.Exec<BatchRenderResult>("BatchRenderDepComps", string_templt).then((result) => {
-      l.debug(`OtM Render Results`, result);
+    csa
+      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt)
+      .then((result) => {
+        l.debug(`OtM Render Results`, result);
 
-      if (!result.success) {
-        l.error("Failed to render OtM", result.error_obj);
-        m_message.Open(
-          result.error_obj.message,
-          "Error While Rendering One to Many",
-        );
-        return;
-      }
+        if (!result.success) {
+          l.error("Failed to render OtM", result.error_obj);
+          m_message.Open(
+            result.error_obj.message,
+            "Error While Rendering One to Many",
+          );
+          return;
+        }
 
-      //Some rows had errors, but the queing went through
-      else if (result.errors !== undefined && result.errors.length > 0) {
-        l.warn(`OtM Render completed with errors`, result.errors);
-        dep_row_results = result.row_results;
-      }
+        //Some rows had errors, but the queing went through
+        else if (result.errors !== undefined && result.errors.length > 0) {
+          l.warn(`OtM Render completed with errors`, result.errors);
+          dep_row_results = result.row_results;
+        }
 
-      //All rows rendered successfully
-      else {
-        dep_row_results = result.row_results;
-      }
-    });
+        //All rows rendered successfully
+        else {
+          dep_row_results = result.row_results;
+        }
+      });
   }
 
   /**
@@ -643,9 +655,7 @@
       if (comp) {
         TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
         TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-
-        //force Svelte reactivity
-        sel_tmpl.dep_comps = sel_tmpl.dep_comps;
+        TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
       }
     }
   }
@@ -664,7 +674,7 @@
 
       for (let comp_info of result.comps) {
         let comp = all_comps.find((c) => c.id === comp_info.id);
-        
+
         if (comp) {
           //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
           TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
@@ -672,6 +682,7 @@
       }
 
       TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+      TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
     });
   }
 
@@ -980,7 +991,6 @@
       m_message.Open(footer_txt_long, "Details");
     }
   }
-
 </script>
 
 <!-- HEADER -->

@@ -12,3 +12,7 @@ export const s = $state({
     setts: SettingsHelper.DefaultProjSettings,
     proj: SettingsHelper.DefaultProjectData,
 });
+
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  (window as any).__app_state__ = s;
+}

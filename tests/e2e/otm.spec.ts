@@ -1,6 +1,8 @@
 import { CEFConnection, GetConnection } from '../helpers/cef-helpers';
 import { test, expect } from '@playwright/test';
 import type { Page } from 'puppeteer-core';
+import * as fs from 'fs';
+import path from 'path';
 
 /**
  * Test suite for extension startup and template loading
@@ -226,6 +228,156 @@ test.describe('Filling Data', async () => {
 
 });
 
+test.describe('OtM Render', async () => {
+
+    test('should change mode and allow for base path setup', async () => {
+        const outputTab = await page.$('.header_tabs button::-p-text(Output)');
+        expect(outputTab, 'has Output tab button').toBeTruthy();
+        await outputTab!.tap();
+
+        const sel = await con.DropdownSelect('.output span .dropdown', 'One to Many');
+        expect(sel, 'has OtM template option').toBeTruthy();
+
+        await page.evaluate(() => {
+            const s = (window as any).__app_state__;
+            s.proj.tmpls[s.proj.sel_tmpl].base_path = 'renders/otm_test';
+        });
+
+        const pathPreview = await page.$('.output span::-p-text(renders/otm_test)');
+        expect(pathPreview, 'shows updated base path in Output tab').toBeTruthy();
+    });
+
+    test('setup exports', async () => {
+
+        const exp1 = await con.DropdownSelect('.output .dropdown.search-enabled', 'OtM_Export1');
+        expect(exp1, 'has OtM export option 1').toBeTruthy();
+
+        const addExpBtn = await page.$('.output .setting button::-p-text(Add)');
+        expect(addExpBtn, 'has Add button for exports in Output tab').toBeTruthy();
+        await addExpBtn!.tap();
+
+        const patternEditBtn = await page.$('.out_sub_render_cont .setting button');
+        expect(patternEditBtn, 'has Edit button for export pattern in Output tab').toBeTruthy();
+        await patternEditBtn!.tap();
+
+        //wait for modal
+        const modal_header = await page.waitForSelector('.modal h4::-p-text(Render Save Path Pattern)');
+        expect(modal_header, 'shows the File Path Pattern modal').toBeTruthy();
+
+        const textarea = await page.$('.modal textarea');
+        expect(textarea, 'has textarea for export pattern input').toBeTruthy();
+
+        //empty textarea and enter new pattern
+        await textarea!.click({ clickCount: 3 });
+
+        await textarea!.type('{base_path}/');
+
+        const sel1 = await con.DropdownSelect('.modal .dropdown', 'Template Name');
+        expect(sel1, 'selected Template Name').toBeTruthy();
+
+        await textarea!.evaluate(el => {
+            const input = el as HTMLTextAreaElement;
+            input.selectionStart = input.selectionEnd = input.value.length;
+        });
+        await textarea!.type('-');
+
+        const sel2 = await con.DropdownSelect('.modal .dropdown', 'Composition');
+        expect(sel2, 'selected Composition').toBeTruthy();
+
+        await textarea!.evaluate(el => {
+            const input = el as HTMLTextAreaElement;
+            input.selectionStart = input.selectionEnd = input.value.length;
+        });
+        await textarea!.type('-');
+
+        const sel3 = await con.DropdownSelect('.modal .dropdown', 'Row Number');
+        expect(sel3, 'selected Row Number').toBeTruthy();
+
+
+        expect(await textarea?.evaluate(ta => ta.value.trim()), 'textarea has updated pattern')
+            .toBe('{base_path}/{template_name}-{comp_name}-{row_number}');
+
+        let previewInfo = await page.waitForFunction(
+            () => {
+                const preview = document.querySelector('.modal .out_prev');
+                return preview?.textContent?.trim() === 'renders/otm_test/OtM-OtM_Export1-0';
+            },
+            { timeout: 5000 }
+        );
+        expect(previewInfo, 'preview was updated as expected').toBeTruthy();
+
+        const saveBtn = await page.$('.modal .modal-actions button::-p-text(Close)');
+        expect(saveBtn, 'has Close button to save export pattern').toBeTruthy();
+        await saveBtn!.tap();
+
+        const selRenderSetts = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(2) .dropdown', 'Best Settings');
+        expect(selRenderSetts, 'selected Best Settings').toBeTruthy();
+
+        const selOutMode = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(3) .dropdown', 'H.264 - Match Render Settings - 15 Mbps');
+        expect(selOutMode, 'selected H.264 - Match Render Settings - 15 Mbps').toBeTruthy();        
+
+        //add second export
+
+        const exp2 = await con.DropdownSelect('.output .dropdown.search-enabled', 'OtM_Export2');
+        expect(exp2, 'has OtM export option 1').toBeTruthy();
+        await addExpBtn!.tap();
+
+        const patternPreview2 = await page.$('.out_sub_render:nth-of-type(2) .out_prev span:nth-of-type(2)');
+        expect(await patternPreview2?.evaluate(el => el.textContent?.trim()), 'shows updated pattern for second export').toBe("renders/otm_test/OtM-OtM_Export2-0");
+
+    });
+    let renderedPaths: string[] = [];
+
+    test('start renders', async () => {
+        test.setTimeout(40_000);
+
+        // 0. Clean the renders folder so we start from a known empty state
+        const rendersFolder = path.join(await GetProjectFilePath(page), '/renders/otm_test');
+        if (fs.existsSync(rendersFolder)) {
+            fs.rmSync(rendersFolder, { recursive: true, force: true });
+        }
+        fs.mkdirSync(rendersFolder, { recursive: true });
+
+        const renderBtn = await page.$('.output button::-p-text(Batch One to Many)');
+        expect(renderBtn, 'has Batch One to Many render button').toBeTruthy();
+        await renderBtn!.tap();
+
+        // 1. Wait for BatchRender to return — the results table appears as soon as
+        //    the render queue has been populated (before actual encoding starts)
+        const resultsTable = await page.waitForSelector('table.render_results', { timeout: 30_000 });
+        expect(resultsTable, 'render results table appeared').toBeTruthy();
+
+        // 2. Collect the intended output paths from the DOM before the render starts
+        renderedPaths = await page.$$eval(
+            'table.render_results tbody tr td:nth-child(3)',
+            tds => tds.map(td => td.textContent?.trim()).filter(Boolean) as string[]
+        );
+        expect(renderedPaths.length, 'render results table has rows with paths').toBeGreaterThan(0);
+        console.log('Expected output paths:', renderedPaths);
+
+        // 3. Poll the AE render queue until encoding finishes
+        await WaitForRenderQueue(page, 300_000);
+
+    });
+
+    test('verify that the renders exist', async () => {
+
+        // 4. Verify each output file was actually written to disk
+        for (const p of renderedPaths) {
+            const fullPath = path.join(await GetProjectFilePath(page), p);
+
+            console.log('Checking output file:', fullPath);
+            expect(fs.existsSync(fullPath), `output file exists: ${fullPath}`).toBe(true);
+            expect(fs.statSync(fullPath).size, `output file is not empty: ${fullPath}`).toBeGreaterThan(10_000);
+        }
+    });
+
+
+
+
+
+});
+
 
 /**Helper function to evaluate a script in the CEP environment */
 async function CsaEval(script: string, page: Page) {
@@ -238,5 +390,33 @@ async function CsaEval(script: string, page: Page) {
             });
         });
     }, script);//evaluate
+}
+
+/** Retrieves the current After Effects project file path */
+async function GetProjectFilePath(page: Page): Promise<string> {
+    const result = await CsaEval('app.project.file.parent ? app.project.file.parent.fsName : ""', page);
+    return result as string;
+}
+
+/**
+ * Polls the AE render queue status via ExtendScript until it finishes.
+ * RQStatus enum: STOPPED=1, NEEDS_OUTPUT=2, RENDERING=3, DONE=4, ERR_STOPPED=5
+ */
+async function WaitForRenderQueue(page: Page, timeoutMs = 120_000): Promise<void> {
+    const pollInterval = 2_000;
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+        const status = await CsaEval('app.project.renderQueue.rendering', page) as string;
+        console.log('Current render queue status:', status);
+
+        if (status === 'false') {
+            return; // Render queue is not rendering, which means it has finished
+        }
+            
+        await new Promise(r => setTimeout(r, pollInterval));
+    }
+
+    throw new Error(`Render queue did not complete within ${timeoutMs}ms`);
 }
 
