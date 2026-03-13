@@ -1,3 +1,4 @@
+// @ts-check
 /**
 This is a CEP extension for After Effects that provides automation tools for mograph templates.
 The user can either use a table or an external CSV file to populate the After Effects composition that makes the template.
@@ -9,28 +10,6 @@ Internal use functions are prefixed with an underscore `_`.
 
 //@include "json2.js"
 //script EasyBatch
-
-
-/**
- * @typedef {import('../lib/Settings').ProjSettings} ProjSettings
- * @typedef {import('../lib/Settings').ProjData} ProjData
- * @typedef {import('../lib/Settings').TemplateData} TemplateData
- * @typedef {import('../lib/Settings').ColumnData} ColumnData
- * @typedef {import('../lib/Settings').Comp} Comp
- * @typedef {import('../lib/Settings').DepCompSetts} DepCompSetts
- * @typedef {import('../lib/Messaging').GetSettsResult} GetSettsResult
- * @typedef {import('../lib/Messaging').GetAllCompsResult} GetAllCompsResult
- * @typedef {import('../lib/Messaging').GetSelectedCompsResult} GetSelectedCompsResult
- * @typedef {import('../lib/Messaging').SaveSettingsResults} SaveSettingsResults
- * @typedef {import('../lib/Messaging').BatchRenderResult} BatchRenderResult
- * @typedef {import('../lib/Messaging').RenderSettsResults} RenderSettsResults
- * @typedef {import('../lib/Messaging').BatchGenerateResult} BatchGenerateResult
- * @typedef {import('../lib/Messaging').GetCurrentValuesResults} GetCurrentValuesResults
- * @typedef {import('../lib/Messaging').GetTmplsResult} GetTmplsResult
- * @typedef {import('../lib/Messaging').PreviewRowResult} PreviewRowResult
- * @typedef {import('../lib/Messaging').SaveSettsRequest} SaveSettsRequest
- * @typedef {import('../lib/Messaging').IsSameProjectResult} IsSameProjectResult
- */
 
 function _HasTemplates() {
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
@@ -55,7 +34,9 @@ function GetTemplates() {
   var result = {};
 
   /**
-   * @type {TemplateData[]}}
+   * Host only returns partial TemplateData (comp, comp_id, name, columns, dep_comps).
+   * The client merges these with stored settings via SettingsHelper.UpdateTemplates.
+   * @type {HostTemplateData[]}
    */
   var out_tmpls = [];
 
@@ -70,7 +51,8 @@ function GetTemplates() {
       ) {
         /**
          * Extract the controllers from the template / called columns in the app
-         * @type {ColumnData[]}}
+         * Host only populates cont_name, type, values — the client merges with saved ColumnData.
+         * @type {HostColumnData[]}
          */
         var cols = [];
 
@@ -90,6 +72,7 @@ function GetTemplates() {
         for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
           var templ_prop = e_props[i_prop];
 
+          /** @type {number} */
           var t_type = templ_prop.propertyValueType;
           var val = "";
 
@@ -134,7 +117,8 @@ function GetTemplates() {
 
 /**
  * Checks if the given composition is included on other compositions
- * @returns {DependentComps}
+ * @param {CompItem} parent_comp
+ * @returns {Comp[]}
  */
 function _GetDependentComps(parent_comp) {
   /**@type {Comp[]} */
@@ -163,10 +147,9 @@ function _GetDependentComps(parent_comp) {
 
 /**
  * Returns all compositions in the project.
- * @param {string} used_in_id - The ID of the composition used to for the is_dependent parameter. Determines if the composition passed is included in the returned compositions.
- * //todo: implement used_in_id
+ * @returns {string} Stringified JSON of `GetAllCompsResult` object
  */
-function GetAllComps(used_in_id) {
+function GetAllComps() {
   /**@type {GetAllCompsResult} */
   var result = {
     success: false,
@@ -269,6 +252,10 @@ function _SettingsId() {
   }
 }
 
+/**
+ * Loads the project settings and data from the project's XMP metadata.
+ * @returns {string} Stringified JSON of `GetSettsResult` object
+ */
 function LoadSettings() {
 
   /**@type {GetSettsResult} */
@@ -316,6 +303,11 @@ function LoadSettings() {
   return JSON.stringify(result);
 }
 
+/**
+ * Saves the project settings and data to the project's XMP metadata.
+ * @param {string} s_request JSON of `SaveSettsRequest` object
+ * @returns {string}
+ */
 function SaveSettings(s_request) {
   _EscapeArgs(arguments);
 
@@ -377,10 +369,15 @@ function SaveSettings(s_request) {
   return JSON.stringify(response);
 }
 
+/**
+ * Checks if the project currently open in After Effects matches the given project ID.
+ * @param {string} proj_id - The project ID to compare against.
+ * @returns {string}
+ */
 function IsSameProject(proj_id) {
   _EscapeArgs(arguments);
   /**@type {IsSameProjectResult} */
-  var response = { success: true };
+  var response = { success: true, same_project: false };
   try {
     if (proj_id === undefined || proj_id === null) {
       throw new ResponseError("No project ID provided at IsSameProject", {});
@@ -412,7 +409,7 @@ function _SetupTemplatePreviewComp(remove_layers) {
 
   //Check if the composition already exists
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-    var comp = app.project.item(i_items);
+    var comp = /** @type {CompItem} */ (app.project.item(i_items));
     if (comp instanceof CompItem && comp.name == "TemplatePreview") {
       //remove all layers from the comp
       if (remove_layers) {
@@ -426,14 +423,14 @@ function _SetupTemplatePreviewComp(remove_layers) {
   }
 
   //create a new comp with the name "TemplateRender"
-  var comp = app.project.items.addComp(
+  var comp = /** @type {CompItem} */ (app.project.items.addComp(
     "TemplatePreview",
     1920,
     1080,
     1,
     10,
     30
-  );
+  ));
 
   return comp;
 }
@@ -528,7 +525,9 @@ function _ResolveFootageItem(path, proj_folder) {
 
   //Check if the footage item exists in the project
   //Replace the <b> tag used to indicate the file was manually selected
-  var import_file = new File(path.replaceAll("\\\\", "/").replaceAll("<b>", "").replaceAll("</b>", ""));
+  // Note: split/join used instead of replaceAll — ExtendScript targets ES3
+  var clean_path = path.split("\\\\").join("/").split("<b>").join("").split("</b>").join("");
+  var import_file = new File(clean_path);
 
   var repl_f_item;
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
@@ -544,21 +543,22 @@ function _ResolveFootageItem(path, proj_folder) {
     //Import the file
 
     var import_opt = new ImportOptions(import_file);
-    repl_f_item = app.project.importFile(import_opt);
+    repl_f_item = /** @type {FootageItem} */ (app.project.importFile(import_opt));
     repl_f_item.parentFolder = folder;
   }
 
-  return repl_f_item;
+  return /** @type {FootageItem} */ (repl_f_item);
 }
 
 /**
  * Replaces the values in the Essential Properties of a layer
  * with the values on the corresponding row of the template.
- * @param {*} layer
+ * @param {AVLayer} layer
  * @param {TemplateData} template
  * @param {number} row_i
- * @param {boolean} replace_orgs Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
- * @returns {errors[]{message: string, column: number}} List of errors found during the process
+ * @param {boolean} [replace_orgs] Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
+ * @param {PropertyGroup} [e_props] Property group to iterate (used for recursion).
+ * @returns {{ message: string, column: number }[]} List of errors found during the process
  */
 function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
   if (replace_orgs === undefined) {
@@ -577,11 +577,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
   //Loop through the properties and set the values
   for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
 
-    var ess_prop = e_props.property(i_prop);
+    /** @type {Property<any>} */
+    var ess_prop = /** @type {Property<any>} */ (e_props.property(i_prop));
 
     if (ess_prop.propertyType === PropertyType.INDEXED_GROUP || ess_prop.propertyType === PropertyType.NAMED_GROUP) {
       //This is a group, go deeper
-      var group_errors = _ApplyTemplProps(layer, template, row_i, replace_orgs, ess_prop);
+      var group_errors = _ApplyTemplProps(layer, template, row_i, replace_orgs, /** @type {PropertyGroup} */ (e_props.property(i_prop)));
       errors = errors.concat(group_errors);
       continue;
     }
@@ -613,10 +614,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       }
 
       //Depending if we're replacing the original or the Essential Property, we compare the correct source
+      /** @type {AVItem|CompItem|FootageItem|null} */
+      var alt_src;
       if (replace_orgs) {
-        var alt_src = ess_prop.essentialPropertySource.source;
+        alt_src = /** @type {AVLayer} */ (/** @type {unknown} */ (/** @type {Property<any>} */ (ess_prop.essentialPropertySource))).source;
       } else {
-        var alt_src = ess_prop.alternateSource;
+        alt_src = ess_prop.alternateSource;
       }
 
       //The current alt source is a composition,
@@ -633,8 +636,8 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       }
 
       //It is a footage item check if it's linked to the correct file
-      else if (alt_src !== null && alt_src.source instanceof FootageItem
-        && _ComparePaths(alt_src.source.file, col.values[row_i])
+      else if (alt_src !== null && /** @type {FootageItem} */ (alt_src).file !== null
+        && _ComparePaths(/** @type {FootageItem} */ (alt_src).file, col.values[row_i])
       ) {
         //The footage item is already linked to the correct file
         continue;
@@ -651,7 +654,9 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       }
 
       if (replace_orgs) {
-        ess_prop.essentialPropertySource.replaceSource(new_footage, false);
+        /** @type {AVLayer} */
+        var ess_prop_src = /** @type {AVLayer} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource));
+        ess_prop_src.replaceSource(new_footage, false);
       } else {
         ess_prop.setAlternateSource(new_footage);
       }
@@ -668,14 +673,14 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       if (
         (!replace_orgs && ess_prop.value.text === col.values[row_i]) ||
         (replace_orgs &&
-          ess_prop.essentialPropertySource.value.text ===
+          /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).value.text ===
           col.values[row_i])
       ) {
         continue;
       }
 
       if (replace_orgs)
-        ess_prop.essentialPropertySource.setValue(col.values[row_i]);
+        /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).setValue(col.values[row_i]);
       else ess_prop.setValue(col.values[row_i]);
 
       continue;
@@ -692,13 +697,13 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       if (
         (ess_prop.value == col.values[row_i] && !replace_orgs) ||
         (replace_orgs &&
-          ess_prop.essentialPropertySource.value == col.values[row_i])
+          /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).value == col.values[row_i])
       ) {
         continue;
       }
 
       if (replace_orgs)
-        ess_prop.essentialPropertySource.setValue(col.values[row_i]);
+        /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).setValue(col.values[row_i]);
       else ess_prop.setValue(col.values[row_i]);
 
       continue;
@@ -749,7 +754,7 @@ function PreviewRow(s_template, row_i, open_prev) {
     var templ = JSON.parse(s_template);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(templ.comp_id);
+    var templ_comp = /** @type {CompItem} */ (app.project.itemByID(templ.comp_id));
 
     if (templ_comp == undefined) {
       throw new Error("@PreviewRow: Template composition not found");
@@ -780,7 +785,7 @@ function PreviewRow(s_template, row_i, open_prev) {
       templ_layer = render_comp.layers.add(templ_comp);
     }
 
-    var props_errors = _ApplyTemplProps(templ_layer, templ, row_i);
+    var props_errors = _ApplyTemplProps(/** @type {AVLayer} */ (templ_layer), templ, row_i);
 
     //If errors while applying the properties, transfer them to the result object
     if (props_errors.length > 0) {
@@ -872,9 +877,9 @@ function GetCurrentValues(s_template) {
 /**
  * Flattens a property group into a list of properties, going through all the groups inside it.
  * If keep_comments is true, it will pass groups labeled as ADBE Layer Overrides Comment
- * * @param {PropertyGroup} pg
- * @param {boolean} keep_comments
- * @returns {Property[]}
+ * @param {PropertyGroup} pg
+ * @param {boolean} [keep_comments]
+ * @returns {Property<any>[]}
  */
 function _FlattenPropertyGroup(pg, keep_comments) {
   if (keep_comments === undefined) {
@@ -884,7 +889,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
   var props = [];
 
   for (var i_prop = 1; i_prop <= pg.numProperties; i_prop++) {
-    var prop = pg.property(i_prop);
+    var prop = /** @type {Property<any>} */ (pg.property(i_prop));
 
     if (prop.propertyType === PropertyType.INDEXED_GROUP || prop.propertyType === PropertyType.NAMED_GROUP) {
 
@@ -893,7 +898,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
         props.push(prop);
       } else {
         //This is a group, go deeper
-        var group_props = _FlattenPropertyGroup(prop, keep_comments);
+        var group_props = _FlattenPropertyGroup(/** @type {PropertyGroup} */ (/** @type {unknown} */ (prop)), keep_comments);
         props = props.concat(group_props);
       }
     } else {
@@ -904,18 +909,24 @@ function _FlattenPropertyGroup(pg, keep_comments) {
   return props;
 }
 
+/**
+ * Creates a render queue item for each row in the template and starts the render queue asynchronously.
+ * @param {string} str_template JSON of `TemplateData` object
+ * @param {string} folder Name of the project folder to store the generated render compositions
+ * @returns {string}
+ */
 function BatchRender(str_template, folder) {
   _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
-  var result = { errors: [], row_results: [] };
+  var result = { success: false, errors: [], row_results: [] };
 
   try {
     /** @type {TemplateData}*/
     var templ = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
-    var tmpl_comp = app.project.itemByID(templ.comp_id);
+    var tmpl_comp = /** @type {CompItem} */ (app.project.itemByID(templ.comp_id));
 
     if (tmpl_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -939,7 +950,7 @@ function BatchRender(str_template, folder) {
         var layer = render_comp.layers.add(tmpl_comp);
 
         //Set the values of the essential properties
-        var p_err = _ApplyTemplProps(layer, templ, i_row).errors;
+        var p_err = _ApplyTemplProps(layer, templ, i_row);
 
         //Convert errors to a string
         var prop_error_str = null;
@@ -972,7 +983,7 @@ function BatchRender(str_template, folder) {
         result.row_results.push({
           row: i_row,
           status: 'error',
-          error_message: e.message
+          error: e.message
         });
 
 
@@ -993,17 +1004,22 @@ function BatchRender(str_template, folder) {
   }
 }
 
+/**
+ * Generates one composition per row in the project, populated with the template data. Does not render.
+ * @param {string} str_template - Stringified JSON of `TemplateData` object
+ * @returns {string} Stringified JSON of `BatchGenerateResult` object
+ */
 function BatchGenerate(str_template) {
   _EscapeArgs(arguments);
   /** @type {BatchGenerateResult} */
-  var result = { errors: [] };
+  var result = { success: false, errors: [] };
 
   try {
     /** @type {TemplateData}*/
     var tmpl_data = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(tmpl_data.comp_id);
+    var templ_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl_data.comp_id));
 
     if (templ_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -1032,7 +1048,7 @@ function BatchGenerate(str_template) {
         //Set the values of the essential properties
         _ApplyTemplProps(layer, tmpl_data, i_row);
       } catch (e) {
-        result.errors.push({ message: e.message, row: i_row });
+        result.errors.push({ message: e.message, type: '@row', row: i_row });
       }
     } //loop template rows
 
@@ -1092,6 +1108,11 @@ function _ClearRenderQueue() {
   }
 }
 
+/**
+ * Retrieves the available render settings and output module templates from After Effects.
+ * Temporarily adds a dummy item to the render queue in order to read the template lists.
+ * @returns {string} Stringified JSON of `RenderSettsResults` object
+ */
 function GetRenderTemplates() {
   //Per the documentation we can only gather the templates once an item is in the render queue
 
@@ -1152,10 +1173,10 @@ function PickColorFromPreview(startValue) {
   //add a null
   var null_layer = prev_comp.layers.addNull();
 
-  var cc = null_layer
-    .property("ADBE Effect Parade")
+  var cc = /** @type {PropertyGroup} */ (null_layer
+    .property("ADBE Effect Parade"))
     .addProperty("ADBE Color Control");
-  var color_prop = cc.property("ADBE Color Control-0001");
+  var color_prop = /** @type {Property<any>} */ (cc.property("ADBE Color Control-0001"));
 
   color_prop.setValue(startValue);
   color_prop.selected = true;
@@ -1233,7 +1254,7 @@ function ImportFile(filter) {
     filter = "*.*";
   }
 
-  var file = File.openDialog("Select a file", filter);
+  var file = /** @type {File} */ (File.openDialog("Select a file", filter));
 
   file.open("r");
   var content = file.read();
@@ -1282,6 +1303,12 @@ function _CreateSubfolders(path) {
 /** @type {BatchRenderResult} */
 var dep_result;
 
+/**
+ * Renders all dependent compositions for each row in the template (One-to-Many mode).
+ * Renders synchronously, blocking the AE UI until complete.
+ * @param {string} str_template - Stringified JSON of `TemplateData` object
+ * @returns {string} Stringified JSON of `BatchRenderResult` object
+ */
 function BatchRenderDepComps(str_template) {
   _EscapeArgs(arguments);
 
@@ -1299,7 +1326,7 @@ function BatchRenderDepComps(str_template) {
     var prev_comp = _SetupTemplatePreviewComp(true);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(tmpl.comp_id);
+    var templ_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.comp_id));
 
     if (templ_comp === undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -1336,7 +1363,7 @@ function RenderDeps(tmpl, props_layer) {
   for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
 
     try {
-      var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true).errors;
+      var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
       //Convert errors to a string
       var prop_error_str = null;
@@ -1359,7 +1386,7 @@ function RenderDeps(tmpl, props_layer) {
         //If disabled, skip
         if (!dep_config.enabled) continue;
 
-        var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
+        var dep_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.dep_comps[i].id));
 
         //Check if the render is a single frame
         if (dep_config.render_out_module_templ === "EB_Single_Frame_PNG") {
@@ -1397,7 +1424,7 @@ function RenderDeps(tmpl, props_layer) {
       dep_result.row_results.push({
         row: dep_render_row,
         status: 'error',
-        message: e.message
+        error: e.message
       });
     }
 

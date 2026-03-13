@@ -1,4 +1,5 @@
 import "./cep_node.t";
+import type { Result } from "./Messaging";
 
 //Modernized CEP adapter for easier interaction with the CEP environment
 class CSAdapter {
@@ -36,6 +37,25 @@ class CSAdapter {
         resolve(result);
       });
     });//Promise
+  }
+
+  /**
+   * Evaluates an ExtendScript function, parses the JSON response as `T`,
+   * and returns it typed.   *
+   */
+  async Exec<T extends Result>(method: string, ...args: unknown[]): Promise<T> {
+    const raw = await this.Eval(method, ...args);
+    try {
+      return JSON.parse(raw) as T;
+    } catch (e) {
+      return {
+        success: false,
+        error_obj: {
+          message: `[CSAdapter] Failed to parse response from "${method}": ${e}`,
+          raw_response: raw,
+        },
+      } as T;
+    }
   }
 
   EvalSync(method, callback, ...args) {

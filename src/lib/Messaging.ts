@@ -1,4 +1,4 @@
-import { type ProjSettings, type ProjData, type TemplateData } from "./Settings.ts"
+import { type ProjSettings, type ProjData, type TemplateData, type ColumnData, type Comp } from "./Settings.ts"
 
 export type ResponseErrorBase = {
   /** If the project name is not found */
@@ -6,6 +6,9 @@ export type ResponseErrorBase = {
 
   /** If the project id does not match */
   id_mismatch?: boolean;
+
+  /** Raw unparseable response string, set when JSON.parse fails */
+  raw_response?: string;
 
   /** If there are no templates */
   no_templates?: boolean;
@@ -15,6 +18,9 @@ export type ResponseErrorBase = {
 
   /** If the project name is not found */
   no_project_name?: boolean;
+
+  /** Identifies which host.jsx function produced this error */
+  source?: string;
 
   reasons?: {
     not_found?: boolean;
@@ -74,20 +80,35 @@ export interface GetSettsResult extends Result {
 }
 
 /** Result for getting templates */
+
+/**
+ * The subset of ColumnData that host.jsx populates during a template scan.
+ * The client fills in the remaining fields via ColumnHelper.FromJson().
+ */
+export type HostColumnData = Pick<ColumnData, 'cont_name' | 'type' | 'values'>;
+
+/**
+ * The subset of TemplateData that host.jsx populates during a template scan.
+ * The client merges these with stored settings via SettingsHelper.UpdateTemplates().
+ */
+export type HostTemplateData = Pick<TemplateData, 'comp' | 'comp_id' | 'name' | 'dep_comps'> & {
+  columns: HostColumnData[];
+};
+
 export interface GetTmplsResult extends Result {
-  /** Array of templates */
-  tmpls?: TemplateData[];
+  /** Array of partial templates as scanned from AE — merged with stored settings on the client */
+  tmpls?: HostTemplateData[];
 }
 
 /** Result for getting settings */
 export interface GetAllCompsResult extends Result {
   /** Collection of after effects compositions*/
-  comps?: {id: string; name: string; is_dependent: boolean}[];
+  comps?: {id: number; name: string}[];
 }
 
 export interface GetSelectedCompsResult extends Result {
   /** Collection of selected after effects compositions*/
-  comps?: {id: string; name: string;}[];
+  comps?: {id: number; name: string;}[];
 }
 
 /** Result for rendering settings */
@@ -130,7 +151,7 @@ export type BatchGenerateResult = Result;
 export type PreviewRowResult = Result;
 
 /** Result for getting current values */
-export interface GetCurrentValuesResults {
+export interface GetCurrentValuesResults extends Result {
   /** Array of name/value pairs */
   values: { name: string; value: string }[];
 }

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    // ExtendScript is ES3 — catch modern syntax accidentally used in host.jsx.
+    // ES3 target was removed in TS 5.5; use ES5 (still catches most ES3 violations).
+    "target": "ES5",
+    "checkJs": true,
+    "strict": false,
+    // Suppress missing-lib errors — AE's environment is not a browser or Node
+    "noLib": true,
+    "skipLibCheck": true,
+    "sourceMap": false
+  },
+  "include": [
+    "host.jsx",
+    "ae-globals.d.ts"
+  ]
+}

@@ -242,7 +242,7 @@ export class TemplateHelper {
     });
 
     for (let i_conf in tmpl.dep_config) {
-      if (!tmpl.dep_comps.some((dep_comp) => dep_comp.id === tmpl.dep_config[i_conf].id)) {
+      if (!tmpl.dep_comps.some((dep_comp) => dep_comp.id === Number(i_conf))) {
         console.log("Deleting stray settings for comp", tmpl.dep_config[i_conf].id);
         delete tmpl.dep_config[i_conf];
       }
@@ -280,9 +280,9 @@ export class TemplateHelper {
     }
   }
 
-  static RemoveDependantComp(tmpl: TemplateData, id: string) {
+  static RemoveDependantComp(tmpl: TemplateData, id: number) {
     tmpl.dep_comps = tmpl.dep_comps.filter((dc) => dc.id !== id);
-    delete tmpl.dep_config[id];
+    delete tmpl.dep_config[id.toString()];
   }
 
   static InitTableColumns(tmpl: TemplateData) {
@@ -704,14 +704,16 @@ export class ColumnHelper {
 
 export type Comp = {
   name: string;
-  id: string;
+  /** AE CompItem.id — always a number from the host */
+  id: number;
 }
 
 /**
  * Settings for the dependant compositions
  */
 export type DepCompSetts = {
-  id: string;
+  /** AE CompItem.id — always a number from the host */
+  id: number;
   name: string;
   enabled: boolean;
   render_setts_templ: string;

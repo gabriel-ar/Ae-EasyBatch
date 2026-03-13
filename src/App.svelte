@@ -50,6 +50,8 @@
     IsSameProjectResult,
     GetAllCompsResult,
     RowRenderResult,
+    PreviewRowResult,
+    GetCurrentValuesResults,
   } from "./lib/Messaging";
 
   import PropInput from "./ui/PropInput.svelte";
@@ -124,21 +126,15 @@
 
   function GetTemplates(): Promise<TemplateData[]> {
     return new Promise((resolve, reject) => {
-      csa.Eval("GetTemplates").then((s_result) => {
-        try {
-          l.debug("GetTemplates Eval result:", s_result);
-          let result = JSON.parse(s_result) as GetTmplsResult;
+      csa.Exec<GetTmplsResult>("GetTemplates").then((result) => {
+        l.debug("GetTemplates result:", result);
 
-          if (result.success == false) {
-            l.error("Failed to load templates", result.error_obj);
-            reject(result.error_obj);
-          } else {
-            l.log(`Parsed Templates`, result);
-            resolve(result.tmpls);
-          }
-        } catch (e) {
-          l.error("GetTemplates error:", e, s_result);
-          reject(e);
+        if (!result.success) {
+          l.error("Failed to load templates", result.error_obj);
+          reject(result.error_obj);
+        } else {
+          l.log(`Parsed Templates`, result);
+          resolve(result.tmpls);
         }
       });
     });
@@ -146,23 +142,11 @@
 
   function GetSettings(): Promise<{ l_proj: ProjData; l_setts: ProjSettings }> {
     return new Promise((resolve, reject) => {
-      csa.Eval("LoadSettings").then((s_result) => {
-        l.debug("GetSettings Eval result:", s_result);
+      csa.Exec<GetSettsResult>("LoadSettings").then((result) => {
+        l.debug("GetSettings result:", result);
 
-        let result: GetSettsResult;
-
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error("Failed to parse settings, string: ", s_result);
-          reject(e);
-        }
-
-        if (result.success === false) {
-          if (
-            result.error_obj.reasons !== undefined &&
-            result.error_obj.reasons.not_found
-          ) {
+        if (!result.success) {
+          if (result.error_obj?.reasons?.not_found) {
             l.warn(`Project settings and data not found, creating new ones`);
             resolve({
               l_proj: SettingsHelper.DefaultProjectData,
@@ -174,12 +158,10 @@
           }
         } else {
           let l_proj = SettingsHelper.LoadProjectData(result.proj_data);
-
           let l_setts = {
             ...SettingsHelper.DefaultProjSettings,
             ...result.proj_settings,
           };
-
           l.log(`Parsed Settings`, result);
           resolve({ l_proj, l_setts });
         }
@@ -245,23 +227,14 @@
     l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
-    csa.Eval("SaveSettings", s_request).then((s_result) => {
-      let result: SaveSettingsResults;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse save result", s_result);
-        return;
-      }
-
-      if (result.success == false) {
+    csa.Exec<SaveSettingsResults>("SaveSettings", s_request).then((result) => {
+      if (!result.success) {
         let e = result.error_obj;
-        if (e.reasons !== undefined && e.reasons.id_mismatch) {
+        if (e?.reasons?.id_mismatch) {
           l.warn(`Different project ID, reloading settings`);
           StartupSequence();
           return;
-        } else if (e.reasons !== undefined && e.reasons.no_templates) {
+        } else if (e?.reasons?.no_templates) {
           l.warn(`No templates to save.`);
           no_tmpls = true;
           return;
@@ -306,23 +279,15 @@
 
   function GetRenderSettsTempls(): Promise<RenderSettsResults> {
     return new Promise((resolve, reject) => {
-      csa.Eval("GetRenderTemplates").then((s_result) => {
-        let result: RenderSettsResults;
-        try {
-          result = JSON.parse(s_result) as RenderSettsResults;
-        } catch (e) {
-          l.error("Failed to parse render templates:", s_result);
-          reject(e);
-        }
-
-        if (result.success == false) {
+      csa.Exec<RenderSettsResults>("GetRenderTemplates").then((result) => {
+        if (!result.success) {
           l.error("Failed to load render templates:", result.error_obj);
           reject(result.error_obj);
         } else {
-          resolve(result);
           l.log(`Parsed Render Settings Templates:`, result);
+          resolve(result);
         }
-      }); //Eval
+      }); //Exec
     }); //Promise
   }
 
@@ -383,19 +348,11 @@
     let s_templt = JSON.stringify(send_templ);
     l.debug(`Previewing Row:`, s_templt, row_i, show_prev_comp);
 
-    csa.Eval("PreviewRow", s_templt, 0, show_prev_comp).then((s_result) => {
-      l.debug(`Preview Row Result`, s_result);
-
-      let result;
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse preview row result", s_result);
-        return;
-      }
+    csa.Exec<PreviewRowResult>("PreviewRow", s_templt, 0, show_prev_comp).then((result) => {
+      l.debug(`Preview Row Result`, result);
 
       //General failure
-      if (result.success == false) {
+      if (!result.success) {
         l.error("Failed to preview row", result.error_obj);
         if (!prop_changed) {
           m_message.Open(result.error_obj.message, "Error Previewing Row");
@@ -436,25 +393,25 @@
     let s_templt = JSON.stringify(sel_tmpl);
     l.debug("SampleRow called with row index:", row_i);
 
-    csa.Eval("GetCurrentValues", s_templt).then((s_result) => {
-      l.debug(`Sample Row Result: ${s_result}`);
+    csa.Exec<GetCurrentValuesResults>("GetCurrentValues", s_templt).then((result) => {
+      l.debug(`Sample Row Result:`, result);
 
-      let result;
-      try {
-        result = JSON.parse(s_result);
-
-        TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
-        TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
-        s.proj = s.proj;
-
-        PreviewRow(row_i, true);
-      } catch (e) {
-        l.error("Failed to parse sample row result", s_result);
+      if (!result.success) {
+        l.error("Failed to sample row", result.error_obj);
         if (row_i !== -1) {
-          UpdateStatusFooter("⚠️ Error While Sampling Row " + row_i, s_result);
+          UpdateStatusFooter(
+            "⚠️ Error While Sampling Row " + row_i,
+            result.error_obj?.message,
+          );
         }
         return;
       }
+
+      TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
+      TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
+      s.proj = s.proj;
+
+      PreviewRow(row_i, true);
     });
   }
 
@@ -498,19 +455,9 @@
     l.debug("String sent to csa:", string_templt);
 
     csa
-      .Eval("BatchRender", string_templt, s.setts.render_comps_folder)
-      .then((s_result) => {
-        /**@type {BatchRenderResult}*/
-        let result;
-
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error("Failed to parse batch render result", s_result);
-          return;
-        }
-
-        if (result.success == false) {
+      .Exec<BatchRenderResult>("BatchRender", string_templt, s.setts.render_comps_folder)
+      .then((result) => {
+        if (!result.success) {
           l.error("Failed to batch render", result.error_obj);
           m_message.Open(
             result.error_obj.message,
@@ -526,7 +473,7 @@
           return;
         }
 
-        //Some errors happened, log it as a warning (defalut txt log file level)
+        //Some errors happened, log it as a warning (default txt log file level)
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`Batch Render completed with errors`, result.errors);
           render_results = result.row_results;
@@ -561,22 +508,12 @@
     l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
-    csa.Eval("BatchGenerate", string_templt).then((s_result) => {
-      /**@type {BatchGenerateResult}*/
-      let result;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse batch render result", s_result);
-        return;
-      }
-
-      if (result.success == false) {
-        l.error("Failed to batch render", result.error_obj);
+    csa.Exec<BatchGenerateResult>("BatchGenerate", string_templt).then((result) => {
+      if (!result.success) {
+        l.error("Failed to batch generate", result.error_obj);
         return;
       } else {
-        l.debug(`Batch Render Started`);
+        l.debug(`Batch Generate Started`);
       }
     });
   }
@@ -607,19 +544,10 @@
     let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
 
-    csa.Eval("BatchRenderDepComps", string_templt).then((s_result) => {
-      let result: BatchRenderResult;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse OtM render result", s_result);
-        return;
-      }
-
+    csa.Exec<BatchRenderResult>("BatchRenderDepComps", string_templt).then((result) => {
       l.debug(`OtM Render Results`, result);
 
-      if (result.success == false) {
+      if (!result.success) {
         l.error("Failed to render OtM", result.error_obj);
         m_message.Open(
           result.error_obj.message,
@@ -696,18 +624,8 @@
 
   let all_comps = $state<Comp[]>([]);
   function GetAllComps() {
-    csa.Eval("GetAllComps").then((s_result) => {
-      /**@type {GetAllCompsResult}*/
-      let result;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse all comps", s_result);
-        return;
-      }
-
-      if (result.success == false) {
+    csa.Exec<GetAllCompsResult>("GetAllComps").then((result) => {
+      if (!result.success) {
         l.error("Failed to get all comps", result.error_obj);
         return;
       } else {
@@ -717,7 +635,7 @@
     });
   }
 
-  let selected_comp = $state("");
+  let selected_comp = $state<number | "">("");
   function AddCompToDependents() {
     if (selected_comp !== "") {
       let comp = all_comps.find((c) => c.id === selected_comp);
@@ -733,18 +651,10 @@
   }
 
   function AddSelectedCompsToDependents() {
-    csa.Eval("GetSelectedComps").then((s_result) => {
-      let result: GetSelectedCompsResult;
+    csa.Exec<GetSelectedCompsResult>("GetSelectedComps").then((result) => {
+      l.debug(`Got selected Comps`, result);
 
-      try {
-        result = JSON.parse(s_result);
-        l.debug(`Got selected Comps`, result);
-      } catch (e) {
-        l.error("Failed to parse selected comps", s_result);
-        return;
-      }
-
-      if (result.success == false) {
+      if (!result.success) {
         l.error("Failed to get selected comps", result.error_obj);
         return;
       }
