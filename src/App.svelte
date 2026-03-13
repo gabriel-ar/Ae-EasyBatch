@@ -124,7 +124,7 @@
     };
   }
 
-  function GetTemplates(): Promise<TemplateData[]> {
+  function GetTemplates(): Promise<HostTemplateData[]> {
     return new Promise((resolve, reject) => {
       csa.Exec<GetTmplsResult>("GetTemplates").then((result) => {
         l.debug("GetTemplates result:", result);
@@ -981,7 +981,6 @@
     }
   }
 
-  console.error("HELLO");
 </script>
 
 <!-- HEADER -->

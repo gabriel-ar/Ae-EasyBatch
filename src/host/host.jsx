@@ -1,4 +1,4 @@
-// @ts-check
+/** @ts-check */
 /**
 This is a CEP extension for After Effects that provides automation tools for mograph templates.
 The user can either use a table or an external CSV file to populate the After Effects composition that makes the template.
