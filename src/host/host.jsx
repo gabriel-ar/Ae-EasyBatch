@@ -844,9 +844,18 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
         var ess_prop_src = /** @type {AVLayer} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource));
         ess_prop_src.replaceSource(new_footage, false);
       } else {
+        var prev_alt_src = ess_prop.alternateSource;
+        
         ess_prop.setAlternateSource(new_footage);
-      }
 
+        //Cleanup the previous alt source if it was one of the dummy comps created by AE
+        if(prev_alt_src!== undefined
+          && prev_alt_src instanceof CompItem 
+          && prev_alt_src.usedIn.length === 0
+          && prev_alt_src.name.indexOf(ess_prop.name) === 0) {
+          prev_alt_src.remove();
+        }
+      }
 
       continue;
     } //if replaceable
