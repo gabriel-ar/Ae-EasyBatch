@@ -58,30 +58,6 @@ class CSAdapter {
     }
   }
 
-  EvalSync(method, callback, ...args) {
-    //build the script to be evaluated
-    let script = `${method}(`;
-    if (args.length > 0) {
-      script += args.map(arg => {
-        if (typeof arg === "string") { arg = '"' + encodeURIComponent(arg) + '"' }
-        return arg;
-      }
-      ).join(", ");
-    }
-    script += `)`;
-
-    console.warn("EvalSync script: " + script);
-
-    if (callback === null || callback === undefined) {
-      callback = function (result) {
-        console.log("From Eval undefined callback: " + result);
-      };
-    }
-
-    this.a_cep.evalScript(script, callback);
-  }
-
-
 
   /**
    * Evaluates a JavaScript script, which can use the JavaScript DOM
@@ -215,6 +191,7 @@ class CSAdapter {
     return path.replace("file:///", "").replace("file://", "");
   };
 
+  
 /**
  * 
  * @param keyEventsInterest  * Register an interest in some key events to prevent them from being sent to the host application.

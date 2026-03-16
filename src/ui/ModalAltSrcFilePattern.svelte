@@ -1,8 +1,13 @@
-<script>
+<script lang="ts">
+  /**
+   * Input modal to enter the pattern to find the alternate source files for a column
+   */
+
   import { onMount } from "svelte";
   import { l, s, csa } from "./States.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
   import { ColumnHelper } from "../lib/SettingsHelper.ts";
+    import { CheckCircled, ExclamationTriangle } from "radix-icons-svelte";
 
   let {
     show = $bindable(false),
@@ -13,8 +18,8 @@
   let sel_add_field = $state("base_path");
   let preview = $state("");
 
-  let pattern = $state();
-  let base_path = $state();
+  let pattern = $state("");
+  let base_path = $state("");
 
   const tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
@@ -24,8 +29,9 @@
   });
 
   function AddField() {
-    /**@type {HTMLTextAreaElement}*/
-    let save_pattern_ta = document.querySelector("#alt_src_pattern_ta");
+    let save_pattern_ta = document.querySelector<HTMLTextAreaElement>(
+      "#alt_src_pattern_ta",
+    );
 
     let cursor_pos = save_pattern_ta.selectionStart;
     let old_val = pattern;
@@ -43,7 +49,6 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    
     csa.OpenFolderDialog(base_path ? base_path : undefined).then((result) => {
       if (result === null) return;
 
@@ -62,12 +67,38 @@
     col.alt_src_base = base_path;
 
     preview = ColumnHelper.ResolveAltSrcPath(col, 0, tmpl.columns);
+
+    if (file_exists_to) clearTimeout(file_exists_to);
+    file_exists_to = setTimeout(FileExists, 1000);
+
+    file_exists = "";
+
     l.debug(
       "[ModalAltSrc] UpdatePreview called with pattern:",
       pattern,
       "and base_path:",
       base_path,
     );
+  }
+
+  let file_exists = $state("");
+  let file_exists_to;
+  async function FileExists() {
+    const fs = window.require("fs");
+    const path = window.require("path");
+
+    const proj_folder = (await csa.EvalDirectAsync(
+      `app.project.file.parent.fsName`,
+    )) as string;
+    let file = path.join(proj_folder, preview);
+
+    fs.exists(file, (exists) => {
+      if (exists) {
+        file_exists = "yes";
+      } else {
+        file_exists = "no";
+      }
+    });
   }
 
   function CloseDialog() {
@@ -115,6 +146,13 @@
       <div style="margin-bottom: 10px;">
         <span>Preview:</span>
         <span class="out_prev">{preview}</span>
+        <span style="margin-left: 10px; vertical-align: -webkit-baseline-middle;" data-tooltip={file_exists === "yes" ? "File exists" : "File not found"}>
+          {#if file_exists === "yes"}
+            <CheckCircled color="green" size={17} />
+          {:else if file_exists === "no"}
+            <ExclamationTriangle color="yellow" size={17} />
+          {/if}
+        </span> 
       </div>
 
       <div class="modal-actions">
