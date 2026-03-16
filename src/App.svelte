@@ -81,6 +81,8 @@
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
 
+  let has_opened_viewer = false;
+
   /**Selected template*/
   let sel_tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
@@ -251,7 +253,7 @@
 
   let last_opened_tab = $state<string | null>(null);
 
-  //Updates the render settings templates when the output tab is opened
+  //Tab changed
   $effect(() => {
     if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
       //Check if there's any template selected, otherwise just select the first one
@@ -271,7 +273,11 @@
             ] || render_setts_templs.output_modules_templs[0];
         }
       }
+    } 
+    else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
+        has_opened_viewer = false;  
     }
+
     last_opened_tab = s.setts.active_tab;
   });
 
@@ -331,7 +337,12 @@
     );
     if (!s.setts.auto_preview && prop_changed) return;
 
-    let show_prev_comp = !s.setts.auto_preview;
+    //Because opening the comp in the viewer takes away focus from the panel we limit the amout of times this happens 'per session'.
+    let show_prev_comp = false;
+    if (s.setts.auto_preview && !has_opened_viewer) {
+      has_opened_viewer = true;
+      show_prev_comp = true;
+    }
 
     TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
     sel_tmpl = sel_tmpl; //Force reactivity to update path previews

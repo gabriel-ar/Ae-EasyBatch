@@ -11,6 +11,9 @@ Internal use functions are prefixed with an underscore `_`.
 //@include "json2.js"
 //script EasyBatch
 
+/**Because random bugs happens that are difficult to track */
+var local_logs = [];
+
 function _HasTemplates() {
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var item = app.project.item(i_items);
@@ -400,8 +403,6 @@ function DeleteSettings() {
   return JSON.stringify(response);
 }
 
-
-
 /**
  * Visual diff test helper. Intended for use in testing only.
  *
@@ -740,6 +741,10 @@ function _ResolveFootageItem(path, proj_folder) {
  * @returns {{ message: string, column: number }[]} List of errors found during the process
  */
 function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
+
+  // var epname = e_props === undefined ? "root" : e_props.name;
+  // local_logs.push("Applying template properties for '" + epname + "' at row " + row_i + " with replace_orgs=" + replace_orgs);
+  
   if (replace_orgs === undefined) {
     replace_orgs = false;
   }
@@ -758,6 +763,8 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
 
     /** @type {Property<any>} */
     var ess_prop = /** @type {Property<any>} */ (e_props.property(i_prop));
+
+  //  local_logs.push("Processing property '" + ess_prop.name + "' of type " + ess_prop.propertyValueType + " in " + epname);
 
     if (ess_prop.propertyType === PropertyType.INDEXED_GROUP || ess_prop.propertyType === PropertyType.NAMED_GROUP) {
       //This is a group, go deeper
@@ -861,7 +868,6 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       if (replace_orgs)
         /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).setValue(col.values[row_i]);
       else ess_prop.setValue(col.values[row_i]);
-
       continue;
     }
 
@@ -888,8 +894,6 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
       continue;
     }
   }
-
-
   return errors;
 }
 
@@ -1654,6 +1658,13 @@ function _EscapeArgs(args) {
 
 function _EscapeJSON(str) {
   return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
+}
+
+function _DumpLogs(erase) {
+  for (var i = 0; i < local_logs.length; i++) {
+    writeLn(local_logs[i]);
+  }
+  if (erase===undefined || erase) local_logs = [];
 }
 
 _SetGlobalCurrentPath();
