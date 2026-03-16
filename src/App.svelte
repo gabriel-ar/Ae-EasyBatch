@@ -338,10 +338,10 @@
     if (!s.setts.auto_preview && prop_changed) return;
 
     //Because opening the comp in the viewer takes away focus from the panel we limit the amout of times this happens 'per session'.
-    let show_prev_comp = false;
-    if (s.setts.auto_preview && !has_opened_viewer) {
+    let open_comp_viewer = false;
+    if (s.setts.auto_preview && !has_opened_viewer && !prop_changed) {
       has_opened_viewer = true;
-      show_prev_comp = true;
+      open_comp_viewer = true;
     }
 
     TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
@@ -357,10 +357,10 @@
     send_templ.generate_names = [send_templ.generate_names[0]];
 
     let s_templt = JSON.stringify(send_templ);
-    l.debug(`Previewing Row:`, s_templt, row_i, show_prev_comp);
+    l.debug(`Previewing Row:`, s_templt, row_i, open_comp_viewer);
 
     csa
-      .Exec<PreviewRowResult>("PreviewRow", s_templt, 0, show_prev_comp)
+      .Exec<PreviewRowResult>("PreviewRow", s_templt, 0, open_comp_viewer)
       .then((result) => {
         l.debug(`Preview Row Result`, result);
 
