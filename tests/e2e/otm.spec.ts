@@ -22,11 +22,59 @@ test.beforeAll(async () => {
     page = con.page!;
 });
 
-test.describe('Basic Setup', async () => {
+// Run tests in this suite sequentially to maintain state
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Load the test project', async () => {
+
+    test('sould close the previously opened project without saving', async () => {
+        await CsaEval('app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES)', page);
+
+        const hasProject = await CsaEval('app.project.file === null', page) === 'false';
+        console.log("Project open after close attempt:", await CsaEval('app.project.file', page));
+        expect(hasProject, 'project was closed successfully').toBeFalsy();
+    });
+
+    const testProjectPath = path.join(process.cwd(), 'tests/projects/tests-26.aet').replaceAll("\\", "\\\\");
+    console.log("Resolved test project path: ", testProjectPath);
+
+    test('project file exists', async () => {
+        console.log("Checking test project path: ", testProjectPath);
+        const existEval = (await CsaEval(`new File("${testProjectPath}").exists`, page)) === 'true' ? true : false;
+        console.log("Test project file existence check result: ", existEval);
+        expect(existEval, `Test project file exists at ${testProjectPath}`).toBeTruthy();
+    });
+
+    test('should load the test project', async () => {
+        await CsaEval(`app.open(new File("${testProjectPath}"))`, page);
+
+        const loaded = await CsaEval(`app.project.file ? app.project.file.fsName : ""`, page);
+
+        console.log("Checking loaded vs expected", loaded, path.normalize(testProjectPath));
+        expect(loaded === path.normalize(testProjectPath), 'Project loaded successfully').toBe(true);
+    });
+
+});
+
+test.describe('Reset and load template', async () => {
+
+    // test('deletes the extension settings in the metadata', async () => {
+    //     test.slow();
+    //     const delSetts = await CsaEval(`DeleteSettings()`, page);
+
+    //     console.log("DeleteSettings result:", delSetts);
+    //     const res = JSON.parse(delSetts);
+
+    //     expect(res.success, 'deleted settings').toBeTruthy();
+
+    //     await page.reload({waitUntil: 'domcontentloaded'});
+    // });
+
     test('should load the main UI', async () => {
+
         // Verify we're connected to the extension
-        const appElement = await page.$('#app');
-        expect(appElement, 'has #app element').toBeTruthy();
+        const appElement = await page.$('.header_tabs');
+        expect(appElement, 'has header_tabs element').toBeTruthy();
     });
 
     test('should reset the settings to default', async () => {
@@ -36,7 +84,7 @@ test.describe('Basic Setup', async () => {
         await settingsTab!.tap();
 
         // Click the "Reset to Default" button
-        const resetButton = await page.$('main.settings button::-p-text(Reset Settings)');
+        const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)', { timeout: 2000 });
         expect(resetButton, 'has Reset to Default button').toBeTruthy();
         await resetButton!.tap();
     });
@@ -221,11 +269,6 @@ test.describe('Filling Data', async () => {
 
     });
 
-    test('cep connection', async () => {
-        const ver = await CsaEval('app.version', page);
-        console.log("After eval, version is: ", ver);
-    });
-
 });
 
 test.describe('OtM Render', async () => {
@@ -313,8 +356,8 @@ test.describe('OtM Render', async () => {
         const selRenderSetts = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(2) .dropdown', 'Best Settings');
         expect(selRenderSetts, 'selected Best Settings').toBeTruthy();
 
-        const selOutMode = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(3) .dropdown', 'H.264 - Match Render Settings - 15 Mbps');
-        expect(selOutMode, 'selected H.264 - Match Render Settings - 15 Mbps').toBeTruthy();        
+        const selOutMode = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(3) .dropdown', 'H.264 - Match Render Settings - 40 Mbps');
+        expect(selOutMode, 'selected H.264 - Match Render Settings - 40 Mbps').toBeTruthy();
 
         //add second export
 
@@ -326,6 +369,7 @@ test.describe('OtM Render', async () => {
         expect(await patternPreview2?.evaluate(el => el.textContent?.trim()), 'shows updated pattern for second export').toBe("renders/otm_test/OtM-OtM_Export2-0");
 
     });
+
     let renderedPaths: string[] = [];
 
     test('start renders', async () => {
@@ -362,26 +406,55 @@ test.describe('OtM Render', async () => {
 
     test('verify that the renders exist', async () => {
 
+        let all_found = true;
+
         // 4. Verify each output file was actually written to disk
         for (const p of renderedPaths) {
-            const fullPath = path.join(await GetProjectFilePath(page), p);
+            const fullPath = path.join(await GetProjectFilePath(page), p + ".mp4");
 
-            console.log('Checking output file:', fullPath);
-            expect(fs.existsSync(fullPath), `output file exists: ${fullPath}`).toBe(true);
-            expect(fs.statSync(fullPath).size, `output file is not empty: ${fullPath}`).toBeGreaterThan(10_000);
+            let exists = fs.existsSync(fullPath);
+            let size = exists ? fs.statSync(fullPath).size : 0;
+
+            if (!exists || size <= 10_000) {
+                all_found = false;
+            }
+
+            console.log('Checking output file:', fullPath, 'exists:', exists, 'size:', size);
         }
+
+        expect(all_found, 'all expected output files were found with non-zero size').toBeTruthy();
     });
 
+    test('renders are similar to expected output', async () => {
+        // 5. (Optional) Check that the rendered files are visually similar to expected output using the CompareResults composition in the test project
 
+        const rendersFolder = path.join(await GetProjectFilePath(page), 'renders', 'otm_test');
 
+        let renderedPaths = fs.readdirSync(rendersFolder)
+            .filter(file => file.endsWith('.mp4'))
+            .map(file => ({ path: path.join(rendersFolder, file), file: file }));
 
+        console.log('Renders to check:', renderedPaths.map(p => p.path));
 
+        for (const p of renderedPaths) {
+            console.log('Checking render output for:', p);
+
+            const renderPath = path.join(p.path).replaceAll("\\", "\\\\");
+            const result = await CsaEval(`CheckRenderResult("${renderPath}")`, page);
+            const checkResult = JSON.parse(result);
+
+            const avg_color = (checkResult.color[0]+checkResult.color[1]+checkResult.color[2])/3;
+            
+            console.log('CheckRenderResult for', renderPath, 'returned:', checkResult, 'average color:', avg_color);
+            expect(checkResult.success && avg_color < 0.009, `Render in range ${p.file} (${avg_color})`).toBeTruthy();
+        }
+    });
 });
 
 
 /**Helper function to evaluate a script in the CEP environment */
 async function CsaEval(script: string, page: Page) {
-    return page.evaluate((script: string) => {
+    return page.evaluate((script: string): Promise<string> => {
         // @ts-ignore
         const a_cep = window.__adobe_cep__;
         return new Promise((resolve) => {
@@ -413,7 +486,7 @@ async function WaitForRenderQueue(page: Page, timeoutMs = 120_000): Promise<void
         if (status === 'false') {
             return; // Render queue is not rendering, which means it has finished
         }
-            
+
         await new Promise(r => setTimeout(r, pollInterval));
     }
 

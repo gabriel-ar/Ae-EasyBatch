@@ -276,12 +276,9 @@ function LoadSettings() {
     var p_proj_setts = mdata.getProperty(xmp, "ProjectSettings", XMPConst.STRING);
     var p_proj_data = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
 
-    // if (p_proj_setts === undefined || p_proj_setts.value === undefined) {
-    //   not_found = true;
-    //   throw new ResponseError("No settings found in the project", {
-    //     not_found: true,
-    //   });
-    // }
+    if (p_proj_setts === undefined || p_proj_setts.value === undefined) {
+      throw new ResponseError("No settings found in the project", { not_found: true });
+    }
 
     result.proj_data = JSON.parse(p_proj_data.value);
     result.proj_settings = JSON.parse(p_proj_setts.value);
@@ -364,6 +361,187 @@ function SaveSettings(s_request) {
     response.success = false;
     response.error_obj = e;
     response.error_obj.source = "host.jsx @ SaveSettings";
+  }
+
+  return JSON.stringify(response);
+}
+
+/**
+ * Deletes the EasyBatch settings from the project's XMP metadata.
+ * Intended for use in testing only.
+ * @returns {string} Stringified JSON of a result object
+ */
+function DeleteSettings() {
+  /** @type {{ success: boolean, error_obj?: any }} */
+  var response = {
+    success: false
+  };
+  try {
+    if (ExternalObject.AdobeXMPScript === undefined) {
+      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+    }
+
+    var mdata = new XMPMeta(app.project.xmpPacket);
+    var uri = XMPMeta.getNamespaceURI("easybatch");
+
+    if (uri !== undefined && uri !== "") {
+      mdata.deleteProperty(uri, "ProjectData");
+      mdata.deleteProperty(uri, "ProjectSettings");
+      app.project.xmpPacket = mdata.serialize();
+    }
+
+    response.success = true;
+  } catch (e) {
+    response.success = false;
+    response.error_obj = e;
+    response.error_obj.source = "host.jsx @ DeleteSettings";
+  }
+
+  return JSON.stringify(response);
+}
+
+
+
+/**
+ * Visual diff test helper. Intended for use in testing only.
+ *
+ * Imports the rendered video at `render_path` into the project, then finds a
+ * PNG with the same base name inside the project folder named "expected".
+ * It replaces:
+ *   - The "Origin" layer in "CompareResults" with the render footage.
+ *   - The "Expected" layer in "CompareResults" with the matching PNG footage.
+ *
+ * Finally it reads the RGBA value produced by the expression on the
+ * "ResultText" layer (sourceText property) and returns it.
+ * A result of [0, 0, 0, 1] means the render matches the expected output.
+ *
+ * @param {string} render_path - Absolute path to the rendered video file.
+ * @returns {string} Stringified JSON of `CheckRenderResultResult` object.
+ */
+function CheckRenderResult(render_path) {
+  _EscapeArgs(arguments);
+
+  /** @type {CheckRenderResultResult} */
+  var response = { success: false };
+
+  try {
+    // ── 1. Resolve / import the render footage ────────────────────────────
+    var render_file = new File(render_path);
+    if (!render_file.exists) {
+      throw new Error("Render file not found: " + render_path);
+    }
+
+    // Derive the expected PNG name from the render file base name.
+    // e.g. "output_row0.mp4" → "output_row0.png"
+    var render_name = render_file.name; // includes extension
+    var base_name = render_name.substring(0, render_name.lastIndexOf("."));
+    var expected_name = base_name + ".png";
+
+    // ── 2. Find the "expected" folder item ───────────────────────────────
+    /** @type {FolderItem|undefined} */
+    var expected_folder;
+    for (var i = 1; i <= app.project.numItems; i++) {
+      var item = app.project.item(i);
+      if (item instanceof FolderItem && item.name === "Expected") {
+        expected_folder = item;
+        break;
+      }
+    }
+    if (expected_folder === undefined) {
+      throw new Error("Project folder 'expected' not found");
+    }
+
+    // ── 3. Find the matching PNG footage inside the expected folder ────────
+    /** @type {FootageItem|undefined} */
+    var expected_footage;
+    for (var i = 1; i <= expected_folder.numItems; i++) {
+      var f_item = expected_folder.item(i);
+      if (
+        f_item instanceof FootageItem &&
+        f_item.name === expected_name
+      ) {
+        expected_footage = f_item;
+        break;
+      }
+    }
+    if (expected_footage === undefined) {
+      throw new Error("Expected PNG not found in 'expected' folder: " + expected_name);
+    }
+
+    // ── 4. Import (or retrieve) the render footage ────────────────────────
+    var render_footage = _ResolveFootageItem(render_path, "To Compare");
+
+    // ── 5. Find the "CompareResults" composition ──────────────────────────
+    /** @type {CompItem|undefined} */
+    var compare_comp;
+    for (var i = 1; i <= app.project.numItems; i++) {
+      var c_item = app.project.item(i);
+      if (c_item instanceof CompItem && c_item.name === "CompareResults") {
+        compare_comp = c_item;
+        break;
+      }
+    }
+    if (compare_comp === undefined) {
+      throw new Error("Composition 'CompareResults' not found in the project");
+    }
+
+    // ── 6. Replace sources for "Origin" and "Expected" layers ─────────────
+    /** @type {AVLayer|undefined} */
+    var origin_layer;
+    /** @type {AVLayer|undefined} */
+    var expected_layer;
+
+    for (var i = 1; i <= compare_comp.numLayers; i++) {
+      var layer = compare_comp.layer(i);
+      if (layer.name === "Origin") {
+        origin_layer = /** @type {AVLayer} */ (layer);
+      } else if (layer.name === "Expected") {
+        expected_layer = /** @type {AVLayer} */ (layer);
+      }
+    }
+
+    if (origin_layer === undefined) {
+      throw new Error("Layer 'Origin' not found in 'CompareResults'");
+    }
+    if (expected_layer === undefined) {
+      throw new Error("Layer 'Expected' not found in 'CompareResults'");
+    }
+
+    origin_layer.replaceSource(render_footage, false);
+    expected_layer.replaceSource(expected_footage, false);
+
+    // ── 7. Read the color from "ResultText" expression sourceText ─────────
+    /** @type {TextLayer|undefined} */
+    var result_text_layer;
+    for (var i = 1; i <= compare_comp.numLayers; i++) {
+      if (compare_comp.layer(i).name === "ResultText") {
+        result_text_layer = /** @type {TextLayer} */ (compare_comp.layer(i));
+        break;
+      }
+    }
+    if (result_text_layer === undefined) {
+      throw new Error("Layer 'ResultText' not found in 'CompareResults'");
+    }
+
+    // The expression on sourceText evaluates sampleImage() which returns an
+    // [r, g, b, a] array. AE evaluates expressions lazily; set the comp time
+    // to 0 so we get a deterministic frame before reading.
+    compare_comp.time = 0;
+
+    var source_text_prop = /** @type {Property<any>} */ (
+      result_text_layer.property("Source Text")
+    );
+    var raw_text = source_text_prop.value.text;
+
+    // The expression output is "r,g,b,a" — wrap in brackets for JSON.parse
+    var color = JSON.parse("[" + raw_text + "]");
+
+    response.color = /** @type {[number, number, number, number]} */ (color);
+    response.success = true;
+  } catch (e) {
+    response.success = false;
+    response.error_obj = e;
+    response.error_obj.source = "host.jsx @ CheckRenderResult";
   }
 
   return JSON.stringify(response);
@@ -534,6 +712,7 @@ function _ResolveFootageItem(path, proj_folder) {
     var proj_item = app.project.item(i_items);
     if (proj_item instanceof FootageItem
       && proj_item.file !== null
+      && proj_item.footageMissing === false
       && proj_item.file.fullName.toLowerCase() == import_file.fullName.toLowerCase()) {
       return proj_item;
     }

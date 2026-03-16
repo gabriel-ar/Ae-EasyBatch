@@ -153,3 +153,4 @@ type HostColumnData          = import('../lib/Messaging').HostColumnData;
 type PreviewRowResult        = import('../lib/Messaging').PreviewRowResult;
 type SaveSettsRequest        = import('../lib/Messaging').SaveSettsRequest;
 type IsSameProjectResult     = import('../lib/Messaging').IsSameProjectResult;
+type CheckRenderResultResult = import('../lib/Messaging').CheckRenderResultResult;

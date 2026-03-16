@@ -161,3 +161,18 @@ export interface IsSameProjectResult extends Result {
   /** True if same project */
   same_project: boolean;
 }
+
+/**
+ * Result for CheckRenderResult.
+ * Returns the RGBA color sampled from the ResultText layer of the CompareResults
+ * composition after swapping in the rendered file and its expected PNG reference.
+ * A value of [0,0,0,1] (pure black, full alpha) means the render matches the expected output.
+ */
+export interface CheckRenderResultResult extends Result {
+  /**
+   * The RGBA color array [r, g, b, a] sampled from the ResultText expression layer.
+   * Values are in the 0–1 range as returned by sampleImage().
+   * Undefined if the operation failed before the sample could be read.
+   */
+  color?: [number, number, number, number];
+}
