@@ -182,8 +182,8 @@ export class ColumnHelper {
       return inc.toString().padStart(p1.length, "0");
     });
 
-    for (let i_col in columns) {
-      pattern = pattern.replace(`{column_${i_col}}`, columns[i_col].values[index]);
+    for (let i_col of columns) {
+      pattern = pattern.replace(`{${i_col.cont_name}}`, i_col.values[index]);
     }
     return pattern;
   }

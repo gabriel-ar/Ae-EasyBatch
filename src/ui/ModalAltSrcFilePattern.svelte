@@ -84,6 +84,11 @@
   let file_exists = $state("");
   let file_exists_to;
   async function FileExists() {
+    if(pattern === "" || preview === "") {
+      file_exists = "";
+      return;
+    }
+
     const fs = window.require("fs");
     const path = window.require("path");
 
@@ -92,11 +97,18 @@
     )) as string;
     let file = path.join(proj_folder, preview);
 
-    fs.exists(file, (exists) => {
-      if (exists) {
-        file_exists = "yes";
+    console.debug("[ModalAltSrc] Checking if file exists at path:", file);
+
+    fs.stat(file, (err, stats) => {
+      if (err) {
+        if (err.code === "ENOENT") {
+          file_exists = "no";
+        } else {
+          console.error("Error checking file existence:", err);
+          file_exists = "";
+        }
       } else {
-        file_exists = "no";
+        file_exists = stats.isFile() ? "yes" : "no";
       }
     });
   }
