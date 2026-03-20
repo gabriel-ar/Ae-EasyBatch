@@ -1,5 +1,5 @@
 import papa from "papaparse";
-import { type RenderSettsResults, type SaveSettsRequest } from "./Messaging";
+import { type RenderSettsResults, type SaveSettsRequest } from "./Messaging.ts";
 import "./ces.t.ts"
 import Logger from "./Logger.js";
 
@@ -399,11 +399,12 @@ export class TemplateHelper {
     let last_row = this.AsRows(tmpl).pop();
 
     for (let col in tmpl.columns) {
-      tmpl.columns[col].values.push(
+
+      let new_val = 
         last_row === undefined ?
           ColumnHelper.ValidateValue("", tmpl.columns[col].type)
-          : ColumnHelper.ValidateValue(last_row[Number(col)], tmpl.columns[col].type)
-      );
+          : ColumnHelper.ValidateValue($state.snapshot(last_row)[Number(col)], tmpl.columns[col].type);
+      tmpl.columns[col].values.push(structuredClone(new_val));
     }
 
     tmpl.rows = this.AsRows(tmpl);
@@ -425,7 +426,7 @@ export class TemplateHelper {
       tmpl.columns[col].values.splice(
         index + 1,
         0,
-        ColumnHelper.ValidateValue(row_data[Number(col)], tmpl.columns[col].type)
+        structuredClone(ColumnHelper.ValidateValue($state.snapshot(row_data)[Number(col)], tmpl.columns[col].type))
       );
     }
     tmpl.rows = this.AsRows(tmpl);
@@ -447,7 +448,7 @@ export class TemplateHelper {
       tmpl.columns[col].values.splice(
         index,
         0,
-        ColumnHelper.ValidateValue(row_data[Number(col)], tmpl.columns[col].type)
+        structuredClone(ColumnHelper.ValidateValue($state.snapshot(row_data)[Number(col)], tmpl.columns[col].type))
       );
     }
 
@@ -734,5 +735,4 @@ export const enum Tabs {
   Output = "output",
   Settings = "settings",
 }
-
 

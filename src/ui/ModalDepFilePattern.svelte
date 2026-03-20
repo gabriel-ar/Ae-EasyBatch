@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { TemplateHelper } from "../lib/Settings.ts";
+  import { TemplateHelper } from "../lib/Settings.svelte.ts";
   import { l, s, csa } from "./States.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
 

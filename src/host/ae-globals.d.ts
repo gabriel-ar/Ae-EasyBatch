@@ -132,12 +132,12 @@ interface String {
 // ─── Shared types from client-side modules ────────────────────────────────────
 // Declaring these globally here removes the need for @typedef imports in host.jsx.
 
-type ProjSettings    = import('../lib/Settings').ProjSettings;
-type ProjData        = import('../lib/Settings').ProjData;
-type TemplateData    = import('../lib/Settings').TemplateData;
-type ColumnData      = import('../lib/Settings').ColumnData;
-type Comp            = import('../lib/Settings').Comp;
-type DepCompSetts    = import('../lib/Settings').DepCompSetts;
+type ProjSettings    = import('../lib/Settings.svelte').ProjSettings;
+type ProjData        = import('../lib/Settings.svelte').ProjData;
+type TemplateData    = import('../lib/Settings.svelte').TemplateData;
+type ColumnData      = import('../lib/Settings.svelte').ColumnData;
+type Comp            = import('../lib/Settings.svelte').Comp;
+type DepCompSetts    = import('../lib/Settings.svelte').DepCompSetts;
 
 type GetSettsResult          = import('../lib/Messaging').GetSettsResult;
 type GetAllCompsResult       = import('../lib/Messaging').GetAllCompsResult;

@@ -1,4 +1,4 @@
-import { type ProjSettings, type ProjData, type TemplateData, type ColumnData, type Comp } from "./Settings.ts"
+import { type ProjSettings, type ProjData, type TemplateData, type ColumnData, type Comp } from "./Settings.svelte.js"
 
 export type ResponseErrorBase = {
   /** If the project name is not found */

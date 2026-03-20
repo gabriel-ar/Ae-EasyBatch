@@ -1,8 +1,8 @@
 <script lang="ts">
   import Logger from "../lib/Logger.ts";
   import { l, s, csa } from "./States.svelte.ts";
-  import { SettingsHelper } from "../lib/Settings.ts";
-  import type { ProjData } from "../lib/Settings.ts";
+  import { SettingsHelper } from "../lib/Settings.svelte.ts";
+  import type { ProjData } from "../lib/Settings.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
   import type CSAdapter from "../lib/CSAdapter.ts";
 

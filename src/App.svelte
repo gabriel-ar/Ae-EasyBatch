@@ -33,7 +33,7 @@
     type Comp,
     Tabs,
     type ProjSettings,
-  } from "./lib/Settings";
+  } from "./lib/Settings.svelte.ts";
 
   import {
     SaveSettsRequest,

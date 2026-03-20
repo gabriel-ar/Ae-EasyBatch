@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import { l, s, csa } from "./States.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
-  import { ColumnHelper } from "../lib/SettingsHelper.ts";
+  import { ColumnHelper } from "../lib/Settings.svelte.ts";
     import { CheckCircled, ExclamationTriangle } from "radix-icons-svelte";
 
   let {
@@ -33,6 +33,8 @@
       "#alt_src_pattern_ta",
     );
 
+    console.debug("cursor_pos:", save_pattern_ta.selectionStart);
+
     let cursor_pos = save_pattern_ta.selectionStart;
     let old_val = pattern;
 
@@ -42,7 +44,11 @@
       `{${sel_add_field}}` +
       old_val.slice(cursor_pos);
 
-    l.debug("[ModalAltSrc] AddField called with pattern:", pattern);
+      save_pattern_ta.focus();
+      save_pattern_ta.selectionStart = save_pattern_ta.selectionEnd =
+        cursor_pos + sel_add_field.length + 2;
+
+    l.debug("[ModalAltSrc] AddField solved pattern:", pattern);
   }
 
   /**
