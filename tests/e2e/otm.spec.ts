@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from 'puppeteer-core';
 import * as fs from 'fs';
 import path from 'path';
+import { text } from 'stream/consumers';
 
 /**
  * Test suite for extension startup and template loading
@@ -113,21 +114,16 @@ test.describe('Reset and load template', async () => {
         const firstRow = await page.$('.dat_table tbody tr:first-child');
         expect(firstRow, 'has data table with at least one row').toBeTruthy();
 
-        const txt_in = await firstRow!.$('td:nth-child(2) textarea');
-        expect(await txt_in!.evaluate(el => el.value), 'text input cell has default data').toBe('Linked text');
+        EditCell(page, CellType.Text, 1, 7, 'headshot');
 
-        const color_in = await firstRow!.$('td:nth-child(3) input');
-        expect(await color_in?.evaluate(el => el.value), 'color input cell has default data').toBe('00ffdc');
+        expect(await GetCell(page, CellType.Text, 1, 2), 'text input cell has default data').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'color input cell has default data').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'single dimension number input cell has default data').toBe('55');
 
-        const single_dim_in = await firstRow!.$('td:nth-child(4) input[type="number"]');
-        expect(await single_dim_in?.evaluate(el => el.value), 'single dimension number input cell has default data').toBe('55');
-
-        const triple_in1 = await firstRow!.$('td:nth-child(5) input[type="number"]:nth-of-type(1)');
-        const triple_in2 = await firstRow!.$('td:nth-child(5) input[type="number"]:nth-of-type(2)');
-        const triple_in3 = await firstRow!.$('td:nth-child(5) input[type="number"]:nth-of-type(3)');
-        expect(await triple_in1?.evaluate(el => el.value), 'triple dimension number input cell has default data for X').toBe('10');
-        expect(await triple_in2?.evaluate(el => el.value), 'triple dimension number input cell has default data for Y').toBe('20');
-        expect(await triple_in3?.evaluate(el => el.value), 'triple dimension number input cell has default data for Z').toBe('0');
+        const triple = await GetCell(page, CellType.D3, 1, 5) as { x: string, y: string, z: string };
+        expect(triple.x, 'triple dimension number input cell has default data for X').toBe('10');
+        expect(triple.y, 'triple dimension number input cell has default data for Y').toBe('20');
+        expect(triple.z, 'triple dimension number input cell has default data for Z').toBe('0');
 
         const img_in = await firstRow!.$('td:nth-child(6) button');
         expect(img_in, 'image input cell has default data').toBeTruthy();
@@ -145,9 +141,12 @@ test.describe('Reset and load template', async () => {
         const input_field = await page.$('#alternate_modal #alt_src_pattern_ta');
         expect(input_field, 'has input field for file path pattern').toBeTruthy();
 
-        // Enter a file path pattern
-        await input_field!.type('./assets/headshot');
+        await input_field!.click({ clickCount: 3 });
 
+        // Enter a file path pattern
+        await input_field!.type('./assets/', { delay: 100 });
+
+        expect(await con.DropdownSelect('#alternate_modal .dropdown', 'CommentField'), 'selects Comment Field from dropdown').toBeTruthy();
         expect(await con.DropdownSelect('#alternate_modal .dropdown', 'Row Number'), 'selects Row Number from dropdown').toBeTruthy();
 
         await input_field!.evaluate(el => {
@@ -158,7 +157,7 @@ test.describe('Reset and load template', async () => {
         await input_field!.type('.jpg');
 
         expect(await input_field!.evaluate(el => (el as HTMLInputElement).value),
-            'input field has updated pattern with file extension').toBe('./assets/headshot{row_number}.jpg');
+            'input field has updated pattern with file extension').toBe('./assets/{CommentField}{row_number}.jpg');
 
         const preview = await page.$('#alternate_modal .out_prev');
         expect(await preview?.evaluate(el => el.textContent), 'preview was updated as expected').toBe('./assets/headshot0.jpg');
@@ -172,12 +171,8 @@ test.describe('Reset and load template', async () => {
         const modal = await page.$('#alternate_modal');
         expect(modal, 'modal is closed after saving').toBeNull();
 
-        const pattern_preview = await page.$eval('.dat_table tbody tr:first-child td:nth-child(6)', el => el.textContent.trim());
-        expect(pattern_preview, 'table cell shows updated pattern preview').toBe('./assets/headshot0.jpg');
-
-
+        expect(await GetCell(page, CellType.Image, 1, 6), 'table cell shows updated pattern preview').toBe('./assets/headshot0.jpg');
     });
-
 
 });
 
@@ -197,65 +192,37 @@ test.describe('Filling Data', async () => {
         const td1 = await new_row?.$('td:nth-child(1)');
         expect(await td1?.evaluate(el => el.textContent?.trim()), 'new row has correct row number').toBe("2");
 
-        const text_in = await new_row?.$('td:nth-child(2) textarea');
-        expect(await text_in?.evaluate(el => el.value), 'new row has text input cell').toBe("Linked text");
+        expect(await GetCell(page, CellType.Text, 2, 2), 'new row has text input cell').toBe("Linked text");
+        expect(await GetCell(page, CellType.Color, 2, 3), 'new row has color input cell').toBe("00ffdc");
+        expect(await GetCell(page, CellType.D1, 2, 4), 'new row has single dimension number input cell').toBe("55");
 
-        const color_in = await new_row?.$('td:nth-child(3) input');
-        expect(await color_in?.evaluate(el => el.value), 'new row has color input cell').toBe("00ffdc");
-
-        const single_dim_in = await new_row?.$('td:nth-child(4) input[type="number"]');
-        expect(await single_dim_in?.evaluate(el => el.value), 'new row has single dimension number input cell').toBe("55");
-
-        const triple_in1 = await new_row?.$('td:nth-child(5) input[type="number"]:nth-of-type(1)');
-        expect(await triple_in1?.evaluate(el => el.value), 'new row has triple dimension number input cell with default X value').toBe("10");
-
-        const triple_in2 = await new_row?.$('td:nth-child(5) input[type="number"]:nth-of-type(2)');
-        expect(await triple_in2?.evaluate(el => el.value), 'new row has triple dimension number input cell with default Y value').toBe("20");
-
-        const triple_in3 = await new_row?.$('td:nth-child(5) input[type="number"]:nth-of-type(3)');
-        expect(await triple_in3?.evaluate(el => el.value), 'new row has triple dimension number input cell with default Z value').toBe("0");
+        const pos = await GetCell(page, CellType.D3, 2, 5) as { x: string, y: string, z: string };
+        expect(pos.x, 'new row has triple dimension number input cell with default X value').toBe("10");
+        expect(pos.y, 'new row has triple dimension number input cell with default Y value').toBe("20");
+        expect(pos.z, 'new row has triple dimension number input cell with default Z value').toBe("0");
 
         const img_in = await new_row?.$('td:nth-child(6)');
         expect(await img_in?.$('button'), 'new row has image input cell with setup button').toBeTruthy();
-        expect(await img_in?.evaluate(el => el.textContent?.trim()), 'new row has image input cell with expected file path').toBe("./assets/headshot1.jpg");
+        expect(await GetCell(page, CellType.Image, 2, 6), 'new row has image input cell with expected file path').toBe("./assets/headshot1.jpg");
     });
 
     test('edit the contents of the second row', async () => {
         const second_row = await page.$('.dat_table tbody tr:nth-child(2)');
         expect(second_row, 'has second row in the table').toBeTruthy();
 
-        const text_in = await second_row!.$('td:nth-child(2) textarea');
-        await text_in!.click({ clickCount: 3 });
-        await text_in!.type('New Linked Text');
-
-        const color_in = await second_row!.$('td:nth-child(3) input');
-        await color_in!.click({ clickCount: 3 });
-        await color_in!.type('ff0000');
-
-        const single_dim_in = await second_row!.$('td:nth-child(4) input[type="number"]');
-        await single_dim_in!.click({ clickCount: 3 });
-        await single_dim_in!.type('75');
-
-        const triple_in1 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(1)');
-        await triple_in1!.click({ clickCount: 3 });
-        await triple_in1!.type('80');
-
-        const triple_in2 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(2)');
-        await triple_in2!.click({ clickCount: 3 });
-        await triple_in2!.type('20');
-
-        const triple_in3 = await second_row!.$('td:nth-child(5) input[type="number"]:nth-of-type(3)');
-        await triple_in3!.click({ clickCount: 3 });
-        await triple_in3!.type('10');
+        await EditCell(page, CellType.Text, 2, 2, 'New Linked Text');
+        await EditCell(page, CellType.Color, 2, 3, 'ff0000');
+        await EditCell(page, CellType.D1, 2, 4, '75');
+        await EditCell(page, CellType.D3, 2, 5, { x: '80', y: '20', z: '10' });
 
         // Verify the changes
-        expect(await text_in?.evaluate(el => el.value), 'text input cell was updated').toBe('New Linked Text');
-        expect(await color_in?.evaluate(el => el.value), 'color input cell was updated').toBe('ff0000');
-        expect(await single_dim_in?.evaluate(el => el.value), 'single dimension number input cell was updated').toBe('75');
-        expect(await triple_in1?.evaluate(el => el.value), 'triple dimension number input cell was updated for X').toBe('80');
-        expect(await triple_in2?.evaluate(el => el.value), 'triple dimension number input cell was updated for Y').toBe('20');
-        expect(await triple_in3?.evaluate(el => el.value), 'triple dimension number input cell was updated for Z').toBe('10');
-
+        expect(await GetCell(page, CellType.Text, 2, 2), 'text input cell was updated').toBe('New Linked Text');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'color input cell was updated').toBe('ff0000');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'single dimension number input cell was updated').toBe('75');
+        const updatedPos = await GetCell(page, CellType.D3, 2, 5) as { x: string, y: string, z: string };
+        expect(updatedPos.x, 'triple dimension number input cell was updated for X').toBe('80');
+        expect(updatedPos.y, 'triple dimension number input cell was updated for Y').toBe('20');
+        expect(updatedPos.z, 'triple dimension number input cell was updated for Z').toBe('10');
 
         let footerInfo = page.waitForFunction(
             () => {
@@ -266,6 +233,24 @@ test.describe('Filling Data', async () => {
         );
         expect(await footerInfo, 'footer text was updated to "Previewed Row 1"').toBeTruthy();
 
+
+    });
+    
+    test('verify the contents of the first row are unchanged', async () => {
+        const firstRow = await page.$('.dat_table tbody tr:first-child');
+        expect(firstRow, 'has data table with at least one row').toBeTruthy();
+
+        expect(await GetCell(page, CellType.Text, 1, 2), 'first column has default data').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'second column has default data').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'third column has default data').toBe('55');
+
+        const pos = await GetCell(page, CellType.D3, 1, 5) as { x: string, y: string, z: string };
+        expect(pos.x, 'fourth column triple dimension number input cell X value is unchanged').toBe('10');
+        expect(pos.y, 'fourth column triple dimension number input cell Y value is unchanged').toBe('20');
+        expect(pos.z, 'fourth column triple dimension number input cell Z value is unchanged').toBe('0');
+
+        expect(await GetCell(page, CellType.Image, 1, 6), 'image path preview is unchanged').toBe('./assets/headshot0.jpg');
+        expect(await GetCell(page, CellType.Text, 1, 7), 'comment field is unchanged').toBe('headshot');
 
     });
 
@@ -491,5 +476,126 @@ async function WaitForRenderQueue(page: Page, timeoutMs = 120_000): Promise<void
     }
 
     throw new Error(`Render queue did not complete within ${timeoutMs}ms`);
+}
+
+
+enum CellType {
+    Text,
+    Color,
+    D1,
+    D2,
+    D3,
+    Image
+}
+
+type CellRef = {
+    row: number;
+    col: number;
+    type: CellType;
+}
+
+async function EditCell(page: Page, cellType: CellType, row: number, col: number, values: string | { x: string, y: string, z: string }): Promise<CellRef> {
+    const cellSelector = `.dat_table tbody tr:nth-child(${row}) td:nth-child(${col})`;
+
+    const cell = await page.$(cellSelector);
+    if (!cell) {
+        throw new Error(`Cell at row ${row}, column ${col} not found`);
+    }
+
+    switch (cellType) {
+        case CellType.Text: {
+            const input = await cell.$('textarea');
+            if (!input) throw new Error(`Text textarea not found at row ${row}, col ${col}`);
+            await input.click({ clickCount: 3 });
+            await input.type(values as string);
+            break;
+        }
+        case CellType.Color: {
+            const input = await cell.$('input');
+            if (!input) throw new Error(`Color input not found at row ${row}, col ${col}`);
+            await input.click({ clickCount: 3 });
+            await input.type(values as string);
+            break;
+        }
+        case CellType.D1: {
+            const input = await cell.$('input[type="number"]');
+            if (!input) throw new Error(`Number input not found at row ${row}, col ${col}`);
+            await input.click({ clickCount: 3 });
+            await input.type(values as string);
+            break;
+        }
+        case CellType.D2: {
+            const { x, y } = values as { x: string, y: string, z: string };
+            const inputs = await cell.$$('input[type="number"]');
+            if (inputs.length < 2) throw new Error(`Expected at least 2 number inputs at row ${row}, col ${col}`);
+            await inputs[0].click({ clickCount: 3 });
+            await inputs[0].type(x);
+            await inputs[1].click({ clickCount: 3 });
+            await inputs[1].type(y);
+            break;
+        }
+        case CellType.D3: {
+            const { x, y, z } = values as { x: string, y: string, z: string };
+            const inputs = await cell.$$('input[type="number"]');
+            if (inputs.length < 3) throw new Error(`Expected at least 3 number inputs at row ${row}, col ${col}`);
+            await inputs[0].click({ clickCount: 3 });
+            await inputs[0].type(x);
+            await inputs[1].click({ clickCount: 3 });
+            await inputs[1].type(y);
+            await inputs[2].click({ clickCount: 3 });
+            await inputs[2].type(z);
+            break;
+        }
+        case CellType.Image:
+            throw new Error(`Image cells are not directly editable via EditCell; use the file path modal instead`);
+        default:
+            throw new Error(`Unsupported cell type ${cellType}`);
+    }
+
+    return { row, col, type: cellType };
+}
+
+async function GetCell(page: Page, cellType: CellType, row: number, col: number): Promise<string | { x: string, y: string, z: string }> {
+    const cellSelector = `.dat_table tbody tr:nth-child(${row}) td:nth-child(${col})`;
+
+    const cell = await page.$(cellSelector);
+    if (!cell) {
+        throw new Error(`Cell at row ${row}, column ${col} not found`);
+    }
+
+    switch (cellType) {
+        case CellType.Text: {
+            const input = await cell.$('textarea');
+            if (!input) throw new Error(`Text textarea not found at row ${row}, col ${col}`);
+            return input.evaluate(el => el.value);
+        }
+        case CellType.Color: {
+            const input = await cell.$('input');
+            if (!input) throw new Error(`Color input not found at row ${row}, col ${col}`);
+            return input.evaluate(el => el.value);
+        }
+        case CellType.D1: {
+            const input = await cell.$('input[type="number"]');
+            if (!input) throw new Error(`Number input not found at row ${row}, col ${col}`);
+            return input.evaluate(el => el.value);
+        }
+        case CellType.D2: {
+            const inputs = await cell.$$('input[type="number"]');
+            if (inputs.length < 2) throw new Error(`Expected at least 2 number inputs at row ${row}, col ${col}`);
+            const [x, y] = await Promise.all(inputs.slice(0, 2).map(i => i.evaluate(el => el.value)));
+            return { x, y, z: '' };
+        }
+        case CellType.D3: {
+            const inputs = await cell.$$('input[type="number"]');
+            if (inputs.length < 3) throw new Error(`Expected at least 3 number inputs at row ${row}, col ${col}`);
+            const [x, y, z] = await Promise.all(inputs.slice(0, 3).map(i => i.evaluate(el => el.value)));
+            return { x, y, z };
+        }
+        case CellType.Image: {
+            return cell.evaluate(el => el.textContent?.trim() ?? '');
+        }
+        default:
+            throw new Error(`Unsupported cell type ${cellType}`);
+    }
 }
 
