@@ -144,6 +144,7 @@ type GetAllCompsResult       = import('../lib/Messaging').GetAllCompsResult;
 type GetSelectedCompsResult  = import('../lib/Messaging').GetSelectedCompsResult;
 type SaveSettingsResults     = import('../lib/Messaging').SaveSettingsResults;
 type BatchRenderResult       = import('../lib/Messaging').BatchRenderResult;
+type RowRenderResult         = import('../lib/Messaging').RowRenderResult;
 type RenderSettsResults      = import('../lib/Messaging').RenderSettsResults;
 type BatchGenerateResult     = import('../lib/Messaging').BatchGenerateResult;
 type GetCurrentValuesResults = import('../lib/Messaging').GetCurrentValuesResults;

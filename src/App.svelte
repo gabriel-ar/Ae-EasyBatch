@@ -540,6 +540,7 @@
   }
 
   let dep_row_results = $state<RowRenderResult[]>([]);
+  let user_stopped_deps = $state(false);
   function BatchOneToMany(row_i = -1) {
     l.log("BatchOneToMany called");
 
@@ -582,6 +583,12 @@
         //Some rows had errors, but the queing went through
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`OtM Render completed with errors`, result.errors);
+          dep_row_results = result.row_results;
+        }
+
+        else if (result.user_stopped) {
+          l.log(`OtM Render stopped by user`);
+          user_stopped_deps = true;
           dep_row_results = result.row_results;
         }
 
@@ -1526,6 +1533,12 @@
       <!--Results-->
       {#if dep_row_results.length > 0}
         <h4>Render Results</h4>
+        {#if user_stopped_deps}
+          <div  class="OtM_stopped_warn">
+            <ExclamationTriangle color="yellow" size={14} />
+            Renders stopped by user.
+          </div>
+        {/if}
         <table class="render_results">
           <thead>
             <tr>
@@ -1542,7 +1555,7 @@
                 <td>
                   {#if row.status == "success"}
                     <CheckCircled color="green" size={23} />
-                  {:else if row.status == "warning"}
+                  {:else if row.status == "warning" || row.status == "stopped"}
                     <ExclamationTriangle color="yellow" size={21} />
                   {:else}
                     <CrossCircled color="red" size={23} />
@@ -1852,6 +1865,16 @@
   }
 
   :global(.OtM_ui_warn svg) {
+    vertical-align: middle;
+    margin-right: 3px;
+  }
+
+  .OtM_stopped_warn {
+    margin: 10px 0;
+    color: var(--color-warning);
+  }
+
+  :global(.OtM_stopped_warn svg) {
     vertical-align: middle;
     margin-right: 3px;
   }

@@ -72,26 +72,26 @@
         <button
           class="c_item"
           onclick={() => Selected("delete")}
-          data-tooltip="Delete this row"
+          data-tooltip="Deletes this row"
           ><Trash />Delete<span class="c_shortcut">Delete</span></button>
         <div class="c_divider"></div>
         <button
           class="c_item"
           onclick={() => Selected("preview")}
-          data-tooltip="Preview this row"
+          data-tooltip="Previews this row"
           ><EyeOpen />Preview
           <span class="c_shortcut">P</span></button>
         <button
           class="c_item"
           onclick={() => Selected("copy_from_preview")}
-          data-tooltip="Copy data from properties panel"
+          data-tooltip="Copies data from properties panel"
           ><Crosshair2 />Copy from Preview<span class="c_shortcut">S</span
           ></button>
         <button
           class="c_item"
           onclick={() => Selected("render_row")}
-          data-tooltip="Render this row"
-          ><Camera />Render<span class="c_shortcut">R</span></button>
+          data-tooltip="Renders this row"
+          ><Camera />Render Row<span class="c_shortcut">R</span></button>
       {:else if mode === "file"}
         <button
           class="c_item"
@@ -108,12 +108,12 @@
           class="c_item"
           onclick={() => Selected("view_table")}
           data-tooltip="Show data as table"
-          ><Table />Show Table<span class="c_shortcut">T</span></button>
+          ><Table />Show as Table<span class="c_shortcut">T</span></button>
         <button
           class="c_item"
           onclick={() => Selected("view_detail")}
-          data-tooltip="Export data to CSV file"
-          ><ActivityLog />Show Detail<span class="c_shortcut">D</span
+          data-tooltip="Shows data in detail view"
+          ><ActivityLog />Show in Detail<span class="c_shortcut">D</span
           ></button>
         <div class="c_divider"></div>
                 <button
