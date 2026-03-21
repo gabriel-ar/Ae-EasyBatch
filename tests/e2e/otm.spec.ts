@@ -59,17 +59,22 @@ test.describe('Load the test project', async () => {
 
 test.describe('Reset and load template', async () => {
 
-    // test('deletes the extension settings in the metadata', async () => {
-    //     test.slow();
-    //     const delSetts = await CsaEval(`DeleteSettings()`, page);
+    test('dismises the "no templates" message if shown', async () => {
 
-    //     console.log("DeleteSettings result:", delSetts);
-    //     const res = JSON.parse(delSetts);
+        const fs_no_tmpls = await page.$('.fs_no_tmpls');   
+        if (fs_no_tmpls) {
+            const dismissBtn = await fs_no_tmpls.$('button::-p-text( Reload)');
+            expect(dismissBtn, 'has Dismiss button for no templates message').toBeTruthy();
+            await dismissBtn!.tap();
 
-    //     expect(res.success, 'deleted settings').toBeTruthy();
+            // Verify the message is dismissed
+            const stillThere = await page.$('.fs_no_tmpls');
+            expect(stillThere, '"no templates" message is dismissed').toBeNull();
+        } else {
+            console.log('"No templates" message was not shown, no need to dismiss');
+        }
 
-    //     await page.reload({waitUntil: 'domcontentloaded'});
-    // });
+    });
 
     test('should load the main UI', async () => {
 
@@ -235,7 +240,7 @@ test.describe('Filling Data', async () => {
 
 
     });
-    
+
     test('verify the contents of the first row are unchanged', async () => {
         const firstRow = await page.$('.dat_table tbody tr:first-child');
         expect(firstRow, 'has data table with at least one row').toBeTruthy();
@@ -428,8 +433,8 @@ test.describe('OtM Render', async () => {
             const result = await CsaEval(`CheckRenderResult("${renderPath}")`, page);
             const checkResult = JSON.parse(result);
 
-            const avg_color = (checkResult.color[0]+checkResult.color[1]+checkResult.color[2])/3;
-            
+            const avg_color = (checkResult.color[0] + checkResult.color[1] + checkResult.color[2]) / 3;
+
             console.log('CheckRenderResult for', renderPath, 'returned:', checkResult, 'average color:', avg_color);
             expect(checkResult.success && avg_color < 0.009, `Render in range ${p.file} (${avg_color})`).toBeTruthy();
         }
@@ -478,7 +483,7 @@ async function WaitForRenderQueue(page: Page, timeoutMs = 120_000): Promise<void
     throw new Error(`Render queue did not complete within ${timeoutMs}ms`);
 }
 
-
+    
 enum CellType {
     Text,
     Color,
