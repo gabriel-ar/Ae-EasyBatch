@@ -1646,7 +1646,8 @@ function RenderDeps(tmpl, props_layer) {
  */
 function ShouldCancelRenderDeps() {
   for (var i = 0; i < queued_items.length; i++) {
-    if (queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
+    if (queued_items[i].rqi !== undefined 
+      && queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
       queued_items[i].row_result.status = 'stopped';
       queued_items[i].row_result.error = 'Render stopped by user';
       queued_items = [];
