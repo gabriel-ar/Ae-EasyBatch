@@ -670,11 +670,42 @@ export class ColumnHelper {
         break;
 
       case this.PropertyValueType.COLOR:
-        value = this.ValidateArray(value, 4);
+        if (typeof value === "string" && !value.includes(",") && !value.includes("[")) {
+          value = ColumnHelper.HexToColorArray(value);
+        } else {
+          value = this.ValidateArray(value, 4);
+        }
         break;
     }
 
     return value;
+  }
+
+  /**
+   * Converts a CSS hex color string (#RGB, #RRGGBB, or #RRGGBBAA) to a
+   * normalized [r, g, b, a] array where each channel is in the 0–1 range,
+   * as expected by After Effects.
+   */
+  static HexToColorArray(hex: string): number[] {
+    hex = hex.replace(/^#/, "");
+
+    // Expand shorthand #RGB → #RRGGBB
+    if (hex.length === 3) {
+      hex = hex.split("").map((c) => c + c).join("") + "ff";
+    } else if (hex.length === 6) {
+      hex += "ff";
+    }
+
+    if (hex.length !== 8 || !/^[0-9a-fA-F]{8}$/.test(hex)) {
+      return [0, 0, 0, 1];
+    }
+
+    return [
+      parseInt(hex.slice(0, 2), 16) / 255,
+      parseInt(hex.slice(2, 4), 16) / 255,
+      parseInt(hex.slice(4, 6), 16) / 255,
+      parseInt(hex.slice(6, 8), 16) / 255,
+    ];
   }
 
   static ValidateArray(value: any, length: number) {
