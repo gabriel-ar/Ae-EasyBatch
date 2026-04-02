@@ -65,7 +65,7 @@ export class SettingsHelper {
       TemplateHelper.InitTableColumns(new_templ);
     });
 
-    //Filter the templates that exist in the current array but not in the new one
+    //Find the templates that don't exist in the scanned array
     let old_templs = project.tmpls.filter((old_templ) => {
       return !scanned_templs.some(
         (new_templ) => new_templ.comp_id === old_templ.comp_id
@@ -77,14 +77,14 @@ export class SettingsHelper {
       project.tmpls.splice(project.tmpls.indexOf(old_templ), 1);
     });
 
-    //Find the templates that are in both
+    //Find the templates that already exist in both arrays
     let same_tmpls = project.tmpls.filter((old_templ) => {
       return scanned_templs.some(
         (new_templ) => new_templ.comp_id === old_templ.comp_id
       );
     });
 
-    //Update the templates with the new data
+    //Update the existing templates for possible internal changes
     same_tmpls.forEach((s_tmpl) => {
       let new_templ = scanned_templs.find(
         (new_templ) => new_templ.comp_id === s_tmpl.comp_id
@@ -193,10 +193,10 @@ export class TemplateHelper {
     return templ;
   }
 
-  static Update(tmpl: TemplateData, new_template: TemplateData) {
-    tmpl.name = new_template.name;
+  static Update(tmpl: TemplateData, n_tmpl: TemplateData) {
+    tmpl.name = n_tmpl.name;
 
-    let new_cols = new_template.columns.filter((new_col) => {
+    let new_cols = n_tmpl.columns.filter((new_col) => {
       return !tmpl.columns.some((old_col) => old_col.cont_name === new_col.cont_name);
     });
 
@@ -209,26 +209,28 @@ export class TemplateHelper {
       });
 
       tmpl.columns.push(new_col);
-      tmpl.table_cols.push(tmpl.columns.indexOf(new_col));
+      let new_col_i = tmpl.columns.push(new_col) - 1;
+      tmpl.table_cols.push(new_col_i);
     });
 
-    let old_cols = tmpl.columns.filter((old_col) => {
-      return !new_template.columns.some((new_col) => new_col.cont_name === old_col.cont_name);
+    let deleted_cols = tmpl.columns.filter((old_col) => {
+      return !n_tmpl.columns.some((new_col) => new_col.cont_name === old_col.cont_name);
     });
 
-    old_cols.forEach((old_col) => {
+    deleted_cols.forEach((old_col) => {
       tmpl.columns.splice(tmpl.columns.indexOf(old_col), 1);
     });
 
     let same_cols = tmpl.columns.filter((old_col) => {
-      return new_template.columns.some((new_col) => new_col.cont_name === old_col.cont_name);
+      return n_tmpl.columns.some((new_col) => new_col.cont_name === old_col.cont_name);
     });
 
     same_cols.forEach((old_col) => {
-      let new_col = new_template.columns.find((new_col) => new_col.cont_name === old_col.cont_name);
+      let new_col = n_tmpl.columns.find((new_col) => new_col.cont_name === old_col.cont_name);
       if(new_col) ColumnHelper.Update(old_col, new_col);
     });
 
+    // Remove deleted columns
     tmpl.table_cols = tmpl.table_cols.filter((col_i) => {
       return tmpl.columns[col_i] !== undefined;
     });
