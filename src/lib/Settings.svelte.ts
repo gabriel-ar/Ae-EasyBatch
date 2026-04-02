@@ -205,7 +205,7 @@ export class TemplateHelper {
 
       new_col.values = new Array(tmpl.rows.length);
       tmpl.rows.forEach((row, i) => {
-        new_col.values[i] = Object.assign({}, base_val);
+        new_col.values[i] = structuredClone(base_val);
       });
 
       tmpl.columns.push(new_col);
