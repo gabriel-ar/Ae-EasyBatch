@@ -128,7 +128,7 @@ export type RowRenderResult ={
   /** Row number */
   row: number;
   /**Status */
-  status: 'success' | 'error' | 'warning';
+  status: 'success' | 'error' | 'warning'| 'stopped';
   /** If successful, the path to the rendered file */
   rendered_path?: string;
   /** If not successful, the error message (user facing) */
@@ -139,6 +139,8 @@ export type RowRenderResult ={
 export interface BatchRenderResult extends Result {
   /** Array of row render results */
   row_results?: RowRenderResult[];
+
+  user_stopped?: boolean;
 }
 
 /** Result for saving settings */

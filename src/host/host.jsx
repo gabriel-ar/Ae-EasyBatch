@@ -742,9 +742,6 @@ function _ResolveFootageItem(path, proj_folder) {
  */
 function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
 
-  // var epname = e_props === undefined ? "root" : e_props.name;
-  // local_logs.push("Applying template properties for '" + epname + "' at row " + row_i + " with replace_orgs=" + replace_orgs);
-  
   if (replace_orgs === undefined) {
     replace_orgs = false;
   }
@@ -1495,6 +1492,9 @@ function _CreateSubfolders(path) {
 /** @type {BatchRenderResult} */
 var dep_result;
 
+/** @type {{rqi: RenderQueueItem, row_result: RowRenderResult}[]} */
+var queued_items;
+
 /**
  * Renders all dependent compositions for each row in the template (One-to-Many mode).
  * Renders synchronously, blocking the AE UI until complete.
@@ -1505,9 +1505,9 @@ function BatchRenderDepComps(str_template) {
   _EscapeArgs(arguments);
 
   dep_result = { success: false, row_results: [] };
+  queued_items = [];
 
   try {
-
     _SetGlobalCurrentPath();
 
     /** @type {TemplateData} */
@@ -1567,9 +1567,13 @@ function RenderDeps(tmpl, props_layer) {
         }
       }
 
-
       //Add the dependent compositions to the render queue
       for (var i = 0; i < tmpl.dep_comps.length; i++) {
+
+        if (ShouldCancelRenderDeps()) {
+          dep_result.user_stopped = true;
+          return;
+        }
 
         //Find the configuration of the dep composition to get the render settin  gs and the path
         /**@type {DepCompSetts} */
@@ -1580,19 +1584,21 @@ function RenderDeps(tmpl, props_layer) {
 
         var dep_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.dep_comps[i].id));
 
+        /** @type {RowRenderResult} */
+        var row_result;
+
         //Check if the render is a single frame
         if (dep_config.render_out_module_templ === "EB_Single_Frame_PNG") {
           _CreateSubfolders(dep_config.save_paths[dep_render_row]);
           var file = new File(dep_config.save_paths[dep_render_row] + ".png");
           dep_comp.saveFrameToPng(0, file);
 
-          //Log the result
-          dep_result.row_results.push({
+          row_result = {
             row: dep_render_row,
             status: prop_error_str === null ? 'success' : 'warning',
             rendered_path: file.fsName,
             error: prop_error_str
-          });
+          };
 
         } else {
           var rq_item = _QueueComp(
@@ -1602,14 +1608,23 @@ function RenderDeps(tmpl, props_layer) {
             dep_config.render_out_module_templ
           );
 
-          //Log the result
-          dep_result.row_results.push({
+          /** @type {RowRenderResult} */
+          row_result = {
             row: dep_render_row,
             status: prop_error_str === null ? 'success' : 'warning',
             rendered_path: dep_config.save_paths[dep_render_row],
             error: prop_error_str
-          });
+          };
         }
+
+        queued_items.push({
+          rqi: rq_item,
+          row_result: row_result
+        });
+
+        //Store result for UI
+        dep_result.row_results.push(row_result);
+
       }//Loop dep comps
 
     } catch (e) {
@@ -1622,6 +1637,23 @@ function RenderDeps(tmpl, props_layer) {
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
   } //loop template rows
+}
+
+/**
+ * Checks if any of the queued render items has been stopped by the user,
+ * in which case the whole process should be stopped to avoid rendering unwanted files.
+ * @returns {boolean}
+ */
+function ShouldCancelRenderDeps() {
+  for (var i = 0; i < queued_items.length; i++) {
+    if (queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
+      queued_items[i].row_result.status = 'stopped';
+      queued_items[i].row_result.error = 'Render stopped by user';
+      queued_items = [];
+      return true;
+    }
+  }
+  return false;
 }
 
 ////////////
