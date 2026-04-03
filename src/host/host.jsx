@@ -1126,7 +1126,7 @@ function BatchRender(str_template, folder) {
     }
 
     //Loop through the rows and set the values of the template
-    for (var i_row = 0; i_row < templ.rows.length; i_row++) {
+    for (var i_row = 0; i_row < templ.columns[0].values.length; i_row++) {
       var render_comp = _CreateTemplateRenderComp(
         templ.name + "_" + i_row,
         tmpl_comp,
@@ -1219,7 +1219,7 @@ function BatchGenerate(str_template) {
     }
 
     //Loop through the rows and set the values of the template
-    for (var i_row = 0; i_row < tmpl_data.rows.length; i_row++) {
+    for (var i_row = 0; i_row < tmpl_data.columns[0].values.length; i_row++) {
       var comp_name =
         tmpl_data.generate_names[i_row] || tmpl_data.name + "_" + i_row;
 
@@ -1552,7 +1552,7 @@ function BatchRenderDepComps(str_template) {
 function RenderDeps(tmpl, props_layer) {
 
   //Loop through the rows and set the values of the template
-  for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
+  for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
 
     try {
       var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);

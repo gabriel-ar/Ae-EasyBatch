@@ -86,6 +86,9 @@
   /**Selected template*/
   let sel_tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
+  /**Number of rows in the selected template, derived from the first column's values */
+  let row_count = $derived(sel_tmpl ? TemplateHelper.RowCount(sel_tmpl) : 0);
+
   //Update the log level of the logger when the settings changes
   $effect(() => {
     l.log_lvl = s.setts.log_level;
@@ -355,7 +358,6 @@
 
     TemplateHelper.UpdateRows(sel_tmpl);
 
-    send_templ.rows = [send_templ.rows[0]];
     send_templ.save_paths = [send_templ.save_paths[0]];
     send_templ.generate_names = [send_templ.generate_names[0]];
 
@@ -964,7 +966,7 @@
   }
 
   function NextRow() {
-    if (curr_row_i < sel_tmpl.rows.length - 1) {
+    if (curr_row_i < row_count - 1) {
       curr_row_i++;
     }
   }
@@ -1085,7 +1087,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each sel_tmpl.rows as row, row_i}
+            {#each { length: row_count } as _, row_i}
               <tr
                 oncontextmenu={function (e) {
                   OpenRowMenu(e, row_i);
@@ -1145,11 +1147,11 @@
             <input
               type="number"
               min="1"
-              max={sel_tmpl.rows.length}
+              max={row_count}
               onchange={(e) =>
                 (curr_row_i = +(e.target as HTMLInputElement).value - 1)}
               value={curr_row_i + 1} />
-            / {sel_tmpl.rows.length}
+            / {row_count}
             <button
               onclick={NextRow}
               data-tooltip="Next Row"

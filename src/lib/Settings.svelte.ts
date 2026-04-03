@@ -113,7 +113,6 @@ export interface TemplateData {
   comp_id: number;
   active: boolean;
   columns: ColumnData[];
-  rows: any[][];
   base_path: string;
   save_pattern: string;
   render_setts_templ: string;
@@ -153,7 +152,6 @@ export class TemplateHelper {
       comp_id: -1,
       active: true,
       columns: columns,
-      rows: [],
       base_path: "",
       save_pattern: "{base_path}/{template_name}_{row_number}",
       render_setts_templ: "",
@@ -175,7 +173,6 @@ export class TemplateHelper {
         config_folder: null,
       }
     };
-    tmpl.rows = this.AsRows(tmpl);
     return tmpl;
   }
 
@@ -189,7 +186,6 @@ export class TemplateHelper {
       });
     }
 
-    templ.rows = this.AsRows(templ);
     return templ;
   }
 
@@ -202,11 +198,12 @@ export class TemplateHelper {
 
     new_cols.forEach((new_col) => {
       let base_val = new_col.values[0] || ColumnHelper.ValidateValue("", new_col.type);
+      let row_count = this.RowCount(tmpl);
 
-      new_col.values = new Array(tmpl.rows.length);
-      tmpl.rows.forEach((row, i) => {
+      new_col.values = new Array(row_count);
+      for (let i = 0; i < row_count; i++) {
         new_col.values[i] = structuredClone(base_val);
-      });
+      }
 
       tmpl.columns.push(new_col);
       let new_col_i = tmpl.columns.push(new_col) - 1;
@@ -234,8 +231,6 @@ export class TemplateHelper {
     tmpl.table_cols = tmpl.table_cols.filter((col_i) => {
       return tmpl.columns[col_i] !== undefined;
     });
-
-    tmpl.rows = this.AsRows(tmpl);
   }
 
   static CleanupDependantComps(tmpl: TemplateData, all_comps: Comp[]) {
@@ -292,7 +287,6 @@ export class TemplateHelper {
     for (let col of tmpl.columns) {
       tmpl.table_cols.push(tmpl.columns.indexOf(col));
     }
-    tmpl.rows = this.AsRows(tmpl);
   }
 
   static ResolveSavePath(tmpl: TemplateData, pattern: string, index: number, comp_name?: string): string {
@@ -318,7 +312,7 @@ export class TemplateHelper {
 
   static ResolveSavePaths(tmpl: TemplateData) {
     tmpl.save_paths = [];
-    for (let i = 0; i < tmpl.rows.length; i++) {
+    for (let i = 0; i < this.RowCount(tmpl); i++) {
       tmpl.save_paths.push(this.ResolveSavePath(tmpl, tmpl.save_pattern, i));
     }
   }
@@ -345,7 +339,7 @@ export class TemplateHelper {
       console.log("Current save path", dep_setts.save_pattern);
       dep_setts.save_paths = [];
 
-      for (let row_i = 0; row_i < tmpl.rows.length; row_i++) {
+      for (let row_i = 0; row_i < this.RowCount(tmpl); row_i++) {
         dep_setts.save_paths.push(this.ResolveSavePath(tmpl, dep_setts.save_pattern, row_i, dep_setts.name));
       }
     }
@@ -372,7 +366,7 @@ export class TemplateHelper {
 
   static ResolveCompsNames(tmpl: TemplateData) {
     tmpl.generate_names = [];
-    for (let i = 0; i < tmpl.rows.length; i++) {
+    for (let i = 0; i < this.RowCount(tmpl); i++) {
       tmpl.generate_names.push(this.ResolveCompName(tmpl, tmpl.generate_pattern, i));
     }
   }
@@ -384,7 +378,6 @@ export class TemplateHelper {
         ColumnHelper.ResolveColumnAltSrcPaths(col, tmpl.columns);
       }
     });
-    tmpl.rows = this.AsRows(tmpl);
   }
 
   static ResolveAltSrcPathsRow(tmpl: TemplateData, index: number) {
@@ -394,7 +387,6 @@ export class TemplateHelper {
         ColumnHelper.ResolveColumnAltSrcPathsRow(col, index, tmpl.columns);
       }
     });
-    tmpl.rows = this.AsRows(tmpl);
   }
 
   static AddRow(tmpl: TemplateData) {
@@ -409,15 +401,14 @@ export class TemplateHelper {
       tmpl.columns[col].values.push(structuredClone(new_val));
     }
 
-    tmpl.rows = this.AsRows(tmpl);
     this.ResolveAltSrcPaths(tmpl);
   }
 
   static AddRowAfter(tmpl: TemplateData, index: number) {
-    if (tmpl.rows.length === 0) {
+    if (this.RowCount(tmpl) === 0) {
       this.AddRow(tmpl);
       return;
-    } else if (index < 0 || index >= tmpl.rows.length) {
+    } else if (index < 0 || index >= this.RowCount(tmpl)) {
       console.warn("AddRowAfter: Invalid row index", index);
       return;
     }
@@ -431,15 +422,14 @@ export class TemplateHelper {
         structuredClone(ColumnHelper.ValidateValue($state.snapshot(row_data)[Number(col)], tmpl.columns[col].type))
       );
     }
-    tmpl.rows = this.AsRows(tmpl);
     this.ResolveAltSrcPaths(tmpl);
   }
 
   static AddRowBefore(tmpl: TemplateData, index: number) {
-    if (tmpl.rows.length === 0) {
+    if (this.RowCount(tmpl) === 0) {
       this.AddRow(tmpl);
       return;
-    } else if (index < 0 || index >= tmpl.rows.length) {
+    } else if (index < 0 || index >= this.RowCount(tmpl)) {
       console.warn("AddRowBefore: Invalid row index", index);
       return;
     }
@@ -454,7 +444,6 @@ export class TemplateHelper {
       );
     }
 
-    tmpl.rows = this.AsRows(tmpl);
     this.ResolveAltSrcPaths(tmpl);
   }
 
@@ -472,7 +461,11 @@ export class TemplateHelper {
     });
 
     this.ResolveAltSrcPaths(tmpl);
-    tmpl.rows = this.AsRows(tmpl);
+  }
+
+  static RowCount(tmpl: TemplateData): number {
+    if (tmpl.columns.length === 0) return 0;
+    return tmpl.columns[0].values.length;
   }
 
   static AsRows(tmpl: TemplateData): any[][] {
@@ -506,8 +499,8 @@ export class TemplateHelper {
     });
   }
 
-  static UpdateRows(tmpl: TemplateData) {
-    tmpl.rows = this.AsRows(tmpl);
+  static UpdateRows(_tmpl: TemplateData) {
+    // no-op: rows is now always computed on demand via AsRows()
   }
 
   static LoadFromCSV(tmpl: TemplateData, csv: string) {
@@ -532,11 +525,10 @@ export class TemplateHelper {
 
     this.ResolveAltSrcPaths(tmpl);
     this.ResolveCompsNames(tmpl);
-    tmpl.rows = this.AsRows(tmpl);
   }
 
   static MakeCSV(tmpl: TemplateData) {
-    tmpl.rows = this.AsRows(tmpl);
+    let rows = this.AsRows(tmpl);
 
     let cols: string[] = [];
     tmpl.columns.forEach((col) => {
@@ -544,7 +536,7 @@ export class TemplateHelper {
     });
 
     let headers = papa.unparse([cols]);
-    let csv = papa.unparse(tmpl.rows, {
+    let csv = papa.unparse(rows, {
       header: false,
     });
 
