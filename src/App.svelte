@@ -768,7 +768,7 @@
   }
 
   function EditViewModalClosed(new_table_cols: number[]) {
-    sel_tmpl.table_cols = new_table_cols;
+    sel_tmpl.view_cols = new_table_cols;
     s.proj = s.proj; // Force reactivity
     l.debug("Edit view modal closed with new table_cols:", new_table_cols);
   }
@@ -1070,7 +1070,7 @@
           <thead>
             <tr>
               <th></th>
-              {#each sel_tmpl.table_cols as col_i, view_i}
+              {#each sel_tmpl.view_cols as col_i, view_i}
                 <th class="table_header">
                   {sel_tmpl.columns[col_i].cont_name}
                   {#if sel_tmpl.columns[col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
@@ -1105,7 +1105,7 @@
                     onclick={(e) => OpenRowMenu(e, row_i)}
                     ><HamburgerMenu /></button>
                 </td>
-                {#each sel_tmpl.table_cols as td_col_i}
+                {#each sel_tmpl.view_cols as td_col_i}
                   <td
                     class={{
                       table_cell:
@@ -1166,7 +1166,7 @@
         </div>
 
         <div class="dets_field_cont">
-          {#each sel_tmpl.table_cols as td_col_i}
+          {#each sel_tmpl.view_cols as td_col_i}
             <div class="dets_field">
               <h5>
                 {sel_tmpl.columns[td_col_i].cont_name}

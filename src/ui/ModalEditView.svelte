@@ -23,13 +23,13 @@
         viewColumns = [];
         
         // First, add all visible columns in their current order
-        for (let col_i of tmpl.table_cols) {
+        for (let col_i of tmpl.view_cols) {
             viewColumns.push({ col_index: col_i, visible: true });
         }
 
         // Then, add all hidden columns at the end
         for (let i = 0; i < tmpl.columns.length; i++) {
-            if (!tmpl.table_cols.includes(i)) {
+            if (!tmpl.view_cols.includes(i)) {
                 viewColumns.push({ col_index: i, visible: false });
             }
         }
