@@ -345,7 +345,6 @@
     }
 
     TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
-    sel_tmpl = sel_tmpl; //Force reactivity to update path previews
 
     //Trim the template to contain only the modified row
     let send_templ = structuredClone($state.snapshot(sel_tmpl));
@@ -353,6 +352,10 @@
     for (let col of send_templ.columns) {
       col.values = [col.values[row_i]];
     }
+
+    TemplateHelper.UpdateRows(sel_tmpl);
+
+    send_templ.rows = [send_templ.rows[0]];
     send_templ.save_paths = [send_templ.save_paths[0]];
     send_templ.generate_names = [send_templ.generate_names[0]];
 
@@ -813,6 +816,7 @@
     ac.AddListener(
       "preview",
       () => {
+        console.debug("Preview shortcut triggered for row index:", curr_row_i);
         PreviewRow(curr_row_i);
       },
       "p",
