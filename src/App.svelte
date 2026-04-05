@@ -61,7 +61,7 @@
   import ModalMessage from "./ui/ModalMessage.svelte";
   import ModalEditView from "./ui/ModalEditView.svelte";
   import SettingsPanel from "./ui/SettingsTab.svelte";
-  import MenuRow from "./ui/MenuCtx.svelte";
+  import Menu from "./ui/MenuCtx.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
@@ -75,7 +75,7 @@
   let m_file_pattern = $state<ModalFilePattern>();
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
-  let menu_row = $state<MenuRow>();
+  let menu = $state<Menu>();
   let curr_row_i = $state(0);
 
   let footer_txt = $state<string | undefined>();
@@ -926,6 +926,30 @@
       false,
       true,
     );
+
+    ac.AddListener(
+      "open_help",
+      () => {
+        OpenHelp();
+      },
+      ""
+    );
+
+    ac.AddListener(
+      "report_issue",
+      () => {
+        ReportIssue();
+      },
+      ""
+    );
+
+    ac.AddListener(
+      "surprise",
+      () => {
+        Surprise();
+      },
+      ""
+    );
   }
 
   function OpenRowMenu(e, row_i) {
@@ -939,17 +963,17 @@
 
     curr_row_i = row_i;
     e.preventDefault();
-    menu_row.Open(e.pageX, e.pageY, RowMenuSelected);
+    menu.Open(e.pageX, e.pageY, MenuSelected);
   }
 
-  function RowMenuSelected(action) {
+  function MenuSelected(action) {
     l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
     ac.Fire(action);
   }
 
   function OpenBarMenu(e: MouseEvent, type: string) {
     let btn = e.target as HTMLButtonElement;
-    menu_row.Open(
+    menu.Open(
       btn.offsetLeft,
       btn.offsetTop + btn.offsetHeight,
       BarMenuSelected,
@@ -1012,6 +1036,29 @@
       m_message.Open(footer_txt_long, "Details");
     }
   }
+
+  function OpenHelp() {
+    csa.OpenURLInDefaultBrowser(
+      "https://gabriel-ar.github.io/Ae-EasyBatch/",
+    );
+  }
+
+  function ReportIssue() {
+    csa.OpenURLInDefaultBrowser(
+      "https://github.com/gabriel-ar/Ae-EasyBatch/issues",
+    );
+  }
+
+  function Surprise() {
+    fetch("https://dog.ceo/api/breeds/image/random").then(async (r) => {
+      if(r.status === 200) {
+        let data = await r.json();
+        m_message.Open(`<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`, "🐶 Take a Break");
+      }
+    }).catch((error) => {
+      l.error("Failed to fetch dog image", error);
+    });
+  }
 </script>
 
 <!-- HEADER -->
@@ -1043,10 +1090,7 @@
     <button onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
-      onclick={() =>
-        csa.OpenURLInDefaultBrowser(
-          "https://gabriel-ar.github.io/Ae-EasyBatch/",
-        )}><QuestionMark /></button>
+      onclick={(e) => menu.Open(e.pageX, e.pageY, MenuSelected, "help")}><QuestionMark /></button>
   </div>
 </header>
 
@@ -1201,6 +1245,8 @@
         >Details</button>
     {/if}
   </footer>
+
+  <ModalEditView bind:this={m_edit_view}></ModalEditView>
 {:else if s.setts.active_tab === "output"}
   <!-- OUTPUT -->
   <main class="output">
@@ -1216,7 +1262,8 @@
     <!-- MODE: RENDER -->
     {#if s.setts.out_mode === "render"}
       <p class="modal-description">
-        Exports a single render per row. When you only need to export a final file for each version.
+        Exports a single render per row. When you only need to export a final
+        file for each version.
       </p>
 
       <h4>
@@ -1341,8 +1388,8 @@
       <!-- MODE: GENERATE -->
 
       <p class="modal-description">
-        Creates editable compositions in your project for each row. Use this
-        if you need to share the project with someone without the extension.
+        Creates editable compositions in your project for each row. Use this if
+        you need to share the project with someone without the extension.
       </p>
 
       <h4>Composition Name Pattern</h4>
@@ -1578,6 +1625,8 @@
       {/if}
     {/if}
   </main>
+
+  <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
 {:else if s.setts.active_tab == "settings"}
   <!-- SETTINGS -->
   <SettingsPanel {SaveSettings} />
@@ -1590,10 +1639,9 @@
     onclose={AlertSrcModalClosed} />
 {/if}
 
-<ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
+
+<Menu bind:this={menu} onselect={MenuSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
-<ModalEditView bind:this={m_edit_view}></ModalEditView>
-<MenuRow bind:this={menu_row} onselect={RowMenuSelected}></MenuRow>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">
