@@ -63,13 +63,12 @@ test.describe('Reset and load template', async () => {
 
         const fs_no_tmpls = await page.$('.fs_no_tmpls');   
         if (fs_no_tmpls) {
-            const dismissBtn = await fs_no_tmpls.$('button::-p-text( Reload)');
+            const dismissBtn = await fs_no_tmpls.$('button::-p-text(Reload)');
             expect(dismissBtn, 'has Dismiss button for no templates message').toBeTruthy();
             await dismissBtn!.tap();
 
-            // Verify the message is dismissed
-            const stillThere = await page.$('.fs_no_tmpls');
-            expect(stillThere, '"no templates" message is dismissed').toBeNull();
+            // Wait until the message is dismissed and goes away
+            await page.waitForSelector('.fs_no_tmpls', { hidden: true });
         } else {
             console.log('"No templates" message was not shown, no need to dismiss');
         }
