@@ -276,9 +276,8 @@
             ] || render_setts_templs.output_modules_templs[0];
         }
       }
-    } 
-    else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
-        has_opened_viewer = false;  
+    } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
+      has_opened_viewer = false;
     }
 
     last_opened_tab = s.setts.active_tab;
@@ -589,9 +588,7 @@
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`OtM Render completed with errors`, result.errors);
           dep_row_results = result.row_results;
-        }
-
-        else if (result.user_stopped) {
+        } else if (result.user_stopped) {
           l.log(`OtM Render stopped by user`);
           user_stopped_deps = true;
           dep_row_results = result.row_results;
@@ -1211,7 +1208,7 @@
       >Render Mode:
       <Dropdown
         variant="discrete"
-        labels={["One to One", "One to Many", "Generate Comps"]}
+        labels={["One Per Row", "Multi-Output", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
         bind:value={s.setts.out_mode} />
     </span>
@@ -1219,8 +1216,7 @@
     <!-- MODE: RENDER -->
     {#if s.setts.out_mode === "render"}
       <p class="modal-description">
-        Exports a single render per row. Perfect for creating multiple
-        variations of a template from a spreadsheet.
+        Exports a single render per row. When you only need to export a final file for each version.
       </p>
 
       <h4>
@@ -1293,12 +1289,18 @@
       <div class="setting">
         <label for="sel_render_out_module">Output Module Template</label>
         <Dropdown
-          labels={render_setts_templs.output_modules_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN"),
-          )}
-          options={render_setts_templs.output_modules_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN"),
-          )}
+          labels={[
+            "<b>Single Frame PNG</b>",
+            ...render_setts_templs.output_modules_templs.filter(
+              (templ) => !templ.startsWith("_HIDDEN"),
+            ),
+          ]}
+          options={[
+            "EB_Single_Frame_PNG",
+            ...render_setts_templs.output_modules_templs.filter(
+              (templ) => !templ.startsWith("_HIDDEN"),
+            ),
+          ]}
           bind:value={sel_tmpl.render_out_module_templ} />
       </div>
 
@@ -1340,7 +1342,7 @@
 
       <p class="modal-description">
         Creates editable compositions in your project for each row. Use this
-        when you need to manually adjust outputs later.
+        if you need to share the project with someone without the extension.
       </p>
 
       <h4>Composition Name Pattern</h4>
@@ -1540,7 +1542,7 @@
       {#if dep_row_results.length > 0}
         <h4>Render Results</h4>
         {#if user_stopped_deps}
-          <div  class="OtM_stopped_warn">
+          <div class="OtM_stopped_warn">
             <ExclamationTriangle color="yellow" size={14} />
             Renders stopped by user.
           </div>

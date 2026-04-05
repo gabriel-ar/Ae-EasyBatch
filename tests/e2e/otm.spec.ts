@@ -933,7 +933,7 @@ test.describe('OtM Render', async () => {
         expect(outputTab, 'has Output tab button').toBeTruthy();
         await outputTab!.tap();
 
-        const sel = await con.DropdownSelect('.output span .dropdown', 'One to Many');
+        const sel = await con.DropdownSelect('.output span .dropdown', 'Multi-Output');
         expect(sel, 'has OtM template option').toBeTruthy();
 
         await page.evaluate(() => {
