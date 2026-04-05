@@ -389,14 +389,13 @@ export class TemplateHelper {
   }
 
   static AddRow(tmpl: TemplateData) {
-    let last_row = this.AsRows(tmpl).pop();
+    const last_i = this.RowCount(tmpl) - 1;
 
     for (let col in tmpl.columns) {
-
-      let new_val = 
-        last_row === undefined ?
-          ColumnHelper.ValidateValue("", tmpl.columns[col].type)
-          : ColumnHelper.ValidateValue($state.snapshot(last_row)[Number(col)], tmpl.columns[col].type);
+      const new_val =
+        last_i < 0
+          ? ColumnHelper.ValidateValue("", tmpl.columns[col].type)
+          : ColumnHelper.ValidateValue($state.snapshot(tmpl.columns[col].values[last_i]), tmpl.columns[col].type);
       tmpl.columns[col].values.push(structuredClone(new_val));
     }
 
@@ -412,14 +411,13 @@ export class TemplateHelper {
       return;
     }
 
-    let row_data = this.AsRows(tmpl)[index];
-
     for (let col in tmpl.columns) {
+      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+
       tmpl.columns[col].values.splice(
         index + 1,
         0,
-        structuredClone(ColumnHelper.ValidateValue($state.snapshot(row_data)[Number(col)], tmpl.columns[col].type))
-      );
+        ColumnHelper.ValidateValue(prev_val, tmpl.columns[col].type));
     }
     this.ResolveAltSrcPaths(tmpl);
   }
@@ -433,14 +431,13 @@ export class TemplateHelper {
       return;
     }
 
-    let row_data = this.AsRows(tmpl)[index];
-
     for (let col in tmpl.columns) {
+      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+
       tmpl.columns[col].values.splice(
         index,
         0,
-        structuredClone(ColumnHelper.ValidateValue($state.snapshot(row_data)[Number(col)], tmpl.columns[col].type))
-      );
+        ColumnHelper.ValidateValue(prev_val, tmpl.columns[col].type));
     }
 
     this.ResolveAltSrcPaths(tmpl);
@@ -706,7 +703,6 @@ export class ColumnHelper {
       return new Array(length).fill(0);
     } else if (
       !Array.isArray(value) ||
-      value.length !== length ||
       !value.every((v) => typeof v === "number")
     ) {
       if (typeof value === "string") {
@@ -722,6 +718,12 @@ export class ColumnHelper {
       } else {
         value = new Array(length).fill(0);
       }
+    }else if (value.length !== length) {
+      let new_val = new Array(length).fill(0);
+      for (let i = 0; i < Math.min(value.length, length); i++) {
+        new_val[i] = value[i];
+      }
+      value = new_val;
     }
     return value;
   }

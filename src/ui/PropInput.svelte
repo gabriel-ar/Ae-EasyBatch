@@ -73,7 +73,7 @@
       let g = parseInt(hex.slice(2, 4), 16) / 255;
       let b = parseInt(hex.slice(4, 6), 16) / 255;
 
-      value = [r, g, b];
+      value = [r, g, b, 1];
       hex_color = hex;
 
       DebounceChange();
