@@ -10,18 +10,18 @@
   let sel_add_field = $state("base_path");
 
   let tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
-  let dc_id = $state<string>();
+  let dc_index = $state<number>();
 
   let onclose: OnCloseFunc;
 
   export function Open(
-    dep_comp_id: string,
+    dep_index: number,
     on_close_callback: OnCloseFunc,
     pick_base: boolean = false,
   ) {
     l.debug("[ModalDepFile] Open called with template:", tmpl);
 
-    dc_id = dep_comp_id;
+    dc_index = dep_index;
     pick_base = pick_base;
 
     onclose = on_close_callback;
@@ -34,10 +34,10 @@
       document.querySelector("#file_pattern_ta");
 
     let cursor_pos = save_pattern_ta.selectionStart;
-    let old_val = tmpl.dep_config[dc_id].save_pattern;
+    let old_val = tmpl.dep_config[dc_index].save_pattern;
 
     //Insert the selected field at the cursor position
-    tmpl.dep_config[dc_id].save_pattern =
+    tmpl.dep_config[dc_index].save_pattern =
       old_val.slice(0, cursor_pos) +
       `{${sel_add_field}}` +
       old_val.slice(cursor_pos);
@@ -45,7 +45,7 @@
     tmpl = tmpl;
     l.debug(
       "[ModalDepFile] AddField called with pattern:",
-      tmpl.dep_config[dc_id].save_pattern,
+      tmpl.dep_config[dc_index].save_pattern,
     );
   }
 
@@ -75,7 +75,7 @@
 
   export function CloseDialog() {
     show = false;
-    onclose(tmpl.base_path, tmpl.dep_config[dc_id].save_pattern);
+    onclose(tmpl.base_path, tmpl.dep_config[dc_index].save_pattern);
   }
 </script>
 
@@ -93,7 +93,7 @@
           id="file_pattern_ta"
           spellcheck="false"
           onkeyup={DebounceUpdatePreview}
-          bind:value={tmpl.dep_config[dc_id].save_pattern}></textarea>
+          bind:value={tmpl.dep_config[dc_index].save_pattern}></textarea>
         <div>
           {#if pick_base}
             <button onclick={SelectBasePath} style="margin-right: 15px;"
@@ -126,7 +126,7 @@
 
       <div style="margin-bottom: 10px;">
         <span>Preview:</span>
-        <span class="out_prev">{tmpl.dep_config[dc_id].save_path}</span>
+        <span class="out_prev">{tmpl.dep_config[dc_index].save_path}</span>
       </div>
       <div class="modal-actions">
         <button onclick={CloseDialog}>Close</button>

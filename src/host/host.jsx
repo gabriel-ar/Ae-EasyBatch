@@ -1433,7 +1433,7 @@ function RenderDeps(tmpl, props_layer) {
 
         //Find the configuration of the dep composition to get the render settin  gs and the path
         /**@type {DepCompSetts} */
-        var dep_config = tmpl.dep_config[tmpl.dep_comps[i].id];
+        var dep_config = tmpl.dep_config[i];
 
         //If disabled, skip
         if (!dep_config.enabled) continue;

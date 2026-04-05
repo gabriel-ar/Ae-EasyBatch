@@ -706,8 +706,8 @@
     });
   }
 
-  function DeleteDependentComp(dep_comp_id) {
-    TemplateHelper.RemoveDependantComp(sel_tmpl, dep_comp_id);
+  function DeleteDependentComp(dep_index) {
+    TemplateHelper.RemoveDependantComp(sel_tmpl, dep_index);
     TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
 
     //force Svelte reactivity
@@ -747,15 +747,15 @@
     );
   }
 
-  let edit_dep_comp_id = $state<string | undefined>();
-  function DepFilePatternModalOpen(dep_comp_id) {
-    edit_dep_comp_id = dep_comp_id;
+  let edit_dep_comp_index = $state<number | undefined>();
+  function DepFilePatternModalOpen(dep_index: number) {
+    edit_dep_comp_index = dep_index;
 
-    m_file_pattern.Open(dep_comp_id, DepFilePatternModalClosed);
+    m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
   }
 
   function DepFilePatternModalClosed(base_path, pattern) {
-    sel_tmpl.dep_config[edit_dep_comp_id].save_pattern = pattern;
+    sel_tmpl.dep_config[edit_dep_comp_index].save_pattern = pattern;
 
     TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
   }
@@ -1441,19 +1441,19 @@
       </div>
 
       <!-- Dependant Compositions -->
-      {#each sel_tmpl.dep_comps as dc}
+      {#each sel_tmpl.dep_comps as dc, dc_i}
         <details class="out_sub_render" open>
           <summary>
             <input
               type="checkbox"
               style="margin: 5px 5px 3px 7px;"
-              bind:checked={sel_tmpl.dep_config[dc.id].enabled} />
+              bind:checked={sel_tmpl.dep_config[dc_i].enabled} />
             <h4 style="display: inline;">{dc.name}</h4>
             <button
               class="delete_col"
               data-tooltip="Remove composition from renders"
               data-tt-pos="bottom-right"
-              onclick={() => DeleteDependentComp(dc.id)}><Trash /></button>
+              onclick={() => DeleteDependentComp(dc_i)}><Trash /></button>
           </summary>
 
           <div class="out_sub_render_cont">
@@ -1468,13 +1468,13 @@
             </h5>
             <div class="setting">
               <div>
-                {sel_tmpl.dep_config[dc.id].save_pattern}
+                {sel_tmpl.dep_config[dc_i].save_pattern}
                 <button
                   style="vertical-align: middle; margin-left: 8px;"
                   data-tooltip="Edit the pattern that will determine the save path for this render."
                   data-tt-pos="top-right"
                   data-tt-width="large"
-                  onclick={() => DepFilePatternModalOpen(dc.id)}>
+                  onclick={() => DepFilePatternModalOpen(dc_i)}>
                   <Pencil1 /> Edit</button>
               </div>
 
@@ -1482,7 +1482,7 @@
                 <span>Preview:</span>
                 <span
                   style="text-overflow: ellipsis; max-width: 100%; display: inline-block;"
-                  >{sel_tmpl.dep_config[dc.id].save_path}</span>
+                  >{sel_tmpl.dep_config[dc_i].save_path}</span>
               </div>
             </div>
 
@@ -1505,7 +1505,7 @@
                 options={render_setts_templs.render_templs.filter(
                   (templ) => !templ.startsWith("_HIDDEN"),
                 )}
-                bind:value={sel_tmpl.dep_config[dc.id].render_setts_templ} />
+                bind:value={sel_tmpl.dep_config[dc_i].render_setts_templ} />
             </div>
 
             <div class="setting">
@@ -1525,7 +1525,7 @@
                   ),
                 ]}
                 bind:value={
-                  sel_tmpl.dep_config[dc.id].render_out_module_templ
+                  sel_tmpl.dep_config[dc_i].render_out_module_templ
                 } />
             </div>
           </div>
