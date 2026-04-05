@@ -1095,7 +1095,7 @@ test.describe('OtM Render', async () => {
             console.log('Checking render output for:', p);
 
             const renderPath = path.join(p.path).replaceAll("\\", "\\\\");
-            const result = await CsaEval(`CheckRenderResult("${renderPath}")`, page);
+            const result = await CsaEval(`Test_CheckRenderResult("${renderPath}")`, page);
             const checkResult = JSON.parse(result);
 
             const avg_color = (checkResult.color[0] + checkResult.color[1] + checkResult.color[2]) / 3;

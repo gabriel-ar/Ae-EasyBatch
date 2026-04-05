@@ -1599,7 +1599,7 @@
   <div class="fs_no_tmpls">
     No Essential Graphics Templates Found
     <span>Create one and reload the extension</span>
-    <div><button onclick={StartupSequence}><Update /> Reload</button></div>
+    <div><button onclick={StartupSequence}><Update />Reload</button></div>
   </div>
 {/if}
 
