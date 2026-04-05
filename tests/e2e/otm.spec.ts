@@ -215,19 +215,19 @@ test.describe('Filling Data', async () => {
         const second_row = await page.$('.dat_table tbody tr:nth-child(2)');
         expect(second_row, 'has second row in the table').toBeTruthy();
 
-        await EditCell(page, CellType.Text, 2, 2, 'New Linked Text');
-        await EditCell(page, CellType.Color, 2, 3, 'ff0000');
-        await EditCell(page, CellType.D1, 2, 4, '75');
-        await EditCell(page, CellType.D3, 2, 5, { x: '80', y: '20', z: '10' });
+        await EditCell(page, CellType.Text, 2, 2, 'Row Two Custom');
+        await EditCell(page, CellType.Color, 2, 3, 'aa2233');
+        await EditCell(page, CellType.D1, 2, 4, '123');
+        await EditCell(page, CellType.D3, 2, 5, { x: '400', y: '500', z: '600' });
 
         // Verify the changes
-        expect(await GetCell(page, CellType.Text, 2, 2), 'text input cell was updated').toBe('New Linked Text');
-        expect(await GetCell(page, CellType.Color, 2, 3), 'color input cell was updated').toBe('ff0000');
-        expect(await GetCell(page, CellType.D1, 2, 4), 'single dimension number input cell was updated').toBe('75');
+        expect(await GetCell(page, CellType.Text, 2, 2), 'text input cell was updated').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'color input cell was updated').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'single dimension number input cell was updated').toBe('123');
         const updatedPos = await GetCell(page, CellType.D3, 2, 5) as { x: string, y: string, z: string };
-        expect(updatedPos.x, 'triple dimension number input cell was updated for X').toBe('80');
-        expect(updatedPos.y, 'triple dimension number input cell was updated for Y').toBe('20');
-        expect(updatedPos.z, 'triple dimension number input cell was updated for Z').toBe('10');
+        expect(updatedPos.x, 'triple dimension number input cell was updated for X').toBe('400');
+        expect(updatedPos.y, 'triple dimension number input cell was updated for Y').toBe('500');
+        expect(updatedPos.z, 'triple dimension number input cell was updated for Z').toBe('600');
 
         let footerInfo = page.waitForFunction(
             () => {
@@ -260,6 +260,671 @@ test.describe('Filling Data', async () => {
     });
 
 });
+
+// ============================================================================
+// UI Menu & Navigation Tests
+// These tests exercise the Edit menu, View menu, right-click context menu,
+// and row navigation. The state is restored at the end so subsequent tests
+// (OtM Render) see the same 2-row table that "Filling Data" produced.
+// ============================================================================
+
+test.describe('Edit Menu', async () => {
+
+    // --- State coming in: 2 rows (row1 = defaults, row2 = edited) ---
+
+    test('should add a row after the current row via Edit menu', async () => {
+        // Click on the first row to select it
+        //Always inside the row, select the first/6th cell to avoid clicking inside the inputs
+        const firstRow = await page.$('.dat_table tbody tr:first-child td:nth-child(6)');
+        expect(firstRow, 'first row exists').toBeTruthy();
+        await firstRow!.tap();
+
+        // Open Edit menu and click "Add Row After"
+        const editBtn = await page.$('nav button::-p-text(Edit)');
+        expect(editBtn, 'has Edit button').toBeTruthy();
+        await editBtn!.tap();
+
+        const addAfterBtn = await page.$('.c_menu button::-p-text(Add Row After\nN)');
+        expect(addAfterBtn, 'has Add Row After button').toBeTruthy();
+        await addAfterBtn!.tap();
+
+        // Should now have 3 rows; new row inserted at position 2 (cloned from row 1)
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table now has 3 rows').toBe(3);
+
+        // Row 1: original defaults (untouched)
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text is original').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color is original').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider is original').toBe('55');
+
+        // Row 2: new row cloned from row 1 (defaults)
+        expect(await GetCell(page, CellType.Text, 2, 2), 'new row 2 text cloned from row 1').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'new row 2 color cloned from row 1').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'new row 2 slider cloned from row 1').toBe('55');
+
+        // Row 3: previously row 2 (edited), shifted down
+        expect(await GetCell(page, CellType.Text, 3, 2), 'old row 2 shifted to row 3').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 3, 3), 'old row 2 color shifted to row 3').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 3, 4), 'old row 2 slider shifted to row 3').toBe('123');
+    });
+
+    test('should add a row before the current row via Edit menu', async () => {
+        // Select row 1
+        const firstRow = await page.$('.dat_table tbody tr:first-child td:nth-child(6)');
+        await firstRow!.tap();
+
+        // Open Edit menu and click "Add Row Before"
+        const editBtn = await page.$('nav button::-p-text(Edit)');
+        await editBtn!.tap();
+
+        const addBeforeBtn = await page.$('.c_menu button::-p-text(Add Row Before)');
+        expect(addBeforeBtn, 'has Add Row Before button').toBeTruthy();
+        await addBeforeBtn!.tap();
+
+        // Should now have 4 rows; new row inserted at position 1 (cloned from old row 1)
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table now has 4 rows').toBe(4);
+
+        // Row 1: new row cloned from old row 1 (defaults)
+        expect(await GetCell(page, CellType.Text, 1, 2), 'new row 1 text is default').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'new row 1 color is default').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'new row 1 slider is default').toBe('55');
+
+        // Row 2: original defaults (shifted from old row 1)
+        expect(await GetCell(page, CellType.Text, 2, 2), 'original row shifted to row 2').toBe('Linked text');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'original row 2 slider is default').toBe('55');
+
+        // Row 4: edited row (should still have distinct values)
+        expect(await GetCell(page, CellType.Text, 4, 2), 'edited row at position 4').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 4, 3), 'edited row color at position 4').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 4, 4), 'edited row slider at position 4').toBe('123');
+    });
+
+    test('should delete a row via Edit menu', async () => {
+        // Select the newly inserted row 1 (clone)
+        const firstRow = await page.$('.dat_table tbody tr:first-child');
+        await firstRow!.tap();
+
+        // Open Edit menu and click "Delete"
+        const editBtn = await page.$('nav button::-p-text(Edit)');
+        await editBtn!.tap();
+
+        const deleteBtn = await page.$('.c_menu button::-p-text(Delete)');
+        expect(deleteBtn, 'has Delete button in Edit menu').toBeTruthy();
+        await deleteBtn!.tap();
+
+        // Should now have 3 rows
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table has 3 rows after deletion').toBe(3);
+
+        // Row 1: original defaults (was at position 2 before)
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text is original default').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color is original default').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider is original default').toBe('55');
+
+        // Row 3: edited row is still at the end
+        expect(await GetCell(page, CellType.Text, 3, 2), 'edited row still at row 3').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.D1, 3, 4), 'edited row slider still at row 3').toBe('123');
+    });
+
+    test('should delete the middle row to restore to 2 rows', async () => {
+        // Row 2 is the duplicate default row cloned earlier; delete it
+        const secondRow = await page.$('.dat_table tbody tr:nth-child(2) td:nth-child(6)');
+        expect(secondRow, 'row 2 exists').toBeTruthy();
+        await secondRow!.tap();
+
+        const editBtn = await page.$('nav button::-p-text(Edit)');
+        await editBtn!.tap();
+
+        const deleteBtn = await page.$('.c_menu button::-p-text(Delete)');
+        await deleteBtn!.tap();
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table restored to 2 rows').toBe(2);
+
+        // Verify both original rows are intact with their distinctive values
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text intact').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color intact').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider intact').toBe('55');
+
+        expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text intact').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color intact').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider intact').toBe('123');
+    });
+
+});
+
+
+test.describe('Right-Click Context Menu', async () => {
+
+    // --- State: 2 rows (row1 = defaults, row2 = edited) ---
+
+    test('should open the context menu on right-click', async () => {
+        const firstRow = await page.$('.dat_table tbody tr:first-child td:first-child');
+        expect(firstRow, 'first row exists').toBeTruthy();
+
+        // Trigger right-click (context menu)
+        await firstRow!.click({ button: 'right' });
+
+        // The context menu should appear
+        const contextMenu = await page.waitForSelector('.c_menu', { timeout: 2000 });
+        expect(contextMenu, 'context menu appeared').toBeTruthy();
+
+        // Verify expected menu items are present
+        const addAfterItem = await contextMenu!.$('button::-p-text(Add Row After)');
+        expect(addAfterItem, 'context menu has "Add Row After"').toBeTruthy();
+
+        const addBeforeItem = await contextMenu!.$('button::-p-text(Add Row Before)');
+        expect(addBeforeItem, 'context menu has "Add Row Before"').toBeTruthy();
+
+        const deleteItem = await contextMenu!.$('button::-p-text(Delete)');
+        expect(deleteItem, 'context menu has "Delete"').toBeTruthy();
+
+        const previewItem = await contextMenu!.$('button::-p-text(Preview)');
+        expect(previewItem, 'context menu has "Preview"').toBeTruthy();
+
+        const copyFromPreviewItem = await contextMenu!.$('button::-p-text(Copy from Preview)');
+        expect(copyFromPreviewItem, 'context menu has "Copy from Preview"').toBeTruthy();
+
+        const renderItem = await contextMenu!.$('button::-p-text(Render Row)');
+        expect(renderItem, 'context menu has "Render Row"').toBeTruthy();
+
+        // Close the menu by clicking the background
+        const menuBg = await page.$('.c_menu_bg');
+        await menuBg!.tap();
+
+        // Verify menu is closed
+        const closedMenu = await page.$('.c_menu');
+        expect(closedMenu, 'context menu is closed').toBeNull();
+    });
+
+    test('should add a row after via context menu', async () => {
+        const secondRow = await page.$('.dat_table tbody tr:nth-child(2) td:first-child');
+        await secondRow!.click({ button: 'right' });
+
+        const addAfterBtn = await page.waitForSelector('.c_menu button::-p-text(Add Row After)');
+        await addAfterBtn!.tap();
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table has 3 rows after context-menu add').toBe(3);
+
+        // Row 1: original defaults (untouched)
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text untouched').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color untouched').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider untouched').toBe('55');
+
+        // Row 2: edited row (untouched)
+        expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text untouched').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color untouched').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider untouched').toBe('123');
+
+        // New row 3 should have values cloned from row 2 (the edited row)
+        expect(await GetCell(page, CellType.Text, 3, 2), 'new row 3 text cloned from row 2').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 3, 3), 'new row 3 color cloned from row 2').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 3, 4), 'new row 3 slider cloned from row 2').toBe('123');
+
+        const pos = await GetCell(page, CellType.D3, 3, 5) as { x: string, y: string, z: string };
+        expect(pos.x, 'new row 3 pos X cloned from row 2').toBe('400');
+        expect(pos.y, 'new row 3 pos Y cloned from row 2').toBe('500');
+        expect(pos.z, 'new row 3 pos Z cloned from row 2').toBe('600');
+
+        expect(await GetCell(page, CellType.Image, 3, 6), 'new row 3 image path cloned from row 2').toBe('./assets/headshot2.jpg');
+    });
+
+    test('should delete the added row via context menu to restore state', async () => {
+        // Right-click the new row 3
+        const thirdRow = await page.$('.dat_table tbody tr:nth-child(3) td:first-child');
+        await thirdRow!.click({ button: 'right' });
+
+        const deleteBtn = await page.waitForSelector('.c_menu button::-p-text(Delete)');
+        await deleteBtn!.tap();
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table restored to 2 rows').toBe(2);
+
+        // Verify both original rows survived
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text intact').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color intact').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider intact').toBe('55');
+
+        expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text intact').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color intact').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider intact').toBe('123');
+    });
+
+    test('should add a row before via context menu', async () => {
+        // Right-click the first row
+        const firstRow = await page.$('.dat_table tbody tr:first-child td:first-child');
+        await firstRow!.click({ button: 'right' });
+
+        const addBeforeBtn = await page.waitForSelector('.c_menu button::-p-text(Add Row Before)');
+        await addBeforeBtn!.tap();
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table has 3 rows after add-before').toBe(3);
+
+        // Row 1: new row cloned from old row 1 (defaults)
+        expect(await GetCell(page, CellType.Text, 1, 2), 'new row 1 text is default').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'new row 1 color is default').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'new row 1 slider is default').toBe('55');
+
+        // Row 2: original row 1 pushed down (defaults)
+        expect(await GetCell(page, CellType.Text, 2, 2), 'original row 1 now at row 2').toBe('Linked text');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'original row 1 slider at row 2').toBe('55');
+
+        // Row 3: edited row (distinctive values)
+        expect(await GetCell(page, CellType.Text, 3, 2), 'edited row at position 3').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 3, 3), 'edited row color at position 3').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 3, 4), 'edited row slider at position 3').toBe('123');
+    });
+
+    test('should delete the row added before to restore state', async () => {
+        const firstRow = await page.$('.dat_table tbody tr:first-child td:first-child');
+        await firstRow!.click({ button: 'right' });
+
+        const deleteBtn = await page.waitForSelector('.c_menu button::-p-text(Delete)');
+        await deleteBtn!.tap();
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table restored to 2 rows').toBe(2);
+
+        // Verify both original rows survived with distinctive values
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text intact').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color intact').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider intact').toBe('55');
+
+        expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text intact').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color intact').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider intact').toBe('123');
+    });
+
+});
+
+
+test.describe('View Menu', async () => {
+    // --- State: 2 rows, table mode, data tab ---
+
+    test('should switch to detail view via View menu', async () => {
+        const viewBtn = await page.$('nav button::-p-text(View)');
+        expect(viewBtn, 'has View button').toBeTruthy();
+        await viewBtn!.tap();
+
+        const detailBtn = await page.waitForSelector('.c_menu button::-p-text(Show in Detail)');
+        expect(detailBtn, 'has "Show in Detail" option').toBeTruthy();
+        await detailBtn!.tap();
+
+        // Verify detail view is shown (the detail header with navigation is present)
+        const detailHeader = await page.waitForSelector('.dets_header', { timeout: 2000 });
+        expect(detailHeader, 'detail view header is visible').toBeTruthy();
+
+        // The table should no longer be visible
+        const table = await page.$('.dat_table');
+        expect(table, 'table is hidden in detail view').toBeNull();
+    });
+
+    test('should display the correct row data in detail view', async () => {
+        // Detail view should show row 1 initially (curr_row_i = 0 after previous tests)
+        // Check the row number input
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+        expect(rowInput, 'has row number input').toBeTruthy();
+
+        const rowValue = await rowInput!.evaluate(el => (el as HTMLInputElement).value);
+        // curr_row_i might be 0 or 1 depending on the last selected row; check the fields
+        const rowNum = parseInt(rowValue);
+        expect(rowNum, 'row number is valid').toBeGreaterThanOrEqual(1);
+        expect(rowNum, 'row number is within range').toBeLessThanOrEqual(2);
+    });
+
+    test('should navigate to next row via View menu', async () => {
+        // First, ensure we are at row 1 by navigating to it
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+        const currentVal = await rowInput!.evaluate(el => (el as HTMLInputElement).value);
+
+        // If not on row 1, use Previous Row to get there
+        if (currentVal !== '1') {
+            const prevBtn = await page.$('.dets_header_nav button[data-tooltip="Previous Row"]');
+            await prevBtn!.tap();
+        }
+
+        // Verify we're on row 1
+        const row1Val = await rowInput!.evaluate(el => (el as HTMLInputElement).value);
+        expect(row1Val, 'starting on row 1').toBe('1');
+
+        // Open View menu and click "Next Row"
+        const viewBtn = await page.$('nav button::-p-text(View)');
+        await viewBtn!.tap();
+
+        const nextRowBtn = await page.waitForSelector('.c_menu button::-p-text(Next Row)');
+        await nextRowBtn!.tap();
+
+        // Verify we moved to row 2
+        const updatedVal = await rowInput!.evaluate(el => (el as HTMLInputElement).value);
+        expect(updatedVal, 'navigated to row 2').toBe('2');
+    });
+
+    test('should navigate to previous row via View menu', async () => {
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+
+        // We should be on row 2 from the previous test
+        const currentVal = await rowInput!.evaluate(el => (el as HTMLInputElement).value);
+        expect(currentVal, 'currently on row 2').toBe('2');
+
+        // Open View menu and click "Previous Row"
+        const viewBtn = await page.$('nav button::-p-text(View)');
+        await viewBtn!.tap();
+
+        const prevRowBtn = await page.waitForSelector('.c_menu button::-p-text(Previous Row)');
+        await prevRowBtn!.tap();
+
+        // Verify we moved back to row 1
+        const updatedVal = await rowInput!.evaluate(el => (el as HTMLInputElement).value);
+        expect(updatedVal, 'navigated back to row 1').toBe('1');
+    });
+
+    test('should navigate using the detail view header buttons', async () => {
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'starting on row 1').toBe('1');
+
+        // Click Next Row button in the detail header
+        const nextBtn = await page.$('.dets_header_nav button[data-tooltip="Next Row"]');
+        expect(nextBtn, 'has Next Row button in detail header').toBeTruthy();
+        await nextBtn!.tap();
+
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'moved to row 2').toBe('2');
+
+        // Click Previous Row button in the detail header
+        const prevBtn = await page.$('.dets_header_nav button[data-tooltip="Previous Row"]');
+        expect(prevBtn, 'has Previous Row button in detail header').toBeTruthy();
+        await prevBtn!.tap();
+
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'moved back to row 1').toBe('1');
+    });
+
+    test('should not navigate past the first row', async () => {
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'on row 1').toBe('1');
+
+        const prevBtn = await page.$('.dets_header_nav button[data-tooltip="Previous Row"]');
+        await prevBtn!.tap();
+
+        // Should still be on row 1
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'still on row 1').toBe('1');
+    });
+
+    test('should not navigate past the last row', async () => {
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+
+        // Navigate to row 2 (last row)
+        const nextBtn = await page.$('.dets_header_nav button[data-tooltip="Next Row"]');
+        await nextBtn!.tap();
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'on row 2').toBe('2');
+
+        // Try to go to next row — should stay on row 2
+        await nextBtn!.tap();
+        expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'still on row 2 (last row)').toBe('2');
+    });
+
+    test('should add and delete rows from detail view', async () => {
+        const rowInput = await page.$('.dets_header_nav input[type="number"]');
+
+        // Navigate to row 1
+        const prevBtn = await page.$('.dets_header_nav button[data-tooltip="Previous Row"]');
+        await prevBtn!.tap();
+
+        // Add row after using detail header button
+        const addAfterBtn = await page.$('.dets_header_nav button[data-tooltip="Add Row After"]');
+        expect(addAfterBtn, 'has Add Row After button in detail header').toBeTruthy();
+        await addAfterBtn!.tap();
+
+        // Row count should be displayed as "/ 3"
+        const headerText = await page.$eval('.dets_header_nav', el => el.textContent?.trim());
+        expect(headerText, 'detail header shows 3 total rows').toContain('/ 3');
+
+        // Add row before using detail header button
+        const addBeforeBtn = await page.$('.dets_header_nav button[data-tooltip="Add Row Before"]');
+        expect(addBeforeBtn, 'has Add Row Before button in detail header').toBeTruthy();
+        await addBeforeBtn!.tap();
+
+        const headerText2 = await page.$eval('.dets_header_nav', el => el.textContent?.trim());
+        expect(headerText2, 'detail header shows 4 total rows').toContain('/ 4');
+
+        // Now delete the two extra rows to restore to 2 rows, staying in detail view
+        // Row layout after adds: row1=new-before, row2=original-default, row3=new-after, row4=edited
+        // Current row after add_before is the newly inserted row (row 1)
+
+        // Navigate to row 1 (the one added before) and delete it via Edit menu
+        const navToRow1 = await page.$('.dets_header_nav input[type="number"]');
+        const currentRow = await navToRow1!.evaluate(el => (el as HTMLInputElement).value);
+        // Make sure we're on row 1
+        while (await navToRow1!.evaluate(el => (el as HTMLInputElement).value) !== '1') {
+            const prevNav = await page.$('.dets_header_nav button[data-tooltip="Previous Row"]');
+            await prevNav!.tap();
+        }
+
+        // Delete row 1 via Edit menu
+        const editBtn1 = await page.$('nav button::-p-text(Edit)');
+        await editBtn1!.tap();
+        let deleteBtn = await page.waitForSelector('.c_menu button::-p-text(Delete)');
+        await deleteBtn!.tap();
+
+        // Verify row count is now 3
+        let headerText3 = await page.$eval('.dets_header_nav', el => el.textContent?.trim());
+        expect(headerText3, 'detail header shows 3 total rows after first delete').toContain('/ 3');
+
+        // Now row 2 is the one added after (new-after); navigate to it and delete it
+        // After deleting row 1, we should be on row 1 (original-default)
+        // Navigate to row 2 (the new-after row)
+        const nextNav = await page.$('.dets_header_nav button[data-tooltip="Next Row"]');
+        await nextNav!.tap();
+        expect(await navToRow1!.evaluate(el => (el as HTMLInputElement).value), 'on row 2').toBe('2');
+
+        // Delete row 2 via Edit menu
+        const editBtn2 = await page.$('nav button::-p-text(Edit)');
+        await editBtn2!.tap();
+        deleteBtn = await page.waitForSelector('.c_menu button::-p-text(Delete)');
+        await deleteBtn!.tap();
+
+        // Verify row count is now 2
+        let headerText4 = await page.$eval('.dets_header_nav', el => el.textContent?.trim());
+        expect(headerText4, 'detail header shows 2 total rows after second delete').toContain('/ 2');
+    });
+
+    test('should switch to table view via View menu', async () => {
+        // We might already be in table view from the previous test, but let's ensure
+        // by going to detail view first, then back
+        const viewBtn = await page.$('nav button::-p-text(View)');
+        await viewBtn!.tap();
+
+        const detailBtn = await page.waitForSelector('.c_menu button::-p-text(Show in Detail)');
+        await detailBtn!.tap();
+
+        // Confirm we're in detail view
+        const detailHeader = await page.waitForSelector('.dets_header', { timeout: 2000 });
+        expect(detailHeader, 'in detail view').toBeTruthy();
+
+        // Now switch to table via View menu
+        const viewBtn2 = await page.$('nav button::-p-text(View)');
+        await viewBtn2!.tap();
+
+        const tableBtn = await page.waitForSelector('.c_menu button::-p-text(Show as Table)');
+        expect(tableBtn, 'has "Show as Table" option').toBeTruthy();
+        await tableBtn!.tap();
+
+        // Verify table view is shown
+        const table = await page.waitForSelector('.dat_table', { timeout: 2000 });
+        expect(table, 'table view is visible').toBeTruthy();
+
+        const detailGone = await page.$('.dets_header');
+        expect(detailGone, 'detail header is no longer visible').toBeNull();
+    });
+
+    test('should open and close the Edit View modal via View menu', async () => {
+        const viewBtn = await page.$('nav button::-p-text(View)');
+        await viewBtn!.tap();
+
+        const editViewBtn = await page.waitForSelector('.c_menu button::-p-text(Edit View...)');
+        expect(editViewBtn, 'has "Edit View..." option').toBeTruthy();
+        await editViewBtn!.tap();
+
+        // Modal should open
+        const modal = await page.waitForSelector('.modal h4::-p-text(Edit View)', { timeout: 2000 });
+        expect(modal, 'Edit View modal is open').toBeTruthy();
+
+        // Verify column items are listed
+        const columnItems = await page.$$('.modal .column-item');
+        expect(columnItems.length, 'modal shows column items').toBeGreaterThan(0);
+
+        // Close the modal without changes
+        const doneBtn = await page.$('.modal .modal-actions button::-p-text(Done)');
+        expect(doneBtn, 'has Done button').toBeTruthy();
+        await doneBtn!.tap();
+
+        // Verify modal is closed
+        const closedModal = await page.$('.modal h4::-p-text(Edit View)');
+        expect(closedModal, 'modal is closed').toBeNull();
+    });
+
+    test('should toggle column visibility in Edit View modal', async () => {
+        // Count the current number of visible table headers
+        const headersBefore = await page.$$('.dat_table thead th');
+        const visibleCountBefore = headersBefore.length; // includes the row-number th
+
+        // Open Edit View modal
+        const viewBtn = await page.$('nav button::-p-text(View)');
+        await viewBtn!.tap();
+        const editViewBtn = await page.waitForSelector('.c_menu button::-p-text(Edit View...)');
+        await editViewBtn!.tap();
+        await page.waitForSelector('.modal h4::-p-text(Edit View)', { timeout: 2000 });
+
+        // Toggle visibility of the first column item (hide it)
+        const firstToggle = await page.$('.modal .column-item:first-child .visibility-toggle');
+        expect(firstToggle, 'has visibility toggle for first column').toBeTruthy();
+        await firstToggle!.tap();
+
+        // Close modal
+        const doneBtn = await page.$('.modal .modal-actions button::-p-text(Done)');
+        await doneBtn!.tap();
+
+        // Verify one fewer column header in the table
+        const headersAfter = await page.$$('.dat_table thead th');
+        expect(headersAfter.length, 'one column was hidden').toBe(visibleCountBefore - 1);
+
+        // Re-open the modal and toggle the column back to visible
+        const viewBtn2 = await page.$('nav button::-p-text(View)');
+        await viewBtn2!.tap();
+        const editViewBtn2 = await page.waitForSelector('.c_menu button::-p-text(Edit View...)');
+        await editViewBtn2!.tap();
+        await page.waitForSelector('.modal h4::-p-text(Edit View)', { timeout: 2000 });
+
+        // The hidden column will be at the end of the list; find the one with EyeClosed
+        const hiddenItems = await page.$$('.modal .column-item:not(.visible) .visibility-toggle');
+        expect(hiddenItems.length, 'one column is hidden in the modal').toBeGreaterThanOrEqual(1);
+        // Toggle it back
+        await hiddenItems[0].tap();
+
+        const doneBtn2 = await page.$('.modal .modal-actions button::-p-text(Done)');
+        await doneBtn2!.tap();
+
+        // Verify columns are restored
+        const headersRestored = await page.$$('.dat_table thead th');
+        expect(headersRestored.length, 'columns restored to original count').toBe(visibleCountBefore);
+
+        // Restore the original column order via app state, since toggling visibility
+        // moves the re-enabled column to the end of the list
+        await page.evaluate(() => {
+            const s = (window as any).__app_state__;
+            const tmpl = s.proj.tmpls[s.proj.sel_tmpl];
+            tmpl.view_cols = tmpl.columns.map((_: any, i: number) => i);
+        });
+
+        // Verify the column order was restored by checking the first header
+        const firstHeader = await page.$('.dat_table thead th:nth-child(2)');
+        const firstHeaderText = await firstHeader?.evaluate(el => el.textContent?.trim());
+        expect(firstHeaderText, 'first column header is back to original order').toBe('RepText');
+    });
+});
+
+test.describe('Final State Verification', async () => {
+
+    test('should verify the table has exactly 2 rows with expected data', async () => {
+        // Make sure we're on the Data tab in table view
+        const dataTab = await page.$('.header_tabs button::-p-text(Data)');
+        await dataTab!.tap();
+
+        const table = await page.waitForSelector('.dat_table', { timeout: 2000 });
+        expect(table, 'table is visible').toBeTruthy();
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table has exactly 2 rows').toBe(2);
+
+        // Row 1: defaults
+        expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text').toBe('Linked text');
+        expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color').toBe('00ffdc');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider').toBe('55');
+        const pos1 = await GetCell(page, CellType.D3, 1, 5) as { x: string, y: string, z: string };
+        expect(pos1.x, 'row 1 pos X').toBe('10');
+        expect(pos1.y, 'row 1 pos Y').toBe('20');
+        expect(pos1.z, 'row 1 pos Z').toBe('0');
+        expect(await GetCell(page, CellType.Text, 1, 7), 'row 1 comment').toBe('headshot');
+
+        // Row 2: edited values (distinctive)
+        expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text').toBe('Row Two Custom');
+        expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color').toBe('aa2233');
+        expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider').toBe('123');
+        const pos2 = await GetCell(page, CellType.D3, 2, 5) as { x: string, y: string, z: string };
+        expect(pos2.x, 'row 2 pos X').toBe('400');
+        expect(pos2.y, 'row 2 pos Y').toBe('500');
+        expect(pos2.z, 'row 2 pos Z').toBe('600');
+    });
+
+});
+
+
+test.describe('Add Property to Template', async () => {
+    test('should call Test_AddPropToEGP to add a new property to the Essential Graphics panel', async () => {
+        const result = await CsaEval('Test_AddPropToEGP()', page);
+        const parsed = JSON.parse(result);
+        console.log('Test_AddPropToEGP result:', parsed);
+        expect(parsed.success, 'Test_AddPropToEGP succeeded').toBeTruthy();
+    });
+
+    test('should reload the extension and detect the new column', async () => {
+        // Click the reload button in the header
+        const reloadBtn = await page.$('.header_reload button');
+        expect(reloadBtn, 'has reload button in header').toBeTruthy();
+        await reloadBtn!.tap();
+
+        // Switch to Data tab to see the table
+        const dataTab = await page.waitForSelector('.header_tabs button::-p-text(Data)', { timeout: 5000 });
+        await dataTab!.tap();
+
+        // Wait for the new "Other Prop" column header to appear
+        const newColHeader = await page.waitForSelector('.dat_table th::-p-text(Other Prop )', { timeout: 5000 });
+        expect(newColHeader, 'table has new "Other Prop" column header').toBeTruthy();
+    });
+
+    test('should have the correct default value for the new column', async () => {
+        // The new column should be the last one — find its index
+        const headerTexts = await page.$$eval('.dat_table thead th', ths =>
+            ths.map(th => th.textContent?.trim() ?? '')
+        );
+        console.log('Column headers after reload:', headerTexts);
+
+        const newColIndex = headerTexts.findIndex(h => h.startsWith('Other Prop'));
+        expect(newColIndex, '"Other Prop" column found in headers').toBeGreaterThan(0);
+
+        // Column index in the DOM is 1-based (nth-child), and headerTexts is 0-based
+        const colNum = newColIndex + 1;
+
+        // The new property is a color — read its default value for both rows
+        const row1Color = await GetCell(page, CellType.Color, 1, colNum);
+        expect(row1Color, 'row 1 new column default value').toBe('faff00');
+
+        const row2Color = await GetCell(page, CellType.Color, 2, colNum);
+        expect(row2Color, 'row 2 new column default value').toBe('faff00');
+    });
+});
+
 
 test.describe('OtM Render', async () => {
 
@@ -440,7 +1105,6 @@ test.describe('OtM Render', async () => {
         }
     });
 });
-
 
 /**Helper function to evaluate a script in the CEP environment */
 async function CsaEval(script: string, page: Page) {

@@ -1710,3 +1710,83 @@ function _DumpLogs(erase) {
 }
 
 _SetGlobalCurrentPath();
+
+//////////
+//TESTING
+//////////
+
+/**
+ * Testing function: Finds the "Control" layer inside the "MasterOtM" composition,
+ * locates an effect called "Additional Property", and adds it to the
+ * Essential Graphics panel with the name "Other Prop".
+ * @returns {string} Stringified JSON result object
+ */
+function Test_AddPropToEGP() {
+  /** @type {{ success: boolean, error_obj?: any }} */
+  var result = { success: false };
+
+  try {
+    // 1. Find the "MasterOtM" composition in the project
+    /** @type {CompItem|undefined} */
+    var master_comp;
+    for (var i = 1; i <= app.project.numItems; i++) {
+      var item = app.project.item(i);
+      if (item instanceof CompItem && item.name === "MasterOtM") {
+        master_comp = item;
+        break;
+      }
+    }
+    if (master_comp === undefined) {
+      throw new Error("@Test_AddPropToEGP: Composition 'MasterOtM' not found");
+    }
+
+    // 2. Find the layer called "Controls" inside MasterOtM
+    /** @type {AVLayer|undefined} */
+    var control_layer;
+    for (var i = 1; i <= master_comp.numLayers; i++) {
+      var layer = master_comp.layer(i);
+      if (layer.name === "Controls") {
+        control_layer = /** @type {AVLayer} */ (layer);
+        break;
+      }
+    }
+    if (control_layer === undefined) {
+      throw new Error("@Test_AddPropToEGP: Layer 'Control' not found in 'MasterOtM'");
+    }
+
+    // 3. Find the effect called "Additional Property" on the Control layer
+    var effects = /** @type {PropertyGroup} */ (control_layer.property("ADBE Effect Parade"));
+    if (effects === null || effects === undefined) {
+      throw new Error("@Test_AddPropToEGP: No effects found on layer 'Control'");
+    }
+
+    /** @type {PropertyGroup|undefined} */
+    var target_effect;
+    for (var i = 1; i <= effects.numProperties; i++) {
+      var effect = effects.property(i);
+      if (effect.name === "Additional Property") {
+        target_effect = /** @type {PropertyGroup} */ (effect);
+        break;
+      }
+    }
+    if (target_effect === undefined) {
+      throw new Error("@Test_AddPropToEGP: Effect 'Additional Property' not found on layer 'Control'");
+    }
+
+    // 4. Add the effect property to the Essential Graphics panel with the name "Other Prop"
+    var added = /** @type {Property<any>} */ (target_effect.property(1)).addToMotionGraphicsTemplateAs(master_comp, "Other Prop");
+
+    result.success = true;
+    return JSON.stringify(result);
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "host.jsx @ Test_AddPropToEGP";
+    return JSON.stringify(result);
+  }
+}
+
+Test_AddPropToEGP();
+
+
+
