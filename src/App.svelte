@@ -47,7 +47,7 @@
     RenderSettsResults,
     BatchRenderResult,
     BatchGenerateResult,
-    IsSameProjectResult,
+    ProjectIdResult,
     GetAllCompsResult,
     RowRenderResult,
     PreviewRowResult,
@@ -70,7 +70,6 @@
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
   let not_ready = $state(true);
-  let false_blur = $state(false);
 
   let m_file_pattern = $state<ModalFilePattern>();
   let m_message = $state<ModalMessage>();
@@ -82,6 +81,8 @@
   let footer_txt_long = $state<string | undefined>();
 
   let has_opened_viewer = false;
+
+  let is_new_setts = false;
 
   /**Selected template*/
   let sel_tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
@@ -100,48 +101,64 @@
 
     StartupSequence();
     SetupShortcuts();
+
+    window.onfocus = (e) => {
+      CheckDifferentProject();
+    };
   });
 
   async function StartupSequence() {
-    let n_tmpls = await GetTemplates();
-    l.debug("StartupSequence called with templates:", n_tmpls);
+    l.debug("StartupSequence started");
 
-    no_tmpls = n_tmpls.length == 0;
-    if (no_tmpls) return;
+    //fail in silence
+    //errors are handled in the functions called within
+    try {
+      let n_tmpls = await GetTemplates();
 
-    let { l_proj, l_setts } = await GetSettings();
+      //if no templates, return and show message
+      no_tmpls = n_tmpls.length == 0;
+      if (no_tmpls) return;
 
-    render_setts_templs = await GetRenderSettsTempls();
+      let { l_proj, l_setts } = await GetSettings();
 
-    SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
-    GetAllComps();
+      render_setts_templs = await GetRenderSettsTempls();
 
-    s.proj = l_proj;
-    s.setts = l_setts;
+      //for templates that where changed with the extension closed
+      SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
+      GetAllComps();
 
-    if (s.proj.sel_tmpl == -1) {
-      s.proj.sel_tmpl = 0;
+      s.proj = l_proj;
+      s.setts = l_setts;
+
+      if (s.proj.sel_tmpl == -1) {
+        s.proj.sel_tmpl = 0;
+      }
+    } catch (e) {
+      l.warn("StartupSequence error:", e);
     }
 
-    //TODO Find another way to trigger the save settings
-    window.onblur = (e) => {
-      //IsSameProject();
-    };
+    l.debug("StartupSequence completed");
   }
 
   function GetTemplates(): Promise<HostTemplateData[]> {
     return new Promise((resolve, reject) => {
-      csa.Exec<GetTmplsResult>("GetTemplates").then((result) => {
-        l.debug("GetTemplates result:", result);
+      csa
+        .Exec<GetTmplsResult>("GetTemplates")
+        .then((result) => {
+          l.debug("GetTemplates result:", result);
 
-        if (!result.success) {
-          l.error("Failed to load templates", result.error_obj);
-          reject(result.error_obj);
-        } else {
-          l.log(`Parsed Templates`, result);
-          resolve(result.tmpls);
-        }
-      });
+          if (!result.success) {
+            l.error("Failed to load templates", result.error_obj);
+            reject(result.error_obj);
+          } else {
+            l.log(`Retrieved Templates`, result);
+            resolve(result.tmpls);
+          }
+        })
+        .catch((e) => {
+          l.error("GetTemplates error:", e);
+          reject(e);
+        });
     });
   }
 
@@ -153,13 +170,44 @@
         if (!result.success) {
           if (result.error_obj?.reasons?.not_found) {
             l.warn(`Project settings and data not found, creating new ones`);
+            is_new_setts = true;
             resolve({
               l_proj: SettingsHelper.DefaultProjectData,
               l_setts: SettingsHelper.DefaultProjSettings,
             });
           } else {
-            l.warn("Failed to load settings", result.error_obj);
-            reject(result.error_obj);
+            l.error("Failed to load settings", result.error_obj);
+            m_message.Open(
+              `There was a problem loading the data in this project. Do you want to reset the EasyBatch data?`,
+              "Open Error",
+              [
+                {
+                  label: "Start Blank Project",
+                  callback: () => {
+                    l.warn(
+                      `User chose to start a blank project after load failure`,
+                    );
+                    is_new_setts = true;
+                    resolve({
+                      l_proj: SettingsHelper.DefaultProjectData,
+                      l_setts: SettingsHelper.DefaultProjSettings,
+                    });
+                  },
+                },
+                {
+                  label: "Cancel",
+                  callback: () => {
+                    l.warn(`User ignored loading errors`);
+                    no_tmpls = true;
+                    reject(
+                      new Error(
+                        "User cancelled loading project after load failure",
+                      ),
+                    );
+                  },
+                },
+              ],
+            );
           }
         } else {
           let l_proj = SettingsHelper.LoadProjectData(result.proj_data);
@@ -167,46 +215,107 @@
             ...SettingsHelper.DefaultProjSettings,
             ...result.proj_settings,
           };
-          l.log(`Parsed Settings`, result);
-          resolve({ l_proj, l_setts });
+
+          //check if the version is newer and warn the user
+          if (
+            l_proj.version.localeCompare(_VERSION_, undefined, {
+              numeric: true,
+            }) > 0
+          ) {
+            //Open a message
+            m_message.Open(
+              `This project was saved with version ${l_proj.version} of EasyBatch, and you're using ${_VERSION_}. There may be potential incompatibilities. Do you want to continue loading the project?`,
+              "Version Mismatch",
+              [
+                {
+                  label: "Open Anyway",
+                  callback: () => {
+                    l.warn(`User ignored version mismatch`);
+                    l_proj.version = _VERSION_;
+                    resolve({ l_proj, l_setts });
+                  },
+                },
+                {
+                  label: "Start Blank Project",
+                  callback: () => {
+                    l.warn(
+                      `User started a blank project after version mismatch`,
+                    );
+                    is_new_setts = true;
+                    resolve({
+                      l_proj: SettingsHelper.DefaultProjectData,
+                      l_setts: SettingsHelper.DefaultProjSettings,
+                    });
+                  },
+                },
+                {
+                  label: "Cancel",
+                  callback: () => {
+                    no_tmpls = true;
+                    reject(
+                      new Error(
+                        "User cancelled loading project due to version mismatch",
+                      ),
+                    );
+                  },
+                },
+              ],
+            );
+          } else {
+            l.log(`Parsed Settings`, result);
+            //update project version
+            l_proj.version = _VERSION_;
+            resolve({ l_proj, l_setts });
+          }
         }
       });
     });
   }
-  //Auto save settings with debounce
-  let last_p_sett_time;
-  $effect(() => {
-    //debug line actually triggers the effect
-    console.debug(
-      "Settings changed, scheduling save...",
-      $state.snapshot(s.setts),
-    );
 
-    if (last_p_sett_time !== undefined) {
-      clearTimeout(last_p_sett_time);
-    }
-    last_p_sett_time = setTimeout(SaveSettings, 1000, false, "setts");
+  function CheckDifferentProject() {
+    csa.Exec<ProjectIdResult>("ProjectID").then((result) => {
+      if (!result.success) {
+        l.error("Failed to check project ID", result.error_obj);
+        return;
+      }
+      if (s.proj.id !== result.id) {
+        l.warn("Project ID mismatch, reloading settings");
+        StartupSequence();
+      }
+    });
+  }
+
+  //Auto save settings
+  $effect(() => {
+    DebouceSaveSettings("setts");
+    $state.snapshot(s.setts);
   });
 
-  //Auto save project data with debounce
-  let last_p_data_time;
+  //Auto save project data
   $effect(() => {
-    //debug line actually triggers the effect
-    console.debug(
-      "Project data changed, scheduling save...",
-      $state.snapshot(s.proj),
-    );
-
-    if (last_p_data_time !== undefined) {
-      clearTimeout(last_p_data_time);
-    }
-    last_p_data_time = setTimeout(SaveSettings, 4000, false, "proj");
+    DebouceSaveSettings("proj");
+    $state.snapshot(s.proj);
   });
 
-  function SaveSettings(
-    is_new = false,
-    what: "proj" | "setts" | "all" = "all",
-  ) {
+  let save_timeout;
+  let last_type = "";
+  function DebouceSaveSettings(what = "all") {
+    if (save_timeout !== undefined) {
+      clearTimeout(save_timeout);
+    }
+
+    if (last_type !== what && last_type !== "") {
+      what = "all";
+    } else {
+      last_type = what;
+    }
+
+    save_timeout = setTimeout(SaveSettings, 2000, what);
+  }
+
+  function SaveSettings(what: "proj" | "setts" | "all" = "all") {
+    last_type = "";
+
     if (
       not_ready ||
       s.proj.sel_tmpl === undefined ||
@@ -218,6 +327,10 @@
 
     let request = new SaveSettsRequest();
 
+    if(is_new_setts){
+      what = "all";
+    }
+
     if (what === "proj" || what === "all") {
       request.proj_data = s.proj; // Sending project data
     }
@@ -227,12 +340,14 @@
     }
 
     request.project_id = s.proj.id;
-    request.is_new = is_new;
+    request.is_new = is_new_setts;
 
     l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
     csa.Exec<SaveSettingsResults>("SaveSettings", s_request).then((result) => {
+      is_new_setts = false;
+
       if (!result.success) {
         let e = result.error_obj;
         if (e?.reasons?.id_mismatch) {
@@ -253,35 +368,6 @@
       }
     });
   }
-
-  let last_opened_tab = $state<string | null>(null);
-
-  //Tab changed
-  $effect(() => {
-    if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
-      //Check if there's any template selected, otherwise just select the first one
-
-      if (sel_tmpl !== undefined && render_setts_templs !== undefined) {
-        if (sel_tmpl.render_setts_templ == "") {
-          sel_tmpl.render_setts_templ =
-            render_setts_templs.render_templs[
-              render_setts_templs.default_render_templ
-            ] || render_setts_templs.render_templs[0];
-        }
-
-        if (sel_tmpl.render_out_module_templ == "") {
-          sel_tmpl.render_out_module_templ =
-            render_setts_templs.output_modules_templs[
-              render_setts_templs.default_output_module_templ
-            ] || render_setts_templs.output_modules_templs[0];
-        }
-      }
-    } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
-      has_opened_viewer = false;
-    }
-
-    last_opened_tab = s.setts.active_tab;
-  });
 
   let render_setts_templs = $state<RenderSettsResults>();
 
@@ -316,17 +402,227 @@
     render_setts_templs = await GetRenderSettsTempls();
 
     SettingsHelper.UpdateTemplates(s.proj, n_tmpls);
-    s.proj = s.proj;
     l.debug("F_Reload called with templates:", n_tmpls);
   }
 
-  function DeleteRow(row_i) {
-    TemplateHelper.DeleteRow(sel_tmpl, row_i);
-    s.proj = s.proj;
-    l.debug("DeleteRow called with row index:", row_i);
+  ////GENERAL UI////
+  //////////////////
+
+  function SetupShortcuts() {
+    //csa.KeyRegisterOverride();
+    ac.Init();
+    csa.RegisterKeyEventsInterest([
+      //MAC
+      { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
+      { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
+
+      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down Opt
+      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up Opt
+
+      { keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
+      { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
+
+      { keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false }, // S
+      { keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false }, // R
+      { keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false }, // P
+      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false }, // N
+      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
+
+      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false }, // T
+      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false }, // D
+    ]);
+
+    //File Actions
+    ac.AddListener(
+      "import_csv",
+      () => {
+        ImportCSV();
+      },
+      "i",
+    );
+
+    ac.AddListener(
+      "export_csv",
+      () => {
+        ExportCSV();
+      },
+      "e",
+    );
+
+    // Row/Edit Actions
+    ac.AddListener(
+      "preview",
+      () => {
+        console.debug("Preview shortcut triggered for row index:", curr_row_i);
+        PreviewRow(curr_row_i);
+      },
+      "p",
+    );
+
+    ac.AddListener(
+      "copy_from_preview",
+      () => {
+        SampleRow(curr_row_i);
+      },
+      "s",
+      false,
+    );
+
+    ac.AddListener(
+      "render_row",
+      () => {
+        RenderRow(curr_row_i);
+      },
+      "r",
+    );
+
+    ac.AddListener(
+      "delete",
+      () => {
+        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
+      },
+      "Delete",
+    );
+
+    ac.AddListener(
+      "delete",
+      () => {
+        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
+      },
+      "Backspace",
+    );
+
+    ac.AddListener(
+      "add_after",
+      () => {
+        TemplateHelper.AddRowAfter(sel_tmpl, curr_row_i);
+        s.proj = s.proj;
+        NextRow();
+      },
+      "N",
+      false,
+      false,
+    );
+
+    ac.AddListener(
+      "add_before",
+      () => {
+        TemplateHelper.AddRowBefore(sel_tmpl, curr_row_i);
+        s.proj = s.proj;
+      },
+      "N",
+      false,
+      true,
+    );
+
+    // View Actions
+
+    ac.AddListener(
+      "view_detail",
+      () => {
+        s.setts.data_mode = "detail";
+      },
+      "D",
+    );
+
+    ac.AddListener(
+      "view_table",
+      () => {
+        s.setts.data_mode = "table";
+      },
+      "T",
+    );
+
+    ac.AddListener(
+      "edit_view",
+      () => {
+        OpenEditViewModal();
+      },
+      "",
+    );
+
+    // Navigation Actions
+
+    ac.AddListener(
+      "previous_row",
+      () => {
+        PrevRow();
+      },
+      "arrowup",
+      false,
+      false,
+      true,
+    );
+
+    ac.AddListener(
+      "next_row",
+      () => {
+        NextRow();
+      },
+      "arrowdown",
+      false,
+      false,
+      true,
+    );
+
+    ac.AddListener(
+      "open_help",
+      () => {
+        OpenHelp();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "report_issue",
+      () => {
+        ReportIssue();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "surprise",
+      () => {
+        Surprise();
+      },
+      "",
+    );
   }
 
+  let last_opened_tab = $state<string | null>(null);
+  //Tab changed
+  $effect(() => {
+    if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
+      //Check if there's any template selected, otherwise just select the first one
+
+      if (sel_tmpl !== undefined && render_setts_templs !== undefined) {
+        if (sel_tmpl.render_setts_templ == "") {
+          sel_tmpl.render_setts_templ =
+            render_setts_templs.render_templs[
+              render_setts_templs.default_render_templ
+            ] || render_setts_templs.render_templs[0];
+        }
+
+        if (sel_tmpl.render_out_module_templ == "") {
+          sel_tmpl.render_out_module_templ =
+            render_setts_templs.output_modules_templs[
+              render_setts_templs.default_output_module_templ
+            ] || render_setts_templs.output_modules_templs[0];
+        }
+      }
+    } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
+      has_opened_viewer = false;
+    }
+
+    last_opened_tab = s.setts.active_tab;
+  });
+
+  /////DATA TAB/////
+  //////////////////
+
   /**
+   * Opens a comp in the project to preview the template with the row's values
    * @param row_i
    * @param prop_changed True if the preview is being called due to a property change
    */
@@ -403,7 +699,7 @@
   }
 
   /**
-   * Copies the values in the template composition to the current row
+   * Copies the values in the previrew to the template for the given row, then previews the row again to update the viewer with the new values
    * @param row_i
    */
   function SampleRow(row_i) {
@@ -434,6 +730,53 @@
       });
   }
 
+  function OpenRowMenu(e, row_i) {
+    //if the active element is an input, don't open the menu
+    if (
+      document.activeElement instanceof HTMLInputElement ||
+      document.activeElement instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+
+    curr_row_i = row_i;
+    e.preventDefault();
+    menu.Open(e.pageX, e.pageY, MenuItemSelected);
+  }
+
+  function MenuItemSelected(action) {
+    l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
+    ac.Fire(action);
+  }
+
+  function OpenBarMenu(e: MouseEvent, type: string) {
+    let btn = e.target as HTMLButtonElement;
+    menu.Open(
+      btn.offsetLeft,
+      btn.offsetTop + btn.offsetHeight,
+      BarMenuSelected,
+      type,
+    );
+  }
+
+  function BarMenuSelected(action: string) {
+    l.debug("BarMenuSelected called with action:", action);
+    ac.Fire(action);
+  }
+
+  function NextRow() {
+    if (curr_row_i < row_count - 1) {
+      curr_row_i++;
+    }
+  }
+
+  function PrevRow() {
+    if (curr_row_i > 0) {
+      curr_row_i--;
+    }
+  }
+
+  /**Renders only the selected row instead of batch rendering*/
   function RenderRow(row_i) {
     switch (s.setts.out_mode) {
       case "render":
@@ -445,6 +788,240 @@
         BatchOneToMany(row_i);
         break;
     }
+  }
+
+  function ImportCSV() {
+    l.debug("ImportCSV called");
+    csa
+      .Eval("ImportFile", "CSV Files: *.csv, All Files: *.*")
+      .then((result) => {
+        if (result === "null") return;
+
+        let decoded = decodeURIComponent(result);
+
+        TemplateHelper.LoadFromCSV(sel_tmpl, decoded);
+
+        s.proj = s.proj;
+      });
+  }
+
+  function ExportCSV() {
+    let content = TemplateHelper.MakeCSV(sel_tmpl);
+    l.debug("ExportCSV called");
+
+    csa
+      .Eval("ExportFile", content, "CSV Files: *.csv, All Files: *.*")
+      .then((result) => {
+        if (result == "null") return;
+      });
+  }
+
+  function UpdateStatusFooter(txt: string, long_msg = "") {
+    footer_txt = txt;
+    footer_txt_long = long_msg;
+  }
+
+  function OpenStatusLongMsg() {
+    if (footer_txt_long !== undefined && footer_txt_long !== "") {
+      m_message.Open(footer_txt_long, "Details");
+    }
+  }
+
+  //////HELP MENU//////
+  ////////////////////
+
+  function OpenHelp() {
+    csa.OpenURLInDefaultBrowser("https://gabriel-ar.github.io/Ae-EasyBatch/");
+  }
+
+  function ReportIssue() {
+    csa.OpenURLInDefaultBrowser(
+      "https://github.com/gabriel-ar/Ae-EasyBatch/issues",
+    );
+  }
+
+  function Surprise() {
+    fetch("https://dog.ceo/api/breeds/image/random")
+      .then(async (r) => {
+        if (r.status === 200) {
+          let data = await r.json();
+          m_message.Open(
+            `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
+            "🐶 Take a Break",
+          );
+        }
+      })
+      .catch((error) => {
+        l.error("Failed to fetch dog image", error);
+      });
+  }
+  function OpenEditViewModal() {
+    m_edit_view.Open(EditViewModalClosed);
+  }
+
+  function EditViewModalClosed(new_table_cols: number[]) {
+    sel_tmpl.view_cols = new_table_cols;
+    s.proj = s.proj; // Force reactivity
+    l.debug("Edit view modal closed with new table_cols:", new_table_cols);
+  }
+
+  /////RENDER TAB/////
+  ////////////////////
+
+  /**
+   * Selects a folder to save the files to and adds it to the save pattern
+   */
+  function SelRenderBasePath() {
+    l.debug("SelectBasePath called");
+    let initial_folder = sel_tmpl.base_path || "";
+
+    csa.OpenFolderDialog(initial_folder).then((result) => {
+      if (result === null) return;
+
+      sel_tmpl.base_path = result;
+    });
+  }
+
+  let sel_add_field = $state("base_path");
+  function RenderSave_AddField() {
+    let save_pattern_ta: HTMLTextAreaElement =
+      document.querySelector("#save_pattern_ta");
+
+    let cursor_pos = save_pattern_ta.selectionStart;
+    let old_val = sel_tmpl.save_pattern;
+
+    //Insert the selected field at the cursor position
+    sel_tmpl.save_pattern =
+      old_val.slice(0, cursor_pos) +
+      `{${sel_add_field}}` +
+      old_val.slice(cursor_pos);
+  }
+
+  // Render save pattern updated
+  $effect(() => {
+    if (sel_tmpl !== undefined) {
+      sel_tmpl.save_paths[0] = TemplateHelper.ResolveSavePath(
+        sel_tmpl,
+        sel_tmpl.save_pattern,
+        0,
+      );
+    }
+  });
+
+  let sel_add_field_gen = $state("row_number");
+  function GenerateName_AddField() {
+    let pattern_ta: HTMLTextAreaElement =
+      document.querySelector("#generate_proj_ta");
+
+    let cursor_pos = pattern_ta.selectionStart;
+    let old_val = sel_tmpl.generate_pattern;
+
+    //Insert the selected field at the cursor position
+    sel_tmpl.generate_pattern =
+      old_val.slice(0, cursor_pos) +
+      `{${sel_add_field_gen}}` +
+      old_val.slice(cursor_pos);
+  }
+
+  //Generate Comps pattern updated
+  $effect(() => {
+    if (sel_tmpl !== undefined) {
+      sel_tmpl.generate_names[0] = TemplateHelper.ResolveCompName(
+        sel_tmpl,
+        sel_tmpl.generate_pattern,
+        0,
+      );
+    }
+  });
+
+  let all_comps = $state<Comp[]>([]);
+  function GetAllComps() {
+    csa.Exec<GetAllCompsResult>("GetAllComps").then((result) => {
+      if (!result.success) {
+        l.error("Failed to get all comps", result.error_obj);
+        return;
+      } else {
+        all_comps = result.comps;
+        l.debug(`Got All Comps`, all_comps);
+      }
+    });
+  }
+
+  let selected_comp = $state<number | "">("");
+  function AddCompToDependents() {
+    if (selected_comp !== "") {
+      let comp = all_comps.find((c) => c.id === selected_comp);
+
+      if (comp) {
+        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
+        TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+        TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
+      }
+    }
+  }
+
+  function AddSelectedCompsToDependents() {
+    csa.Exec<GetSelectedCompsResult>("GetSelectedComps").then((result) => {
+      l.debug(`Got selected Comps`, result);
+
+      if (!result.success) {
+        l.error("Failed to get selected comps", result.error_obj);
+        return;
+      }
+
+      //Update the comps with the latest data
+      GetAllComps();
+
+      for (let comp_info of result.comps) {
+        let comp = all_comps.find((c) => c.id === comp_info.id);
+
+        if (comp) {
+          //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
+          TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
+        }
+      }
+
+      TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+      TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
+    });
+  }
+
+  function DeleteDependentComp(dep_index) {
+    TemplateHelper.RemoveDependantComp(sel_tmpl, dep_index);
+    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+
+    //force Svelte reactivity
+    sel_tmpl.dep_comps = sel_tmpl.dep_comps;
+  }
+
+  let edit_dep_comp_index = $state<number | undefined>();
+  function DepFilePatternModalOpen(dep_index: number) {
+    edit_dep_comp_index = dep_index;
+
+    m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
+  }
+
+  function DepFilePatternModalClosed(base_path, pattern) {
+    sel_tmpl.dep_config[edit_dep_comp_index].save_pattern = pattern;
+
+    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
+  }
+
+  function SetupAlternateSource(col_i) {
+    show_alt_src_modal = true;
+    alt_src_modal_col = col_i;
+  }
+
+  let show_alt_src_modal = $state(false);
+  let alt_src_modal_col = $state<number | undefined>();
+  function AlertSrcModalClosed(base_path, pattern) {
+    sel_tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
+    sel_tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
+
+    ColumnHelper.ResolveColumnAltSrcPaths(
+      sel_tmpl.columns[alt_src_modal_col],
+      sel_tmpl.columns,
+    );
   }
 
   //User facing render results
@@ -600,465 +1177,6 @@
         }
       });
   }
-
-  /**
-   * Selects a folder to save the files to and adds it to the save pattern
-   */
-  function SelRenderBasePath() {
-    l.debug("SelectBasePath called");
-    let initial_folder = sel_tmpl.base_path || "";
-
-    csa.OpenFolderDialog(initial_folder).then((result) => {
-      if (result === null) return;
-
-      sel_tmpl.base_path = result;
-    });
-  }
-
-  /**
-   * Updates the preview of the save path based on the current save pattern
-   */
-  $effect(() => {
-    if (sel_tmpl !== undefined) {
-      sel_tmpl.save_paths[0] = TemplateHelper.ResolveSavePath(
-        sel_tmpl,
-        sel_tmpl.save_pattern,
-        0,
-      );
-    }
-  });
-
-  let sel_add_field = $state("base_path");
-  function AddField() {
-    let save_pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#save_pattern_ta");
-
-    let cursor_pos = save_pattern_ta.selectionStart;
-    let old_val = sel_tmpl.save_pattern;
-
-    //Insert the selected field at the cursor position
-    sel_tmpl.save_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field}}` +
-      old_val.slice(cursor_pos);
-  }
-
-  //Updates the preview of the generate names based on the current generate pattern
-  $effect(() => {
-    if (sel_tmpl !== undefined) {
-      sel_tmpl.generate_names[0] = TemplateHelper.ResolveCompName(
-        sel_tmpl,
-        sel_tmpl.generate_pattern,
-        0,
-      );
-    }
-  });
-
-  let all_comps = $state<Comp[]>([]);
-  function GetAllComps() {
-    csa.Exec<GetAllCompsResult>("GetAllComps").then((result) => {
-      if (!result.success) {
-        l.error("Failed to get all comps", result.error_obj);
-        return;
-      } else {
-        all_comps = result.comps;
-        l.debug(`Got All Comps`, all_comps);
-      }
-    });
-  }
-
-  let selected_comp = $state<number | "">("");
-  function AddCompToDependents() {
-    if (selected_comp !== "") {
-      let comp = all_comps.find((c) => c.id === selected_comp);
-
-      if (comp) {
-        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
-        TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-        TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-      }
-    }
-  }
-
-  function AddSelectedCompsToDependents() {
-    csa.Exec<GetSelectedCompsResult>("GetSelectedComps").then((result) => {
-      l.debug(`Got selected Comps`, result);
-
-      if (!result.success) {
-        l.error("Failed to get selected comps", result.error_obj);
-        return;
-      }
-
-      //Update the comps with the latest data
-      GetAllComps();
-
-      for (let comp_info of result.comps) {
-        let comp = all_comps.find((c) => c.id === comp_info.id);
-
-        if (comp) {
-          //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
-          TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
-        }
-      }
-
-      TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-      TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-    });
-  }
-
-  function DeleteDependentComp(dep_index) {
-    TemplateHelper.RemoveDependantComp(sel_tmpl, dep_index);
-    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-
-    //force Svelte reactivity
-    sel_tmpl.dep_comps = sel_tmpl.dep_comps;
-  }
-
-  let sel_add_field_gen = $state("row_number");
-  function AddField_Gen() {
-    let pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#generate_proj_ta");
-
-    let cursor_pos = pattern_ta.selectionStart;
-    let old_val = sel_tmpl.generate_pattern;
-
-    //Insert the selected field at the cursor position
-    sel_tmpl.generate_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field_gen}}` +
-      old_val.slice(cursor_pos);
-  }
-
-  let show_alt_src_modal = $state(false);
-  let alt_src_modal_col = $state<number | undefined>();
-
-  function SetupAlternateSource(col_i) {
-    show_alt_src_modal = true;
-    alt_src_modal_col = col_i;
-  }
-
-  function AlertSrcModalClosed(base_path, pattern) {
-    sel_tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
-    sel_tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
-
-    ColumnHelper.ResolveColumnAltSrcPaths(
-      sel_tmpl.columns[alt_src_modal_col],
-      sel_tmpl.columns,
-    );
-  }
-
-  let edit_dep_comp_index = $state<number | undefined>();
-  function DepFilePatternModalOpen(dep_index: number) {
-    edit_dep_comp_index = dep_index;
-
-    m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
-  }
-
-  function DepFilePatternModalClosed(base_path, pattern) {
-    sel_tmpl.dep_config[edit_dep_comp_index].save_pattern = pattern;
-
-    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-  }
-
-  function OpenEditViewModal() {
-    m_edit_view.Open(EditViewModalClosed);
-  }
-
-  function EditViewModalClosed(new_table_cols: number[]) {
-    sel_tmpl.view_cols = new_table_cols;
-    s.proj = s.proj; // Force reactivity
-    l.debug("Edit view modal closed with new table_cols:", new_table_cols);
-  }
-
-  function SetupShortcuts() {
-    //csa.KeyRegisterOverride();
-    ac.Init();
-    csa.RegisterKeyEventsInterest([
-      //MAC
-      { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
-      { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
-
-      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down Opt
-      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up Opt
-
-      { keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
-      { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
-
-      { keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false }, // S
-      { keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false }, // R
-      { keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false }, // P
-      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false }, // N
-      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
-
-      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false }, // T
-      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false }, // D
-    ]);
-
-    //File Actions
-    ac.AddListener(
-      "import_csv",
-      () => {
-        ImportCSV();
-      },
-      "i",
-    );
-
-    ac.AddListener(
-      "export_csv",
-      () => {
-        ExportCSV();
-      },
-      "e",
-    );
-
-    // Row/Edit Actions
-    ac.AddListener(
-      "preview",
-      () => {
-        console.debug("Preview shortcut triggered for row index:", curr_row_i);
-        PreviewRow(curr_row_i);
-      },
-      "p",
-    );
-
-    ac.AddListener(
-      "copy_from_preview",
-      () => {
-        SampleRow(curr_row_i);
-      },
-      "s",
-      false,
-    );
-
-    ac.AddListener(
-      "render_row",
-      () => {
-        RenderRow(curr_row_i);
-      },
-      "r",
-    );
-
-    ac.AddListener(
-      "delete",
-      () => {
-        DeleteRow(curr_row_i);
-      },
-      "Delete",
-    );
-
-    ac.AddListener(
-      "delete",
-      () => {
-        DeleteRow(curr_row_i);
-      },
-      "Backspace",
-    );
-
-    ac.AddListener(
-      "add_after",
-      () => {
-        TemplateHelper.AddRowAfter(sel_tmpl, curr_row_i);
-        s.proj = s.proj;
-        NextRow();
-      },
-      "N",
-      false,
-      false,
-    );
-
-    ac.AddListener(
-      "add_before",
-      () => {
-        TemplateHelper.AddRowBefore(sel_tmpl, curr_row_i);
-        s.proj = s.proj;
-      },
-      "N",
-      false,
-      true,
-    );
-
-    // View Actions
-
-    ac.AddListener(
-      "view_detail",
-      () => {
-        s.setts.data_mode = "detail";
-      },
-      "D",
-    );
-
-    ac.AddListener(
-      "view_table",
-      () => {
-        s.setts.data_mode = "table";
-      },
-      "T",
-    );
-
-    ac.AddListener(
-      "edit_view",
-      () => {
-        OpenEditViewModal();
-      },
-      "",
-    );
-
-    // Navigation Actions
-
-    ac.AddListener(
-      "previous_row",
-      () => {
-        PrevRow();
-      },
-      "arrowup",
-      false,
-      false,
-      true,
-    );
-
-    ac.AddListener(
-      "next_row",
-      () => {
-        NextRow();
-      },
-      "arrowdown",
-      false,
-      false,
-      true,
-    );
-
-    ac.AddListener(
-      "open_help",
-      () => {
-        OpenHelp();
-      },
-      ""
-    );
-
-    ac.AddListener(
-      "report_issue",
-      () => {
-        ReportIssue();
-      },
-      ""
-    );
-
-    ac.AddListener(
-      "surprise",
-      () => {
-        Surprise();
-      },
-      ""
-    );
-  }
-
-  function OpenRowMenu(e, row_i) {
-    //if the active element is an input, don't open the menu
-    if (
-      document.activeElement instanceof HTMLInputElement ||
-      document.activeElement instanceof HTMLTextAreaElement
-    ) {
-      return;
-    }
-
-    curr_row_i = row_i;
-    e.preventDefault();
-    menu.Open(e.pageX, e.pageY, MenuSelected);
-  }
-
-  function MenuSelected(action) {
-    l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
-    ac.Fire(action);
-  }
-
-  function OpenBarMenu(e: MouseEvent, type: string) {
-    let btn = e.target as HTMLButtonElement;
-    menu.Open(
-      btn.offsetLeft,
-      btn.offsetTop + btn.offsetHeight,
-      BarMenuSelected,
-      type,
-    );
-  }
-
-  function BarMenuSelected(action: string) {
-    l.debug("BarMenuSelected called with action:", action);
-    ac.Fire(action);
-  }
-
-  function NextRow() {
-    if (curr_row_i < row_count - 1) {
-      curr_row_i++;
-    }
-  }
-
-  function PrevRow() {
-    if (curr_row_i > 0) {
-      curr_row_i--;
-    }
-  }
-  /**
-   * Selects a folder to save the files to and adds it to the save pattern
-   */
-  function ImportCSV() {
-    l.debug("ImportCSV called");
-    csa
-      .Eval("ImportFile", "CSV Files: *.csv, All Files: *.*")
-      .then((result) => {
-        if (result === "null") return;
-
-        let decoded = decodeURIComponent(result);
-
-        TemplateHelper.LoadFromCSV(sel_tmpl, decoded);
-
-        s.proj = s.proj;
-      });
-  }
-
-  function ExportCSV() {
-    let content = TemplateHelper.MakeCSV(sel_tmpl);
-    l.debug("ExportCSV called");
-
-    csa
-      .Eval("ExportFile", content, "CSV Files: *.csv, All Files: *.*")
-      .then((result) => {
-        if (result == "null") return;
-      });
-  }
-
-  function UpdateStatusFooter(txt: string, long_msg = "") {
-    footer_txt = txt;
-    footer_txt_long = long_msg;
-  }
-
-  function OpenStatusLongMsg() {
-    if (footer_txt_long !== undefined && footer_txt_long !== "") {
-      m_message.Open(footer_txt_long, "Details");
-    }
-  }
-
-  function OpenHelp() {
-    csa.OpenURLInDefaultBrowser(
-      "https://gabriel-ar.github.io/Ae-EasyBatch/",
-    );
-  }
-
-  function ReportIssue() {
-    csa.OpenURLInDefaultBrowser(
-      "https://github.com/gabriel-ar/Ae-EasyBatch/issues",
-    );
-  }
-
-  function Surprise() {
-    fetch("https://dog.ceo/api/breeds/image/random").then(async (r) => {
-      if(r.status === 200) {
-        let data = await r.json();
-        m_message.Open(`<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`, "🐶 Take a Break");
-      }
-    }).catch((error) => {
-      l.error("Failed to fetch dog image", error);
-    });
-  }
 </script>
 
 <!-- HEADER -->
@@ -1090,7 +1208,8 @@
     <button onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
-      onclick={(e) => menu.Open(e.pageX, e.pageY, MenuSelected, "help")}><QuestionMark /></button>
+      onclick={(e) => menu.Open(e.pageX, e.pageY, MenuItemSelected, "help")}
+      ><QuestionMark /></button>
   </div>
 </header>
 
@@ -1302,7 +1421,7 @@
           ]}
           bind:value={sel_add_field} />
 
-        <button onclick={AddField}>Add Field</button>
+        <button onclick={RenderSave_AddField}>Add Field</button>
       </div>
 
       <div class="setting">
@@ -1405,7 +1524,7 @@
 
       <div class="setting">
         <div>
-          <button onclick={AddField_Gen}>Add Field</button>
+          <button onclick={GenerateName_AddField}>Add Field</button>
           <Dropdown
             labels={[
               "Template Name",
@@ -1639,8 +1758,7 @@
     onclose={AlertSrcModalClosed} />
 {/if}
 
-
-<Menu bind:this={menu} onselect={MenuSelected}></Menu>
+<Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 
 {#if no_tmpls}

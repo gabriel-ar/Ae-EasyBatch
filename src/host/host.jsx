@@ -232,27 +232,49 @@ function _SettingsExist() {
   }
 }
 
-function _SettingsId() {
-  try {
-    // load the XMPlibrary as an ExtendScript ExternalObject
-    if (ExternalObject.AdobeXMPScript === undefined) {
-      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
-    }
-    var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var uri = XMPMeta.getNamespaceURI("easybatch");
+function _ProjectID() {
+  // load the XMPlibrary as an ExtendScript ExternalObject
+  if (ExternalObject.AdobeXMPScript === undefined) {
+    ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+  }
+  var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
+  var xmp = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(uri, "ProjectData", XMPConst.STRING);
-
-    if (prop === undefined || prop.value === undefined) {
-      return null;
-    }
-
-    /**@type {ProjData} */
-    var ProjData = JSON.parse(prop.value);
-    return ProjData.id;
-  } catch (e) {
+  if (xmp === undefined || xmp === "") {
     return null;
   }
+
+  var prop = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
+
+  if (prop === undefined || prop.value === undefined) {
+    return null;
+  }
+
+  /**@type {ProjData} */
+  var ProjData = JSON.parse(prop.value);
+  return ProjData.id;
+}
+
+/**
+ * @returns {string} Stringified JSON of `ProjectIdResult` object
+ */
+function ProjectID() {
+
+  /**@type {ProjectIdResult} */
+  var result = {
+    success: false,
+    id: null
+  };
+
+  try {
+    result.success = true;
+    result.id = _ProjectID();
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "host.jsx @ ProjectID";
+  }
+  return JSON.stringify(result);
 }
 
 /**
@@ -273,14 +295,14 @@ function LoadSettings() {
     var xmp = XMPMeta.getNamespaceURI("easybatch");
 
     if (xmp === undefined || xmp === "") {
-      throw new ResponseError("No settings found in the project", { not_found: true });
+      throw new ResponseError("No settings found in the project, failed to retrieve namespace URI", { not_found: true });
     }
 
     var p_proj_setts = mdata.getProperty(xmp, "ProjectSettings", XMPConst.STRING);
     var p_proj_data = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
 
-    if (p_proj_setts === undefined || p_proj_setts.value === undefined) {
-      throw new ResponseError("No settings found in the project", { not_found: true });
+    if (p_proj_setts === undefined || p_proj_data === undefined || p_proj_setts.value === undefined || p_proj_data.value === undefined) {
+      throw new ResponseError("No settings found in the project, failed to retrieve ProjectSettings/ProjectData property", { not_found: true });
     }
 
     result.proj_data = JSON.parse(p_proj_data.value);
@@ -329,8 +351,10 @@ function SaveSettings(s_request) {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
 
-    var setts_id = _SettingsId();
-    if (!request.is_new && setts_id !== null && setts_id !== request.project_id) {
+    var setts_id = _ProjectID();
+
+    $.writeln("Current project ID: " + setts_id);
+    if (!request.is_new && setts_id !== undefined && setts_id !== request.project_id) {
       throw new ResponseError(
         "The settings in the project have a different ID",
         {
@@ -401,40 +425,6 @@ function DeleteSettings() {
   }
 
   return JSON.stringify(response);
-}
-
-
-/**
- * Checks if the project currently open in After Effects matches the given project ID.
- * @param {string} proj_id - The project ID to compare against.
- * @returns {string}
- */
-function IsSameProject(proj_id) {
-  _EscapeArgs(arguments);
-  /**@type {IsSameProjectResult} */
-  var response = { success: true, same_project: false };
-  try {
-    if (proj_id === undefined || proj_id === null) {
-      throw new ResponseError("No project ID provided at IsSameProject", {});
-    }
-
-    var read_id = _SettingsId();
-
-    if (read_id === null || read_id === undefined) {
-      response.same_project = false;
-    } else if (read_id === proj_id) {
-      response.same_project = true;
-    } else {
-      response.same_project = false;
-    }
-
-    return JSON.stringify(response);
-  } catch (e) {
-    response.success = false;
-    response.error_obj = e;
-    response.error_obj.source = "host.jsx @ IsSameProject";
-    return JSON.stringify(response);
-  }
 }
 
 function _SetupTemplatePreviewComp(remove_layers) {
@@ -617,11 +607,11 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
     /** @type {Property<any>} */
     var ess_prop = /** @type {Property<any>} */ (e_props.property(i_prop));
 
-  //  local_logs.push("Processing property '" + ess_prop.name + "' of type " + ess_prop.propertyValueType + " in " + epname);
+    //  local_logs.push("Processing property '" + ess_prop.name + "' of type " + ess_prop.propertyValueType + " in " + epname);
 
     if (ess_prop.propertyType === PropertyType.INDEXED_GROUP || ess_prop.propertyType === PropertyType.NAMED_GROUP) {
       //This is a group, go deeper
-      var group_errors = _ApplyTemplProps(layer, template, row_i, replace_orgs, /** @type {PropertyGroup} */ (e_props.property(i_prop)));
+      var group_errors = _ApplyTemplProps(layer, template, row_i, replace_orgs, /** @type {PropertyGroup} */(e_props.property(i_prop)));
       errors = errors.concat(group_errors);
       continue;
     }
@@ -676,7 +666,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
 
       //It is a footage item check if it's linked to the correct file
       else if (alt_src !== null && /** @type {FootageItem} */ (alt_src).file !== null
-        && _ComparePaths(/** @type {FootageItem} */ (alt_src).file, col.values[row_i])
+        && _ComparePaths(/** @type {FootageItem} */(alt_src).file, col.values[row_i])
       ) {
         //The footage item is already linked to the correct file
         continue;
@@ -698,12 +688,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
         ess_prop_src.replaceSource(new_footage, false);
       } else {
         var prev_alt_src = ess_prop.alternateSource;
-        
+
         ess_prop.setAlternateSource(new_footage);
 
         //Cleanup the previous alt source if it was one of the dummy comps created by AE
-        if(prev_alt_src!== undefined
-          && prev_alt_src instanceof CompItem 
+        if (prev_alt_src !== undefined
+          && prev_alt_src instanceof CompItem
           && prev_alt_src.usedIn.length === 0
           && prev_alt_src.name.indexOf(ess_prop.name) === 0) {
           prev_alt_src.remove();
@@ -830,7 +820,7 @@ function PreviewRow(s_template, row_i, open_prev) {
       templ_layer = render_comp.layers.add(templ_comp);
     }
 
-    var props_errors = _ApplyTemplProps(/** @type {AVLayer} */ (templ_layer), templ, row_i);
+    var props_errors = _ApplyTemplProps(/** @type {AVLayer} */(templ_layer), templ, row_i);
 
     //If errors while applying the properties, transfer them to the result object
     if (props_errors.length > 0) {
@@ -943,7 +933,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
         props.push(prop);
       } else {
         //This is a group, go deeper
-        var group_props = _FlattenPropertyGroup(/** @type {PropertyGroup} */ (/** @type {unknown} */ (prop)), keep_comments);
+        var group_props = _FlattenPropertyGroup(/** @type {PropertyGroup} */(/** @type {unknown} */ (prop)), keep_comments);
         props = props.concat(group_props);
       }
     } else {
@@ -1502,7 +1492,7 @@ function RenderDeps(tmpl, props_layer) {
  */
 function ShouldCancelRenderDeps() {
   for (var i = 0; i < queued_items.length; i++) {
-    if (queued_items[i].rqi !== undefined 
+    if (queued_items[i].rqi !== undefined
       && queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
       queued_items[i].row_result.status = 'stopped';
       queued_items[i].row_result.error = 'Render stopped by user';
@@ -1562,7 +1552,7 @@ function _DumpLogs(erase) {
   for (var i = 0; i < local_logs.length; i++) {
     writeLn(local_logs[i]);
   }
-  if (erase===undefined || erase) local_logs = [];
+  if (erase === undefined || erase) local_logs = [];
 }
 
 _SetGlobalCurrentPath();

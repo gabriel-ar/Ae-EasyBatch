@@ -159,9 +159,8 @@ export interface GetCurrentValuesResults extends Result {
 }
 
 /** Result for checking if same project */
-export interface IsSameProjectResult extends Result {
-  /** True if same project */
-  same_project: boolean;
+export interface ProjectIdResult extends Result {
+ id: string;
 }
 
 /**

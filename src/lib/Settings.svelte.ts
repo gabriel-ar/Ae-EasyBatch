@@ -17,6 +17,7 @@ export interface ProjData {
   id: string;
   tmpls: TemplateData[];
   sel_tmpl: number;
+  version?: string;
 }
 
 export class SettingsHelper {
@@ -37,6 +38,7 @@ export class SettingsHelper {
       id: SettingsHelper.MakeId(),
       tmpls: [],
       sel_tmpl: -1,
+      version: _VERSION_
     };
   }
 
