@@ -1,4 +1,5 @@
 import "./cep_node.t";
+import type { Result } from "./Messaging";
 
 //Modernized CEP adapter for easier interaction with the CEP environment
 class CSAdapter {
@@ -38,29 +39,24 @@ class CSAdapter {
     });//Promise
   }
 
-  EvalSync(method, callback, ...args) {
-    //build the script to be evaluated
-    let script = `${method}(`;
-    if (args.length > 0) {
-      script += args.map(arg => {
-        if (typeof arg === "string") { arg = '"' + encodeURIComponent(arg) + '"' }
-        return arg;
-      }
-      ).join(", ");
+  /**
+   * Evaluates an ExtendScript function, parses the JSON response as `T`,
+   * and returns it typed.   *
+   */
+  async Exec<T extends Result>(method: string, ...args: unknown[]): Promise<T> {
+    const raw = await this.Eval(method, ...args);
+    try {
+      return JSON.parse(raw) as T;
+    } catch (e) {
+      return {
+        success: false,
+        error_obj: {
+          message: `[CSAdapter] Failed to parse response from "${method}": ${e}`,
+          raw_response: raw,
+        },
+      } as T;
     }
-    script += `)`;
-
-    console.warn("EvalSync script: " + script);
-
-    if (callback === null || callback === undefined) {
-      callback = function (result) {
-        console.log("From Eval undefined callback: " + result);
-      };
-    }
-
-    this.a_cep.evalScript(script, callback);
   }
-
 
 
   /**
@@ -195,6 +191,7 @@ class CSAdapter {
     return path.replace("file:///", "").replace("file://", "");
   };
 
+  
 /**
  * 
  * @param keyEventsInterest  * Register an interest in some key events to prevent them from being sent to the host application.

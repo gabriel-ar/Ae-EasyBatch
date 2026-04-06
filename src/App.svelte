@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-  This is a CEP app for After Effects that proceeds the user with automation tools for mograph templates.
-  The user can either use a table or an external CSV file to populate the template. Each row in the table or CSV file will be used to populate a single instance of the template.
-  */
-
   import CSAdapter from "./lib/CSAdapter.ts";
   import { onMount, setContext } from "svelte";
 
@@ -28,18 +23,23 @@
   } from "radix-icons-svelte";
 
   import {
-    Settings,
-    Template,
-    Column,
+    type ProjData,
+    type TemplateData,
+    type ColumnData,
+    SettingsHelper,
+    TemplateHelper,
+    ColumnHelper,
     type DepCompSetts,
     type Comp,
     Tabs,
-  } from "./lib/Settings";
+    type ProjSettings,
+  } from "./lib/Settings.svelte.ts";
 
   import {
     SaveSettsRequest,
     type GetSelectedCompsResult,
   } from "./lib/Messaging";
+
   import type {
     GetTmplsResult,
     GetSettsResult,
@@ -47,195 +47,316 @@
     RenderSettsResults,
     BatchRenderResult,
     BatchGenerateResult,
-    IsSameProjectResult,
+    ProjectIdResult,
     GetAllCompsResult,
     RowRenderResult,
+    PreviewRowResult,
+    GetCurrentValuesResults,
   } from "./lib/Messaging";
 
   import PropInput from "./ui/PropInput.svelte";
-  import ModalAlternateSrcV2 from "./ui/ModalAlternateSrcV2.svelte";
+  import ModalAltSrcFilePattern from "./ui/ModalAltSrcFilePattern.svelte";
   import ModalFilePattern from "./ui/ModalDepFilePattern.svelte";
   import Dropdown from "./ui/Dropdown.svelte";
   import ModalMessage from "./ui/ModalMessage.svelte";
   import ModalEditView from "./ui/ModalEditView.svelte";
   import SettingsPanel from "./ui/SettingsTab.svelte";
-  import MenuRow from "./ui/MenuCtx.svelte";
+  import Menu from "./ui/MenuCtx.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
-  import { l } from "./ui/States.svelte.ts";
+  import { l, s, csa } from "./ui/States.svelte.ts";
 
-  let csa = new CSAdapter();
-  let setts = new Settings();
-  let ac = new ActionCoordinator();
+  let ac = $state(new ActionCoordinator());
+  let no_tmpls = $state(false);
+  let not_ready = $state(true);
 
-  let no_templs = false;
-  let false_blur = false;
+  let m_file_pattern = $state<ModalFilePattern>();
+  let m_message = $state<ModalMessage>();
+  let m_edit_view = $state<ModalEditView>();
+  let menu = $state<Menu>();
+  let curr_row_i = $state(0);
 
-  let m_file_pattern: ModalFilePattern;
-  let m_message: ModalMessage;
-  let m_edit_view: ModalEditView;
-  let menu_row: MenuRow;
-  let curr_row_i = 0;
+  let footer_txt = $state<string | undefined>();
+  let footer_txt_long = $state<string | undefined>();
 
-  let footer_txt;
-  let footer_txt_long;
+  let has_opened_viewer = false;
+
+  let is_new_setts = false;
+
+  /**Selected template*/
+  let sel_tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
+
+  /**Number of rows in the selected template, derived from the first column's values */
+  let row_count = $derived(sel_tmpl ? TemplateHelper.RowCount(sel_tmpl) : 0);
 
   //Update the log level of the logger when the settings changes
-  $: {
-    l.log_lvl = setts.log_level;
+  $effect(() => {
+    l.log_lvl = s.setts.log_level;
     setContext("logger", l);
-  }
+  });
 
   onMount(() => {
+    not_ready = false;
+
     StartupSequence();
     SetupShortcuts();
+
+    window.onfocus = (e) => {
+      CheckDifferentProject();
+    };
   });
 
   async function StartupSequence() {
-    let n_tmpls = (await GetTemplates()) as Template[];
-    l.debug("StartupSequence called with templates:", n_tmpls);
+    l.debug("StartupSequence started");
 
-    no_templs = n_tmpls.length == 0;
-    if (no_templs) return;
+    //fail in silence
+    //errors are handled in the functions called within
+    try {
+      let n_tmpls = await GetTemplates();
 
-    let loaded_setts = await GetSettings().catch((e) => {
-      if (e.reasons !== undefined && e.reasons.not_found) {
-        l.warn(`Settings not found, creating new ones`);
-        return new Settings();
-      } else {
-        l.error("StartupSequence-> GetSettings error:", e);
-        return;
+      //if no templates, return and show message
+      no_tmpls = n_tmpls.length == 0;
+      if (no_tmpls) return;
+
+      let { l_proj, l_setts } = await GetSettings();
+
+      render_setts_templs = await GetRenderSettsTempls();
+
+      //for templates that where changed with the extension closed
+      SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
+      GetAllComps();
+
+      s.proj = l_proj;
+      s.setts = l_setts;
+
+      if (s.proj.sel_tmpl == -1) {
+        s.proj.sel_tmpl = 0;
       }
-    });
-
-    let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
-      l.error("StartupSequence-> GetRenderSettsTempls error:", e);
-      return;
-    });
-
-    render_setts_templs = loaded_render_setts;
-
-    loaded_setts.UpdateTemplates(n_tmpls);
-
-    setts = loaded_setts;
-
-    if (setts.sel_tmpl == -1) {
-      setts.sel_tmpl = 0;
+    } catch (e) {
+      l.warn("StartupSequence error:", e);
     }
 
-    //TODO Find another way to trigger the save settings
-    window.onblur = (e) => {
-      //IsSameProject();
-    };
+    l.debug("StartupSequence completed");
   }
 
-  function GetTemplates(): Promise<Template[]> {
+  function GetTemplates(): Promise<HostTemplateData[]> {
     return new Promise((resolve, reject) => {
-      csa.Eval("GetTemplates").then((s_result) => {
-        try {
-          l.debug("GetTemplates Eval result:", s_result);
-          /**@type {GetTmplsResult}*/
-          let result = JSON.parse(s_result);
+      csa
+        .Exec<GetTmplsResult>("GetTemplates")
+        .then((result) => {
+          l.debug("GetTemplates result:", result);
 
-          if (result.success == false) {
+          if (!result.success) {
             l.error("Failed to load templates", result.error_obj);
             reject(result.error_obj);
           } else {
-            l.log(`Parsed Templates`, result);
+            l.log(`Retrieved Templates`, result);
             resolve(result.tmpls);
           }
-        } catch (e) {
-          l.error("GetTemplates error:", e, s_result);
+        })
+        .catch((e) => {
+          l.error("GetTemplates error:", e);
           reject(e);
-        }
-      });
+        });
     });
   }
 
-  function GetSettings(): Promise<Settings> {
+  function GetSettings(): Promise<{ l_proj: ProjData; l_setts: ProjSettings }> {
     return new Promise((resolve, reject) => {
-      csa.Eval("LoadSettings").then((s_result) => {
-        l.debug("GetSettings Eval result:", s_result);
+      csa.Exec<GetSettsResult>("LoadSettings").then((result) => {
+        l.debug("GetSettings result:", result);
 
-        /**@type {GetSettsResult} */
-        let result;
-
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error("Failed to parse settings, string: ", s_result);
-          reject(e);
-        }
-
-        if (result.success === false) {
-          l.error("Failed to load settings", result.error_obj);
-
-          reject(result.error_obj);
+        if (!result.success) {
+          if (result.error_obj?.reasons?.not_found) {
+            l.warn(`Project settings and data not found, creating new ones`);
+            is_new_setts = true;
+            resolve({
+              l_proj: SettingsHelper.DefaultProjectData,
+              l_setts: SettingsHelper.DefaultProjSettings,
+            });
+          } else {
+            l.error("Failed to load settings", result.error_obj);
+            m_message.Open(
+              `There was a problem loading the data in this project. Do you want to reset the EasyBatch data?`,
+              "Open Error",
+              [
+                {
+                  label: "Start Blank Project",
+                  callback: () => {
+                    l.warn(
+                      `User chose to start a blank project after load failure`,
+                    );
+                    is_new_setts = true;
+                    resolve({
+                      l_proj: SettingsHelper.DefaultProjectData,
+                      l_setts: SettingsHelper.DefaultProjSettings,
+                    });
+                  },
+                },
+                {
+                  label: "Cancel",
+                  callback: () => {
+                    l.warn(`User ignored loading errors`);
+                    no_tmpls = true;
+                    reject(
+                      new Error(
+                        "User cancelled loading project after load failure",
+                      ),
+                    );
+                  },
+                },
+              ],
+            );
+          }
         } else {
-          let setts = new Settings();
-          setts.FromJson(result.setts);
+          let l_proj = SettingsHelper.LoadProjectData(result.proj_data);
+          let l_setts = {
+            ...SettingsHelper.DefaultProjSettings,
+            ...result.proj_settings,
+          };
 
-          l.log(`Parsed Settings`, result);
-          resolve(setts);
+          //check if the version is newer and warn the user
+          if (
+            l_proj.version.localeCompare(_VERSION_, undefined, {
+              numeric: true,
+            }) > 0
+          ) {
+            //Open a message
+            m_message.Open(
+              `This project was saved with version ${l_proj.version} of EasyBatch, and you're using ${_VERSION_}. There may be potential incompatibilities. Do you want to continue loading the project?`,
+              "Version Mismatch",
+              [
+                {
+                  label: "Open Anyway",
+                  callback: () => {
+                    l.warn(`User ignored version mismatch`);
+                    l_proj.version = _VERSION_;
+                    resolve({ l_proj, l_setts });
+                  },
+                },
+                {
+                  label: "Start Blank Project",
+                  callback: () => {
+                    l.warn(
+                      `User started a blank project after version mismatch`,
+                    );
+                    is_new_setts = true;
+                    resolve({
+                      l_proj: SettingsHelper.DefaultProjectData,
+                      l_setts: SettingsHelper.DefaultProjSettings,
+                    });
+                  },
+                },
+                {
+                  label: "Cancel",
+                  callback: () => {
+                    no_tmpls = true;
+                    reject(
+                      new Error(
+                        "User cancelled loading project due to version mismatch",
+                      ),
+                    );
+                  },
+                },
+              ],
+            );
+          } else {
+            l.log(`Parsed Settings`, result);
+            //update project version
+            l_proj.version = _VERSION_;
+            resolve({ l_proj, l_setts });
+          }
         }
       });
     });
   }
 
-  $: DebouncedSaveSetts(setts);
-
-  let last_sett_time;
-
-  /**
-   * Debounces the save function
-   * @param dummy
-   */
-  function DebouncedSaveSetts(dummy) {
-    if (last_sett_time !== undefined) {
-      clearTimeout(last_sett_time);
-    }
-    last_sett_time = setTimeout(SaveSettings, 2000);
+  function CheckDifferentProject() {
+    csa.Exec<ProjectIdResult>("ProjectID").then((result) => {
+      if (!result.success) {
+        l.error("Failed to check project ID", result.error_obj);
+        return;
+      }
+      if (s.proj.id !== result.id) {
+        l.warn("Project ID mismatch, reloading settings");
+        StartupSequence();
+      }
+    });
   }
 
-  function SaveSettings(is_new = false) {
+  //Auto save settings
+  $effect(() => {
+    DebouceSaveSettings("setts");
+    $state.snapshot(s.setts);
+  });
+
+  //Auto save project data
+  $effect(() => {
+    DebouceSaveSettings("proj");
+    $state.snapshot(s.proj);
+  });
+
+  let save_timeout;
+  let last_type = "";
+  function DebouceSaveSettings(what = "all") {
+    if (save_timeout !== undefined) {
+      clearTimeout(save_timeout);
+    }
+
+    if (last_type !== what && last_type !== "") {
+      what = "all";
+    } else {
+      last_type = what;
+    }
+
+    save_timeout = setTimeout(SaveSettings, 2000, what);
+  }
+
+  function SaveSettings(what: "proj" | "setts" | "all" = "all") {
+    last_type = "";
+
     if (
-      setts.sel_tmpl === undefined ||
-      setts.sel_tmpl == -1 ||
-      setts === undefined ||
-      no_templs
+      not_ready ||
+      s.proj.sel_tmpl === undefined ||
+      s.proj.sel_tmpl == -1 ||
+      s.proj === undefined ||
+      no_tmpls
     )
       return;
 
     let request = new SaveSettsRequest();
-    request.setts = setts;
-    request.is_new = is_new;
+
+    if(is_new_setts){
+      what = "all";
+    }
+
+    if (what === "proj" || what === "all") {
+      request.proj_data = s.proj; // Sending project data
+    }
+
+    if (what === "setts" || what === "all") {
+      request.proj_settings = s.setts; // Sending settings data
+    }
+
+    request.project_id = s.proj.id;
+    request.is_new = is_new_setts;
 
     l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
-    csa.Eval("SaveSettings", s_request).then((s_result) => {
-      /**@type {SaveSettingsResults}*/
-      let result;
+    csa.Exec<SaveSettingsResults>("SaveSettings", s_request).then((result) => {
+      is_new_setts = false;
 
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse save result", result);
-
-        //todo Handle Failed Save
-        return;
-      }
-
-      if (result.success == false) {
+      if (!result.success) {
         let e = result.error_obj;
-        if (e.reasons !== undefined && e.reasons.id_mismatch) {
+        if (e?.reasons?.id_mismatch) {
           l.warn(`Different project ID, reloading settings`);
           StartupSequence();
           return;
-        } else if (e.reasons !== undefined && e.reasons.no_templates) {
+        } else if (e?.reasons?.no_templates) {
           l.warn(`No templates to save.`);
-          no_templs = true;
+          no_tmpls = true;
           return;
         } else {
           l.error("Failed to save settings", result.error_obj);
@@ -248,576 +369,44 @@
     });
   }
 
-  let last_opened_tab = null;
+  let render_setts_templs = $state<RenderSettsResults>();
 
-  //Updates the render settings templates when the output tab is opened
-  $: {
-    if (setts.active_tab === "output" && last_opened_tab !== "output") {
-      //Check if there's any template selected, otherwise just select the first one
-
-      if (setts.tmpls[setts.sel_tmpl] !== undefined) {
-        if (setts.tmpls[setts.sel_tmpl].render_setts_templ == "") {
-          setts.tmpls[setts.sel_tmpl].render_setts_templ =
-            render_setts_templs.render_templs[
-              render_setts_templs.default_render_templ
-            ] || render_setts_templs.render_templs[0];
-        }
-
-        if (setts.tmpls[setts.sel_tmpl].render_out_module_templ == "") {
-          setts.tmpls[setts.sel_tmpl].render_out_module_templ =
-            render_setts_templs.output_modules_templs[
-              render_setts_templs.default_output_module_templ
-            ] || render_setts_templs.output_modules_templs[0];
-        }
-      }
-    }
-    last_opened_tab = setts.active_tab;
-  }
-
-  /** @type {RenderSettsResults}*/
-  let render_setts_templs;
-
-  function GetRenderSettsTempls() {
+  function GetRenderSettsTempls(): Promise<RenderSettsResults> {
     return new Promise((resolve, reject) => {
-      csa.Eval("GetRenderTemplates").then((s_result) => {
-        /**@type {RenderSettsResults}*/
-        let result;
-
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error("Failed to parse render templates:", s_result);
-          reject(e);
-          return;
-        }
-
-        if (result.success == false) {
+      csa.Exec<RenderSettsResults>("GetRenderTemplates").then((result) => {
+        if (!result.success) {
           l.error("Failed to load render templates:", result.error_obj);
           reject(result.error_obj);
         } else {
-          resolve(result);
           l.log(`Parsed Render Settings Templates:`, result);
+          resolve(result);
         }
-      }); //Eval
+      }); //Exec
     }); //Promise
   }
 
   async function F_Reload() {
-    let n_tmpls = (await GetTemplates().catch((e) => {
+    let n_tmpls: any[] = await GetTemplates().catch((e) => {
       l.error("F_Reload GetTemplates error:", e);
-      return;
-    })) as Template[];
-
-    if (n_tmpls.length == 0) {
-      no_templs = true;
-      return;
-    } else {
-      no_templs = false;
-    }
-
-    let loaded_render_setts = await GetRenderSettsTempls().catch((e) => {
-      l.error(e);
-      return;
+      return [];
     });
 
-    render_setts_templs = loaded_render_setts;
+    if (n_tmpls.length == 0) {
+      no_tmpls = true;
+      return;
+    } else {
+      no_tmpls = false;
+    }
 
-    setts.UpdateTemplates(n_tmpls);
-    setts = setts;
+    GetAllComps();
+    render_setts_templs = await GetRenderSettsTempls();
+
+    SettingsHelper.UpdateTemplates(s.proj, n_tmpls);
     l.debug("F_Reload called with templates:", n_tmpls);
   }
 
-  function DeleteRow(row_i) {
-    setts.tmpls[setts.sel_tmpl].DeleteRow(row_i);
-    setts = setts;
-    l.debug("DeleteRow called with row index:", row_i);
-  }
-
-  /**
-   * @param row_i
-   * @param prop_changed True if the preview is being called due to a property change
-   */
-  function PreviewRow(row_i, prop_changed = false) {
-    l.debug(
-      "PreviewRow called with row index:",
-      row_i,
-      "and live:",
-      prop_changed,
-    );
-    if (!setts.auto_preview && prop_changed) return;
-
-    let show_prev_comp = !setts.auto_preview;
-
-    setts.tmpls[setts.sel_tmpl].ResolveAltSrcPathsRow(row_i);
-    setts.tmpls[setts.sel_tmpl] = setts.tmpls[setts.sel_tmpl]; //Force reactivity to update path previews
-
-    //Trim the template to contain only the modified row
-    let send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
-
-    for (let col of send_templ.columns) {
-      col.values = [col.values[row_i]];
-    }
-    send_templ.save_paths = [send_templ.save_paths[0]];
-    send_templ.generate_names = [send_templ.generate_names[0]];
-
-    let s_templt = JSON.stringify(send_templ);
-    l.debug(`Previewing Row:`, s_templt, row_i, show_prev_comp);
-
-    csa.Eval("PreviewRow", s_templt, 0, show_prev_comp).then((s_result) => {
-      l.debug(`Preview Row Result`, s_result);
-
-      let result;
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse preview row result", s_result);
-        return;
-      }
-
-      //General failure
-      if (result.success == false) {
-        l.error("Failed to preview row", result.error_obj);
-        if (!prop_changed) {
-          m_message.Open(
-            result.error_obj.message,
-            "Error Previewing Row",
-          );
-        } else {
-          UpdateStatusFooter(
-            "⚠️ Error Previewing Row " + row_i,
-            result.error_obj.message,
-          );
-        }
-        return;
-      }
-
-      //No critical errors happened
-      else if (result.errors !== undefined && result.errors.length > 0) {
-        if (prop_changed) {
-          UpdateStatusFooter(
-            "⚠️ Error Previewing Row " + row_i,
-            result.errors.map((e) => e.message).join("<br>"),
-          );
-          return;
-        } else {
-          m_message.Open(
-            result.errors.map((e) => e.message).join("<br>"),
-            "Error Previewing Row",
-          );
-        }
-      } else {
-        UpdateStatusFooter("Previewed Row " + row_i);
-      }
-    });
-  }
-
-  /**
-   * Copies the values in the template composition to the current row
-   * @param row_i
-   */
-  function SampleRow(row_i) {
-    let s_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug("SampleRow called with row index:", row_i);
-
-    csa.Eval("GetCurrentValues", s_templt).then((s_result) => {
-      l.debug(`Sample Row Result: ${s_result}`);
-
-      let result;
-      try {
-        result = JSON.parse(s_result);
-
-        setts.tmpls[setts.sel_tmpl].CopyValuesFromPreview(result, row_i);
-        setts.tmpls[setts.sel_tmpl].ResolveAltSrcPathsRow(row_i);
-        setts = setts;
-
-        PreviewRow(row_i, true);
-      } catch (e) {
-        l.error("Failed to parse sample row result", s_result);
-        if (row_i !== -1) {
-          UpdateStatusFooter("⚠️ Error While Sampling Row " + row_i, s_result);
-        }
-        return;
-      }
-    });
-  }
-
-  function RenderRow(row_i) {
-    switch (setts.out_mode) {
-      case "render":
-        setts.active_tab = Tabs.Output;
-        BatchRender(row_i);
-        break;
-      case "dependant":
-        setts.active_tab = Tabs.Output;
-        BatchOneToMany(row_i);
-        break;
-    }
-  }
-
-  //User facing render results
-  let render_results: RowRenderResult[] = [];
-  function BatchRender(row_i = -1) {
-    l.log("BatchRender called");
-
-    let send_templ;
-    //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined && row_i !== -1) {
-      send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
-
-      for (let col of send_templ.columns) {
-        col.values = [col.values[row_i]];
-      }
-    } else {
-      send_templ = setts.tmpls[setts.sel_tmpl];
-    }
-
-    send_templ.ResolveCompsNames();
-    send_templ.ResolveSavePaths();
-    send_templ.ResolveAltSrcPaths();
-
-    render_results = [];
-
-    let string_templt = JSON.stringify(send_templ);
-    l.debug("String sent to csa:", string_templt);
-
-    csa
-      .Eval("BatchRender", string_templt, setts.render_comps_folder)
-      .then((s_result) => {
-        /**@type {BatchRenderResult}*/
-        let result;
-
-        try {
-          result = JSON.parse(s_result);
-        } catch (e) {
-          l.error("Failed to parse batch render result", s_result);
-          return;
-        }
-
-        if (result.success == false) {
-          l.error("Failed to batch render", result.error_obj);
-          m_message.Open(
-            result.error_obj.message,
-            "Error While Batch Rendering",
-          );
-
-          if (row_i !== -1) {
-            UpdateStatusFooter(
-              "⚠️ Error While Queuing Row " + row_i,
-              result.error_obj.message,
-            );
-          }
-          return;
-        }
-
-        //Some errors happened, log it as a warning (defalut txt log file level)
-        else if (result.errors !== undefined && result.errors.length > 0) {
-          l.warn(`Batch Render completed with errors`, result.errors);
-          render_results = result.row_results;
-
-          if (row_i !== -1) {
-            UpdateStatusFooter(
-              "⚠️ Errors While Queuing Row " + row_i,
-              result.errors.map((e) => e.message).join("<br>"),
-            );
-          }
-          return;
-        }
-
-        //All rows queued up successfully
-        else {
-          l.debug(`Batch Render Results`, render_results);
-          render_results = result.row_results;
-
-          if (row_i !== -1) {
-            UpdateStatusFooter("Row Queued Successfully");
-          }
-          return;
-        }
-      });
-  }
-
-  function BatchGenerate() {
-    setts.tmpls[setts.sel_tmpl].ResolveCompsNames();
-    setts.tmpls[setts.sel_tmpl].ResolveAltSrcPaths();
-
-    let string_templt = JSON.stringify(setts.tmpls[setts.sel_tmpl]);
-    l.debug("BatchGenerate called");
-    l.log("Rendering:", string_templt);
-
-    csa.Eval("BatchGenerate", string_templt).then((s_result) => {
-      /**@type {BatchGenerateResult}*/
-      let result;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse batch render result", s_result);
-        return;
-      }
-
-      if (result.success == false) {
-        l.error("Failed to batch render", result.error_obj);
-        return;
-      } else {
-        l.debug(`Batch Render Started`);
-      }
-    });
-  }
-
-  let dep_row_results: RowRenderResult[] = [];
-  function BatchOneToMany(row_i = -1) {
-    l.log("BatchOneToMany called");
-
-    let send_templ;
-
-    //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined && row_i !== -1) {
-      //TODO this is a hack, find a better way to do this
-      send_templ = Template.MakeCopy(setts.tmpls[setts.sel_tmpl]);
-
-      for (let col of send_templ.columns) {
-        col.values = [col.values[row_i]];
-      }
-    } else {
-      send_templ = setts.tmpls[setts.sel_tmpl];
-    }
-
-    send_templ.UpdateRows();
-    send_templ.ResolveCompsNames();
-    send_templ.ResolveAltSrcPaths();
-    send_templ.ResolveSavePathDeps();
-
-    let string_templt = JSON.stringify(send_templ);
-    l.debug("OtM String Sent to csa:", string_templt);
-
-    csa.Eval("BatchRenderDepComps", string_templt).then((s_result) => {
-      let result: BatchRenderResult;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse OtM render result", s_result);
-        return;
-      }
-
-      l.debug(`OtM Render Results`, result);
-
-      if (result.success == false) {
-        l.error("Failed to render OtM", result.error_obj);
-        m_message.Open(
-          result.error_obj.message,
-          "Error While Rendering One to Many",
-        );
-        return;
-      }
-
-      //Some rows had errors, but the queing went through
-      else if (result.errors !== undefined && result.errors.length > 0) {
-        l.warn(`OtM Render completed with errors`, result.errors);
-        dep_row_results = result.row_results;
-      }
-
-      //All rows rendered successfully
-      else {
-        dep_row_results = result.row_results;
-      }
-    });
-  }
-
-  /**
-   * Selects a folder to save the files to and adds it to the save pattern
-   */
-  function SelRenderBasePath() {
-    l.debug("SelectBasePath called");
-    let initial_folder = setts.tmpls[setts.sel_tmpl].base_path || "";
-
-    csa.OpenFolderDialog(initial_folder).then((result) => {
-      if (result === null) return;
-
-      setts.tmpls[setts.sel_tmpl].base_path = result;
-    });
-  }
-
-  /**
-   * Updates the preview of the save path based on the current save pattern
-   */
-  $: {
-    if (setts.tmpls[setts.sel_tmpl] !== undefined) {
-      setts.tmpls[setts.sel_tmpl].save_paths[0] = setts.tmpls[
-        setts.sel_tmpl
-      ].ResolveSavePath(setts.tmpls[setts.sel_tmpl].save_pattern, 0);
-    }
-  }
-
-  let sel_add_field = "base_path";
-  function AddField() {
-    let save_pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#save_pattern_ta");
-
-    let cursor_pos = save_pattern_ta.selectionStart;
-    let old_val = setts.tmpls[setts.sel_tmpl].save_pattern;
-
-    //Insert the selected field at the cursor position
-    setts.tmpls[setts.sel_tmpl].save_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field}}` +
-      old_val.slice(cursor_pos);
-  }
-
-  //Updates the preview of the generate names based on the current generate pattern
-  $: {
-    if (setts.tmpls[setts.sel_tmpl] !== undefined) {
-      setts.tmpls[setts.sel_tmpl].generate_names[0] = setts.tmpls[
-        setts.sel_tmpl
-      ].ResolveCompName(setts.tmpls[setts.sel_tmpl].generate_pattern, 0);
-    }
-  }
-
-  let all_comps: Comp[] = [];
-  function GetAllComps() {
-    csa.Eval("GetAllComps").then((s_result) => {
-      /**@type {GetAllCompsResult}*/
-      let result;
-
-      try {
-        result = JSON.parse(s_result);
-      } catch (e) {
-        l.error("Failed to parse all comps", s_result);
-        return;
-      }
-
-      if (result.success == false) {
-        l.error("Failed to get all comps", result.error_obj);
-        return;
-      } else {
-        all_comps = result.comps;
-        l.debug(`Got All Comps`, all_comps);
-      }
-    });
-  }
-
-  let selected_comp = "";
-  function AddCompToDependents() {
-    if (selected_comp !== "") {
-      let comp = all_comps.find((c) => c.id === selected_comp);
-
-      if (comp) {
-        setts.tmpls[setts.sel_tmpl].AddDependantComp(comp, render_setts_templs);
-        setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
-
-        //force Svelte reactivity
-        setts.tmpls[setts.sel_tmpl].dep_comps =
-          setts.tmpls[setts.sel_tmpl].dep_comps;
-      }
-    }
-  }
-
-  function AddSelectedCompsToDependents() {
-    csa.Eval("GetSelectedComps").then((s_result) => {
-      let result: GetSelectedCompsResult;
-
-      try {
-        result = JSON.parse(s_result);
-
-        l.debug(`Got selected Comps`, result);
-
-        for (let comp_info of result.comps) {
-          let comp = all_comps.find((c) => c.id === comp_info.id);
-
-          if (comp) {
-            setts.tmpls[setts.sel_tmpl].AddDependantComp(
-              comp,
-              render_setts_templs,
-            );
-          }
-        }
-
-          setts.tmpls[setts.sel_tmpl].dep_comps =
-          setts.tmpls[setts.sel_tmpl].dep_comps;
-
-        setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
-      } catch (e) {
-        l.error("Failed to parse selected comps", s_result);
-        return;
-      }
-
-      if (result.success == false) {
-        l.error("Failed to get selected comps", result.error_obj);
-        return;
-      }
-    });
-  }
-
-  function DeleteDependantComp(dep_comp_id) {
-    setts.tmpls[setts.sel_tmpl].RemoveDependantComp(dep_comp_id);
-    setts.tmpls[setts.sel_tmpl].CleanupDependantComps(all_comps);
-
-    //force Svelte reactivity
-    setts.tmpls[setts.sel_tmpl].dep_comps =
-      setts.tmpls[setts.sel_tmpl].dep_comps;
-  }
-
-  let sel_add_field_gen = "row_number";
-  function AddField_Gen() {
-    let pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#generate_proj_ta");
-
-    let cursor_pos = pattern_ta.selectionStart;
-    let old_val = setts.tmpls[setts.sel_tmpl].generate_pattern;
-
-    //Insert the selected field at the cursor position
-    setts.tmpls[setts.sel_tmpl].generate_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field_gen}}` +
-      old_val.slice(cursor_pos);
-  }
-
-  let show_alt_src_modal = false;
-  let alt_src_modal_col;
-
-  function SetupAlternateSource(col_i) {
-    show_alt_src_modal = true;
-    alt_src_modal_col = col_i;
-  }
-
-  function AlertSrcModalClosed(base_path, pattern) {
-    setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].alt_src_base =
-      base_path;
-    setts.tmpls[setts.sel_tmpl].columns[alt_src_modal_col].alt_src_pattern =
-      pattern;
-
-    setts.tmpls[setts.sel_tmpl].columns[
-      alt_src_modal_col
-    ].ResolveColumnAltSrcPaths(setts.tmpls[setts.sel_tmpl].columns);
-  }
-
-  let edit_dep_comp_id;
-  function DepFilePatternModalOpen(dep_comp_id) {
-    edit_dep_comp_id = dep_comp_id;
-
-    m_file_pattern.Open(
-      setts.tmpls[setts.sel_tmpl],
-      dep_comp_id,
-      DepFilePatternModalClosed,
-    );
-  }
-
-  function DepFilePatternModalClosed(base_path, pattern) {
-    setts.tmpls[setts.sel_tmpl].dep_config[edit_dep_comp_id].save_pattern =
-      pattern;
-
-    setts.tmpls[setts.sel_tmpl].ResolveSavePathFirstDeps(0);
-  }
-
-  function OpenEditViewModal() {
-    m_edit_view.Open(setts.tmpls[setts.sel_tmpl], EditViewModalClosed);
-  }
-
-  function EditViewModalClosed(new_table_cols: number[]) {
-    setts.tmpls[setts.sel_tmpl].table_cols = new_table_cols;
-    setts = setts; // Force reactivity
-    l.debug("Edit view modal closed with new table_cols:", new_table_cols);
-  }
+  ////GENERAL UI////
+  //////////////////
 
   function SetupShortcuts() {
     //csa.KeyRegisterOverride();
@@ -864,6 +453,7 @@
     ac.AddListener(
       "preview",
       () => {
+        console.debug("Preview shortcut triggered for row index:", curr_row_i);
         PreviewRow(curr_row_i);
       },
       "p",
@@ -889,7 +479,7 @@
     ac.AddListener(
       "delete",
       () => {
-        DeleteRow(curr_row_i);
+        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
       },
       "Delete",
     );
@@ -897,7 +487,7 @@
     ac.AddListener(
       "delete",
       () => {
-        DeleteRow(curr_row_i);
+        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
       },
       "Backspace",
     );
@@ -905,8 +495,8 @@
     ac.AddListener(
       "add_after",
       () => {
-        setts.tmpls[setts.sel_tmpl].AddRowAfter(curr_row_i);
-        setts = setts;
+        TemplateHelper.AddRowAfter(sel_tmpl, curr_row_i);
+        s.proj = s.proj;
         NextRow();
       },
       "N",
@@ -917,8 +507,8 @@
     ac.AddListener(
       "add_before",
       () => {
-        setts.tmpls[setts.sel_tmpl].AddRowBefore(curr_row_i);
-        setts = setts;
+        TemplateHelper.AddRowBefore(sel_tmpl, curr_row_i);
+        s.proj = s.proj;
       },
       "N",
       false,
@@ -930,17 +520,17 @@
     ac.AddListener(
       "view_detail",
       () => {
-        setts.data_mode = "detail";
+        s.setts.data_mode = "detail";
       },
-      "D"
+      "D",
     );
 
     ac.AddListener(
       "view_table",
       () => {
-        setts.data_mode = "table";
+        s.setts.data_mode = "table";
       },
-      "T"
+      "T",
     );
 
     ac.AddListener(
@@ -963,7 +553,7 @@
       false,
       true,
     );
-    
+
     ac.AddListener(
       "next_row",
       () => {
@@ -974,6 +564,170 @@
       false,
       true,
     );
+
+    ac.AddListener(
+      "open_help",
+      () => {
+        OpenHelp();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "report_issue",
+      () => {
+        ReportIssue();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "surprise",
+      () => {
+        Surprise();
+      },
+      "",
+    );
+  }
+
+  let last_opened_tab = $state<string | null>(null);
+  //Tab changed
+  $effect(() => {
+    if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
+      //Check if there's any template selected, otherwise just select the first one
+
+      if (sel_tmpl !== undefined && render_setts_templs !== undefined) {
+        if (sel_tmpl.render_setts_templ == "") {
+          sel_tmpl.render_setts_templ =
+            render_setts_templs.render_templs[
+              render_setts_templs.default_render_templ
+            ] || render_setts_templs.render_templs[0];
+        }
+
+        if (sel_tmpl.render_out_module_templ == "") {
+          sel_tmpl.render_out_module_templ =
+            render_setts_templs.output_modules_templs[
+              render_setts_templs.default_output_module_templ
+            ] || render_setts_templs.output_modules_templs[0];
+        }
+      }
+    } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
+      has_opened_viewer = false;
+    }
+
+    last_opened_tab = s.setts.active_tab;
+  });
+
+  /////DATA TAB/////
+  //////////////////
+
+  /**
+   * Opens a comp in the project to preview the template with the row's values
+   * @param row_i
+   * @param prop_changed True if the preview is being called due to a property change
+   */
+  function PreviewRow(row_i, prop_changed = false) {
+    l.debug(
+      "PreviewRow called with row index:",
+      row_i,
+      "and live:",
+      prop_changed,
+    );
+    if (!s.setts.auto_preview && prop_changed) return;
+
+    //Because opening the comp in the viewer takes away focus from the panel we limit the amout of times this happens 'per session'.
+    let open_comp_viewer = false;
+    if (s.setts.auto_preview && !has_opened_viewer && !prop_changed) {
+      has_opened_viewer = true;
+      open_comp_viewer = true;
+    }
+
+    TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
+
+    //Trim the template to contain only the modified row
+    let send_templ = structuredClone($state.snapshot(sel_tmpl));
+
+    for (let col of send_templ.columns) {
+      col.values = [col.values[row_i]];
+    }
+
+    TemplateHelper.UpdateRows(sel_tmpl);
+
+    send_templ.save_paths = [send_templ.save_paths[0]];
+    send_templ.generate_names = [send_templ.generate_names[0]];
+
+    let s_templt = JSON.stringify(send_templ);
+    l.debug(`Previewing Row:`, s_templt, row_i, open_comp_viewer);
+
+    csa
+      .Exec<PreviewRowResult>("PreviewRow", s_templt, 0, open_comp_viewer)
+      .then((result) => {
+        l.debug(`Preview Row Result`, result);
+
+        //General failure
+        if (!result.success) {
+          l.error("Failed to preview row", result.error_obj);
+          if (!prop_changed) {
+            m_message.Open(result.error_obj.message, "Error Previewing Row");
+          } else {
+            UpdateStatusFooter(
+              "⚠️ Error Previewing Row " + row_i,
+              result.error_obj.message,
+            );
+          }
+          return;
+        }
+
+        //No critical errors happened
+        else if (result.errors !== undefined && result.errors.length > 0) {
+          if (prop_changed) {
+            UpdateStatusFooter(
+              "⚠️ Error Previewing Row " + row_i,
+              result.errors.map((e) => e.message).join("<br>"),
+            );
+            return;
+          } else {
+            m_message.Open(
+              result.errors.map((e) => e.message).join("<br>"),
+              "Error Previewing Row",
+            );
+          }
+        } else {
+          UpdateStatusFooter("Previewed Row " + row_i);
+        }
+      });
+  }
+
+  /**
+   * Copies the values in the previrew to the template for the given row, then previews the row again to update the viewer with the new values
+   * @param row_i
+   */
+  function SampleRow(row_i) {
+    let s_templt = JSON.stringify(sel_tmpl);
+    l.debug("SampleRow called with row index:", row_i);
+
+    csa
+      .Exec<GetCurrentValuesResults>("GetCurrentValues", s_templt)
+      .then((result) => {
+        l.debug(`Sample Row Result:`, result);
+
+        if (!result.success) {
+          l.error("Failed to sample row", result.error_obj);
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Error While Sampling Row " + row_i,
+              result.error_obj?.message,
+            );
+          }
+          return;
+        }
+
+        TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
+        TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
+        s.proj = s.proj;
+
+        PreviewRow(row_i, true);
+      });
   }
 
   function OpenRowMenu(e, row_i) {
@@ -987,17 +741,17 @@
 
     curr_row_i = row_i;
     e.preventDefault();
-    menu_row.Open(e.pageX, e.pageY, RowMenuSelected);
+    menu.Open(e.pageX, e.pageY, MenuItemSelected);
   }
 
-  function RowMenuSelected(action) {
+  function MenuItemSelected(action) {
     l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
     ac.Fire(action);
   }
 
   function OpenBarMenu(e: MouseEvent, type: string) {
     let btn = e.target as HTMLButtonElement;
-    menu_row.Open(
+    menu.Open(
       btn.offsetLeft,
       btn.offsetTop + btn.offsetHeight,
       BarMenuSelected,
@@ -1011,7 +765,7 @@
   }
 
   function NextRow() {
-    if (curr_row_i < setts.tmpls[setts.sel_tmpl].rows.length - 1) {
+    if (curr_row_i < row_count - 1) {
       curr_row_i++;
     }
   }
@@ -1021,9 +775,21 @@
       curr_row_i--;
     }
   }
-  /**
-   * Selects a folder to save the files to and adds it to the save pattern
-   */
+
+  /**Renders only the selected row instead of batch rendering*/
+  function RenderRow(row_i) {
+    switch (s.setts.out_mode) {
+      case "render":
+        s.setts.active_tab = Tabs.Output;
+        BatchRender(row_i);
+        break;
+      case "dependant":
+        s.setts.active_tab = Tabs.Output;
+        BatchOneToMany(row_i);
+        break;
+    }
+  }
+
   function ImportCSV() {
     l.debug("ImportCSV called");
     csa
@@ -1033,14 +799,14 @@
 
         let decoded = decodeURIComponent(result);
 
-        setts.tmpls[setts.sel_tmpl].LoadFromCSV(decoded);
+        TemplateHelper.LoadFromCSV(sel_tmpl, decoded);
 
-        setts = setts;
+        s.proj = s.proj;
       });
   }
 
   function ExportCSV() {
-    let content = setts.tmpls[setts.sel_tmpl].MakeCSV();
+    let content = TemplateHelper.MakeCSV(sel_tmpl);
     l.debug("ExportCSV called");
 
     csa
@@ -1060,6 +826,357 @@
       m_message.Open(footer_txt_long, "Details");
     }
   }
+
+  //////HELP MENU//////
+  ////////////////////
+
+  function OpenHelp() {
+    csa.OpenURLInDefaultBrowser("https://gabriel-ar.github.io/Ae-EasyBatch/");
+  }
+
+  function ReportIssue() {
+    csa.OpenURLInDefaultBrowser(
+      "https://github.com/gabriel-ar/Ae-EasyBatch/issues",
+    );
+  }
+
+  function Surprise() {
+    fetch("https://dog.ceo/api/breeds/image/random")
+      .then(async (r) => {
+        if (r.status === 200) {
+          let data = await r.json();
+          m_message.Open(
+            `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
+            "🐶 Take a Break",
+          );
+        }
+      })
+      .catch((error) => {
+        l.error("Failed to fetch dog image", error);
+      });
+  }
+  function OpenEditViewModal() {
+    m_edit_view.Open(EditViewModalClosed);
+  }
+
+  function EditViewModalClosed(new_table_cols: number[]) {
+    sel_tmpl.view_cols = new_table_cols;
+    s.proj = s.proj; // Force reactivity
+    l.debug("Edit view modal closed with new table_cols:", new_table_cols);
+  }
+
+  /////RENDER TAB/////
+  ////////////////////
+
+  /**
+   * Selects a folder to save the files to and adds it to the save pattern
+   */
+  function SelRenderBasePath() {
+    l.debug("SelectBasePath called");
+    let initial_folder = sel_tmpl.base_path || "";
+
+    csa.OpenFolderDialog(initial_folder).then((result) => {
+      if (result === null) return;
+
+      sel_tmpl.base_path = result;
+    });
+  }
+
+  let sel_add_field = $state("base_path");
+  function RenderSave_AddField() {
+    let save_pattern_ta: HTMLTextAreaElement =
+      document.querySelector("#save_pattern_ta");
+
+    let cursor_pos = save_pattern_ta.selectionStart;
+    let old_val = sel_tmpl.save_pattern;
+
+    //Insert the selected field at the cursor position
+    sel_tmpl.save_pattern =
+      old_val.slice(0, cursor_pos) +
+      `{${sel_add_field}}` +
+      old_val.slice(cursor_pos);
+  }
+
+  // Render save pattern updated
+  $effect(() => {
+    if (sel_tmpl !== undefined) {
+      sel_tmpl.save_paths[0] = TemplateHelper.ResolveSavePath(
+        sel_tmpl,
+        sel_tmpl.save_pattern,
+        0,
+      );
+    }
+  });
+
+  let sel_add_field_gen = $state("row_number");
+  function GenerateName_AddField() {
+    let pattern_ta: HTMLTextAreaElement =
+      document.querySelector("#generate_proj_ta");
+
+    let cursor_pos = pattern_ta.selectionStart;
+    let old_val = sel_tmpl.generate_pattern;
+
+    //Insert the selected field at the cursor position
+    sel_tmpl.generate_pattern =
+      old_val.slice(0, cursor_pos) +
+      `{${sel_add_field_gen}}` +
+      old_val.slice(cursor_pos);
+  }
+
+  //Generate Comps pattern updated
+  $effect(() => {
+    if (sel_tmpl !== undefined) {
+      sel_tmpl.generate_names[0] = TemplateHelper.ResolveCompName(
+        sel_tmpl,
+        sel_tmpl.generate_pattern,
+        0,
+      );
+    }
+  });
+
+  let all_comps = $state<Comp[]>([]);
+  function GetAllComps() {
+    csa.Exec<GetAllCompsResult>("GetAllComps").then((result) => {
+      if (!result.success) {
+        l.error("Failed to get all comps", result.error_obj);
+        return;
+      } else {
+        all_comps = result.comps;
+        l.debug(`Got All Comps`, all_comps);
+      }
+    });
+  }
+
+  let selected_comp = $state<number | "">("");
+  function AddCompToDependents() {
+    if (selected_comp !== "") {
+      let comp = all_comps.find((c) => c.id === selected_comp);
+
+      if (comp) {
+        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
+        TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+        TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
+      }
+    }
+  }
+
+  function AddSelectedCompsToDependents() {
+    csa.Exec<GetSelectedCompsResult>("GetSelectedComps").then((result) => {
+      l.debug(`Got selected Comps`, result);
+
+      if (!result.success) {
+        l.error("Failed to get selected comps", result.error_obj);
+        return;
+      }
+
+      //Update the comps with the latest data
+      GetAllComps();
+
+      for (let comp_info of result.comps) {
+        let comp = all_comps.find((c) => c.id === comp_info.id);
+
+        if (comp) {
+          //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
+          TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
+        }
+      }
+
+      TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+      TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
+    });
+  }
+
+  function DeleteDependentComp(dep_index) {
+    TemplateHelper.RemoveDependantComp(sel_tmpl, dep_index);
+    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+
+    //force Svelte reactivity
+    sel_tmpl.dep_comps = sel_tmpl.dep_comps;
+  }
+
+  let edit_dep_comp_index = $state<number | undefined>();
+  function DepFilePatternModalOpen(dep_index: number) {
+    edit_dep_comp_index = dep_index;
+
+    m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
+  }
+
+  function DepFilePatternModalClosed(base_path, pattern) {
+    sel_tmpl.dep_config[edit_dep_comp_index].save_pattern = pattern;
+
+    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
+  }
+
+  function SetupAlternateSource(col_i) {
+    show_alt_src_modal = true;
+    alt_src_modal_col = col_i;
+  }
+
+  let show_alt_src_modal = $state(false);
+  let alt_src_modal_col = $state<number | undefined>();
+  function AlertSrcModalClosed(base_path, pattern) {
+    sel_tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
+    sel_tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
+
+    ColumnHelper.ResolveColumnAltSrcPaths(
+      sel_tmpl.columns[alt_src_modal_col],
+      sel_tmpl.columns,
+    );
+  }
+
+  //User facing render results
+  let render_results = $state<RowRenderResult[]>([]);
+  function BatchRender(row_i = -1) {
+    l.log("BatchRender called");
+
+    let send_templ;
+    //If just rendering a single row, clone the template and trim it down to that row
+    if (row_i !== undefined && row_i !== -1) {
+      send_templ = structuredClone($state.snapshot(sel_tmpl));
+
+      for (let col of send_templ.columns) {
+        col.values = [col.values[row_i]];
+      }
+    } else {
+      send_templ = sel_tmpl;
+    }
+
+    TemplateHelper.ResolveCompsNames(send_templ);
+    TemplateHelper.ResolveSavePaths(send_templ);
+    TemplateHelper.ResolveAltSrcPaths(send_templ);
+
+    render_results = [];
+
+    let string_templt = JSON.stringify(send_templ);
+    l.debug("String sent to csa:", string_templt);
+
+    csa
+      .Exec<BatchRenderResult>(
+        "BatchRender",
+        string_templt,
+        s.setts.render_comps_folder,
+      )
+      .then((result) => {
+        if (!result.success) {
+          l.error("Failed to batch render", result.error_obj);
+          m_message.Open(
+            result.error_obj.message,
+            "Error While Batch Rendering",
+          );
+
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Error While Queuing Row " + row_i,
+              result.error_obj.message,
+            );
+          }
+          return;
+        }
+
+        //Some errors happened, log it as a warning (default txt log file level)
+        else if (result.errors !== undefined && result.errors.length > 0) {
+          l.warn(`Batch Render completed with errors`, result.errors);
+          render_results = result.row_results;
+
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Errors While Queuing Row " + row_i,
+              result.errors.map((e) => e.message).join("<br>"),
+            );
+          }
+          return;
+        }
+
+        //All rows queued up successfully
+        else {
+          l.debug(`Batch Render Results`, render_results);
+          render_results = result.row_results;
+
+          if (row_i !== -1) {
+            UpdateStatusFooter("Row Queued Successfully");
+          }
+          return;
+        }
+      });
+  }
+
+  function BatchGenerate() {
+    TemplateHelper.ResolveCompsNames(sel_tmpl);
+    TemplateHelper.ResolveAltSrcPaths(sel_tmpl);
+
+    let string_templt = JSON.stringify(sel_tmpl);
+    l.debug("BatchGenerate called");
+    l.log("Rendering:", string_templt);
+
+    csa
+      .Exec<BatchGenerateResult>("BatchGenerate", string_templt)
+      .then((result) => {
+        if (!result.success) {
+          l.error("Failed to batch generate", result.error_obj);
+          return;
+        } else {
+          l.debug(`Batch Generate Started`);
+        }
+      });
+  }
+
+  let dep_row_results = $state<RowRenderResult[]>([]);
+  let user_stopped_deps = $state(false);
+  function BatchOneToMany(row_i = -1) {
+    l.log("BatchOneToMany called");
+
+    let send_templ;
+
+    //If just rendering a single row, clone the template and trim it down to that row
+    if (row_i !== undefined && row_i !== -1) {
+      //TODO this is a hack, find a better way to do this
+      send_templ = structuredClone($state.snapshot(sel_tmpl));
+
+      for (let col of send_templ.columns) {
+        col.values = [col.values[row_i]];
+      }
+    } else {
+      send_templ = sel_tmpl;
+    }
+
+    TemplateHelper.UpdateRows(send_templ);
+    TemplateHelper.ResolveCompsNames(send_templ);
+    TemplateHelper.ResolveAltSrcPaths(send_templ);
+    TemplateHelper.ResolveSavePathDeps(send_templ);
+
+    let string_templt = JSON.stringify(send_templ);
+    l.debug("OtM String Sent to csa:", string_templt);
+
+    csa
+      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt)
+      .then((result) => {
+        l.debug(`OtM Render Results`, result);
+
+        if (!result.success) {
+          l.error("Failed to render OtM", result.error_obj);
+          m_message.Open(
+            result.error_obj.message,
+            "Error While Rendering One to Many",
+          );
+          return;
+        }
+
+        //Some rows had errors, but the queing went through
+        else if (result.errors !== undefined && result.errors.length > 0) {
+          l.warn(`OtM Render completed with errors`, result.errors);
+          dep_row_results = result.row_results;
+        } else if (result.user_stopped) {
+          l.log(`OtM Render stopped by user`);
+          user_stopped_deps = true;
+          dep_row_results = result.row_results;
+        }
+
+        //All rows rendered successfully
+        else {
+          dep_row_results = result.row_results;
+        }
+      });
+  }
 </script>
 
 <!-- HEADER -->
@@ -1067,39 +1184,37 @@
   <div class="header_template">
     <label for="sel_comp">Template</label>
     <Dropdown
-      options={setts.tmpls.map((templ) => setts.tmpls.indexOf(templ))}
-      labels={setts.tmpls.map((templ) => templ.name)}
-      bind:value={setts.sel_tmpl} />
+      options={s.proj.tmpls.map((templ) => s.proj.tmpls.indexOf(templ))}
+      labels={s.proj.tmpls.map((templ) => templ.name)}
+      bind:value={s.proj.sel_tmpl} />
   </div>
 
   <div class="header_tabs">
     <button
-      class:curr_tab={setts.active_tab === "data"}
-      onclick={() => (setts.active_tab = Tabs.Data)}>Data</button>
+      class:curr_tab={s.setts.active_tab === "data"}
+      onclick={() => (s.setts.active_tab = Tabs.Data)}>Data</button>
     <button
-      class:curr_tab={setts.active_tab === "output"}
+      class:curr_tab={s.setts.active_tab === "output"}
       onclick={() => {
-        setts.active_tab = Tabs.Output;
+        s.setts.active_tab = Tabs.Output;
         GetAllComps();
       }}>Output</button>
     <button
-      class:curr_tab={setts.active_tab === "settings"}
-      onclick={() => (setts.active_tab = Tabs.Settings)}>Settings</button>
+      class:curr_tab={s.setts.active_tab === "settings"}
+      onclick={() => (s.setts.active_tab = Tabs.Settings)}>Settings</button>
   </div>
 
   <div class="header_reload">
     <button onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
-      onclick={() =>
-        csa.OpenURLInDefaultBrowser(
-          "https://gabriel-ar.github.io/Ae-EasyBatch/",
-        )}><QuestionMark /></button>
+      onclick={(e) => menu.Open(e.pageX, e.pageY, MenuItemSelected, "help")}
+      ><QuestionMark /></button>
   </div>
 </header>
 
 <!-- DATA -->
-{#if setts.active_tab === "data"}
+{#if s.setts.active_tab === "data"}
   <nav class="dat_bar">
     <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "file")}
       >File</button>
@@ -1109,16 +1224,16 @@
       >View</button>
   </nav>
   <main>
-    {#if setts.sel_tmpl >= 0 && setts.tmpls[setts.sel_tmpl] !== undefined && setts.tmpls.length > 0}
-      {#if setts.data_mode === "table"}
+    {#if s.proj.sel_tmpl >= 0 && sel_tmpl !== undefined && s.proj.tmpls.length > 0}
+      {#if s.setts.data_mode === "table"}
         <table class="dat_table">
           <thead>
             <tr>
               <th></th>
-              {#each setts.tmpls[setts.sel_tmpl].table_cols as col_i, view_i}
+              {#each sel_tmpl.view_cols as col_i, view_i}
                 <th class="table_header">
-                  {setts.tmpls[setts.sel_tmpl].columns[col_i].cont_name}
-                  {#if setts.tmpls[setts.sel_tmpl].columns[col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
+                  {sel_tmpl.columns[col_i].cont_name}
+                  {#if sel_tmpl.columns[col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
                     <button
                       class="delete_col"
                       data-tooltip="Setup alternate source"
@@ -1132,7 +1247,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each setts.tmpls[setts.sel_tmpl].rows as row, row_i}
+            {#each { length: row_count } as _, row_i}
               <tr
                 oncontextmenu={function (e) {
                   OpenRowMenu(e, row_i);
@@ -1150,20 +1265,16 @@
                     onclick={(e) => OpenRowMenu(e, row_i)}
                     ><HamburgerMenu /></button>
                 </td>
-                {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
+                {#each sel_tmpl.view_cols as td_col_i}
                   <td
                     class={{
                       table_cell:
-                        setts.tmpls[setts.sel_tmpl].columns[td_col_i].type !==
-                        Column.PropertyValueType.SRC_ALTERNATE,
+                        sel_tmpl.columns[td_col_i].type !==
+                        ColumnHelper.PropertyValueType.SRC_ALTERNATE,
                     }}>
                     <PropInput
-                      bind:value={
-                        setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
-                          row_i
-                        ]
-                      }
-                      type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
+                      bind:value={sel_tmpl.columns[td_col_i].values[row_i]}
+                      type={sel_tmpl.columns[td_col_i].type}
                       onchange={() => {
                         PreviewRow(row_i, true);
                       }} />
@@ -1173,11 +1284,11 @@
             {/each}
           </tbody>
         </table>
-      {:else if setts.data_mode === "detail"}
+      {:else if s.setts.data_mode === "detail"}
         <div class="dets_header">
           <div class="dets_header_left">
             <button
-              onclick={() => (setts.data_mode = "table")}
+              onclick={() => (s.setts.data_mode = "table")}
               data-tooltip="Switch to Table View"
               data-tt-pos="bottom"><Table />Table View</button>
           </div>
@@ -1196,11 +1307,11 @@
             <input
               type="number"
               min="1"
-              max={setts.tmpls[setts.sel_tmpl].rows.length}
+              max={row_count}
               onchange={(e) =>
                 (curr_row_i = +(e.target as HTMLInputElement).value - 1)}
               value={curr_row_i + 1} />
-            / {setts.tmpls[setts.sel_tmpl].rows.length}
+            / {row_count}
             <button
               onclick={NextRow}
               data-tooltip="Next Row"
@@ -1215,12 +1326,12 @@
         </div>
 
         <div class="dets_field_cont">
-          {#each setts.tmpls[setts.sel_tmpl].table_cols as td_col_i}
+          {#each sel_tmpl.view_cols as td_col_i}
             <div class="dets_field">
               <h5>
-                {setts.tmpls[setts.sel_tmpl].columns[td_col_i].cont_name}
+                {sel_tmpl.columns[td_col_i].cont_name}
 
-                {#if setts.tmpls[setts.sel_tmpl].columns[td_col_i].type == Column.PropertyValueType.SRC_ALTERNATE}
+                {#if sel_tmpl.columns[td_col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
                   <button
                     class="delete_col"
                     data-tooltip="Setup alternate source"
@@ -1233,12 +1344,8 @@
               <div class="dets_prop">
                 <PropInput
                   inline={false}
-                  bind:value={
-                    setts.tmpls[setts.sel_tmpl].columns[td_col_i].values[
-                      curr_row_i
-                    ]
-                  }
-                  type={setts.tmpls[setts.sel_tmpl].columns[td_col_i].type}
+                  bind:value={sel_tmpl.columns[td_col_i].values[curr_row_i]}
+                  type={sel_tmpl.columns[td_col_i].type}
                   onchange={() => {
                     PreviewRow(curr_row_i, true);
                   }} />
@@ -1257,23 +1364,25 @@
         >Details</button>
     {/if}
   </footer>
-{:else if setts.active_tab === "output"}
+
+  <ModalEditView bind:this={m_edit_view}></ModalEditView>
+{:else if s.setts.active_tab === "output"}
   <!-- OUTPUT -->
   <main class="output">
     <span
       >Render Mode:
       <Dropdown
         variant="discrete"
-        labels={["One to One", "One to Many", "Generate Comps"]}
+        labels={["One Per Row", "Multi-Output", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
-        bind:value={setts.out_mode} />
+        bind:value={s.setts.out_mode} />
     </span>
 
     <!-- MODE: RENDER -->
-    {#if setts.out_mode === "render"}
+    {#if s.setts.out_mode === "render"}
       <p class="modal-description">
-        Exports a single render per row. Perfect for creating multiple
-        variations of a template from a spreadsheet.
+        Exports a single render per row. When you only need to export a final
+        file for each version.
       </p>
 
       <h4>
@@ -1289,7 +1398,7 @@
       <textarea
         id="save_pattern_ta"
         spellcheck="false"
-        bind:value={setts.tmpls[setts.sel_tmpl].save_pattern}></textarea>
+        bind:value={sel_tmpl.save_pattern}></textarea>
 
       <div class="setting" style="margin-top: 4px;">
         <button onclick={SelRenderBasePath}>Pick Base Path</button>
@@ -1301,24 +1410,23 @@
             "Template Name",
             "Row Number",
             "Increment",
-            ...setts.tmpls[setts.sel_tmpl].columns.map((col) => col.cont_name),
+            ...sel_tmpl.columns.map((col) => col.cont_name),
           ]}
           options={[
             "base_path",
             "template_name",
             "row_number",
             "increment:0000",
-            ...setts.tmpls[setts.sel_tmpl].columns.map((col) => col.cont_name),
+            ...sel_tmpl.columns.map((col) => col.cont_name),
           ]}
           bind:value={sel_add_field} />
 
-        <button onclick={AddField}>Add Field</button>
+        <button onclick={RenderSave_AddField}>Add Field</button>
       </div>
 
       <div class="setting">
         <span>Preview File Path:</span>
-        <span class="out_prev"
-          >{setts.tmpls[setts.sel_tmpl].save_paths[0]}</span>
+        <span class="out_prev">{sel_tmpl.save_paths[0]}</span>
       </div>
 
       <h4>
@@ -1341,19 +1449,25 @@
           options={render_setts_templs.render_templs.filter(
             (templ) => !templ.startsWith("_HIDDEN"),
           )}
-          bind:value={setts.tmpls[setts.sel_tmpl].render_setts_templ} />
+          bind:value={sel_tmpl.render_setts_templ} />
       </div>
 
       <div class="setting">
         <label for="sel_render_out_module">Output Module Template</label>
         <Dropdown
-          labels={render_setts_templs.output_modules_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN"),
-          )}
-          options={render_setts_templs.output_modules_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN"),
-          )}
-          bind:value={setts.tmpls[setts.sel_tmpl].render_out_module_templ} />
+          labels={[
+            "<b>Single Frame PNG</b>",
+            ...render_setts_templs.output_modules_templs.filter(
+              (templ) => !templ.startsWith("_HIDDEN"),
+            ),
+          ]}
+          options={[
+            "EB_Single_Frame_PNG",
+            ...render_setts_templs.output_modules_templs.filter(
+              (templ) => !templ.startsWith("_HIDDEN"),
+            ),
+          ]}
+          bind:value={sel_tmpl.render_out_module_templ} />
       </div>
 
       <button class="setting" onclick={() => BatchRender()}
@@ -1389,45 +1503,40 @@
           </tbody>
         </table>
       {/if}
-    {:else if setts.out_mode === "generate"}
+    {:else if s.setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 
       <p class="modal-description">
-        Creates editable compositions in your project for each row. Use this
-        when you need to manually adjust outputs later.
+        Creates editable compositions in your project for each row. Use this if
+        you need to share the project with someone without the extension.
       </p>
 
       <h4>Composition Name Pattern</h4>
       <textarea
         id="generate_proj_ta"
         spellcheck="false"
-        bind:value={setts.tmpls[setts.sel_tmpl].generate_pattern}></textarea>
+        bind:value={sel_tmpl.generate_pattern}></textarea>
 
       <div class="setting">
         <span>Preview:</span>
-        <span class="out_prev"
-          >{setts.tmpls[setts.sel_tmpl].generate_names[0]}</span>
+        <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
       </div>
 
       <div class="setting">
         <div>
-          <button onclick={AddField_Gen}>Add Field</button>
+          <button onclick={GenerateName_AddField}>Add Field</button>
           <Dropdown
             labels={[
               "Template Name",
               "Row Number",
               "Increment",
-              ...setts.tmpls[setts.sel_tmpl].columns.map(
-                (col) => col.cont_name,
-              ),
+              ...sel_tmpl.columns.map((col) => col.cont_name),
             ]}
             options={[
               "template_name",
               "row_number",
               "increment:0000",
-              ...setts.tmpls[setts.sel_tmpl].columns.map(
-                (col) => col.cont_name,
-              ),
+              ...sel_tmpl.columns.map((col) => col.cont_name),
             ]}
             bind:value={sel_add_field_gen} />
         </div>
@@ -1438,12 +1547,12 @@
         <input
           id="in_gen_folder"
           type="text"
-          bind:value={setts.tmpls[setts.sel_tmpl].gen_comps_folder} />
+          bind:value={sel_tmpl.gen_comps_folder} />
       </div>
 
       <button class="setting" onclick={BatchGenerate}
         >Generate Compositions</button>
-    {:else if setts.out_mode === "dependant"}
+    {:else if s.setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
       <p class="modal-description">
@@ -1462,7 +1571,7 @@
       </h4>
 
       <div class="setting">
-        <span>{setts.tmpls[setts.sel_tmpl].base_path}</span>
+        <span>{sel_tmpl.base_path}</span>
         <div><button onclick={SelRenderBasePath}>Choose Folder...</button></div>
       </div>
 
@@ -1491,28 +1600,26 @@
             AddCompToDependents();
           }}>Add</button>
         <button
-        style="margin-left: 12px;"
+          style="margin-left: 12px;"
           onclick={() => {
             AddSelectedCompsToDependents();
           }}>Add Selected</button>
       </div>
 
       <!-- Dependant Compositions -->
-      {#each setts.tmpls[setts.sel_tmpl].dep_comps as dc}
+      {#each sel_tmpl.dep_comps as dc, dc_i}
         <details class="out_sub_render" open>
           <summary>
             <input
               type="checkbox"
               style="margin: 5px 5px 3px 7px;"
-              bind:checked={
-                setts.tmpls[setts.sel_tmpl].dep_config[dc.id].enabled
-              } />
+              bind:checked={sel_tmpl.dep_config[dc_i].enabled} />
             <h4 style="display: inline;">{dc.name}</h4>
             <button
               class="delete_col"
               data-tooltip="Remove composition from renders"
               data-tt-pos="bottom-right"
-              onclick={() => DeleteDependantComp(dc.id)}><Trash /></button>
+              onclick={() => DeleteDependentComp(dc_i)}><Trash /></button>
           </summary>
 
           <div class="out_sub_render_cont">
@@ -1527,13 +1634,13 @@
             </h5>
             <div class="setting">
               <div>
-                {setts.tmpls[setts.sel_tmpl].dep_config[dc.id].save_pattern}
+                {sel_tmpl.dep_config[dc_i].save_pattern}
                 <button
                   style="vertical-align: middle; margin-left: 8px;"
                   data-tooltip="Edit the pattern that will determine the save path for this render."
                   data-tt-pos="top-right"
                   data-tt-width="large"
-                  onclick={() => DepFilePatternModalOpen(dc.id)}>
+                  onclick={() => DepFilePatternModalOpen(dc_i)}>
                   <Pencil1 /> Edit</button>
               </div>
 
@@ -1541,8 +1648,7 @@
                 <span>Preview:</span>
                 <span
                   style="text-overflow: ellipsis; max-width: 100%; display: inline-block;"
-                  >{setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                    .save_path}</span>
+                  >{sel_tmpl.dep_config[dc_i].save_path}</span>
               </div>
             </div>
 
@@ -1565,10 +1671,7 @@
                 options={render_setts_templs.render_templs.filter(
                   (templ) => !templ.startsWith("_HIDDEN"),
                 )}
-                bind:value={
-                  setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                    .render_setts_templ
-                } />
+                bind:value={sel_tmpl.dep_config[dc_i].render_setts_templ} />
             </div>
 
             <div class="setting">
@@ -1588,8 +1691,7 @@
                   ),
                 ]}
                 bind:value={
-                  setts.tmpls[setts.sel_tmpl].dep_config[dc.id]
-                    .render_out_module_templ
+                  sel_tmpl.dep_config[dc_i].render_out_module_templ
                 } />
             </div>
           </div>
@@ -1605,6 +1707,12 @@
       <!--Results-->
       {#if dep_row_results.length > 0}
         <h4>Render Results</h4>
+        {#if user_stopped_deps}
+          <div class="OtM_stopped_warn">
+            <ExclamationTriangle color="yellow" size={14} />
+            Renders stopped by user.
+          </div>
+        {/if}
         <table class="render_results">
           <thead>
             <tr>
@@ -1621,7 +1729,7 @@
                 <td>
                   {#if row.status == "success"}
                     <CheckCircled color="green" size={23} />
-                  {:else if row.status == "warning"}
+                  {:else if row.status == "warning" || row.status == "stopped"}
                     <ExclamationTriangle color="yellow" size={21} />
                   {:else}
                     <CrossCircled color="red" size={23} />
@@ -1636,29 +1744,28 @@
       {/if}
     {/if}
   </main>
-{:else if setts.active_tab == "settings"}
+
+  <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
+{:else if s.setts.active_tab == "settings"}
   <!-- SETTINGS -->
-  <SettingsPanel bind:setts bind:csa SaveSettings={SaveSettings} />
+  <SettingsPanel {SaveSettings} />
 {/if}
 
-{#if setts.tmpls[setts.sel_tmpl] !== undefined && show_alt_src_modal}
-  <ModalAlternateSrcV2
+{#if sel_tmpl !== undefined && show_alt_src_modal}
+  <ModalAltSrcFilePattern
     bind:show={show_alt_src_modal}
-    tmpl={setts.tmpls[setts.sel_tmpl]}
     col_i={alt_src_modal_col}
     onclose={AlertSrcModalClosed} />
 {/if}
 
-<ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
+<Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
-<ModalEditView bind:this={m_edit_view}></ModalEditView>
-<MenuRow bind:this={menu_row} onselect={RowMenuSelected}></MenuRow>
 
-{#if no_templs}
+{#if no_tmpls}
   <div class="fs_no_tmpls">
     No Essential Graphics Templates Found
     <span>Create one and reload the extension</span>
-    <div><button onclick={StartupSequence}><Update /> Reload</button></div>
+    <div><button onclick={StartupSequence}><Update />Reload</button></div>
   </div>
 {/if}
 
@@ -1932,6 +2039,16 @@
   }
 
   :global(.OtM_ui_warn svg) {
+    vertical-align: middle;
+    margin-right: 3px;
+  }
+
+  .OtM_stopped_warn {
+    margin: 10px 0;
+    color: var(--color-warning);
+  }
+
+  :global(.OtM_stopped_warn svg) {
     vertical-align: middle;
     margin-right: 3px;
   }

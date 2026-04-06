@@ -1,3 +1,4 @@
+/** @ts-check */
 /**
 This is a CEP extension for After Effects that provides automation tools for mograph templates.
 The user can either use a table or an external CSV file to populate the After Effects composition that makes the template.
@@ -10,25 +11,8 @@ Internal use functions are prefixed with an underscore `_`.
 //@include "json2.js"
 //script EasyBatch
 
-/**
- * @typedef {import('../src/lib/Settings').Settings} Settings
- * @typedef {import('../src/lib/Settings').Template} Template
- * @typedef {import('../src/lib/Settings').Column} Column
- * @typedef {import('../src/lib/Settings').Comp} Comp
- * @typedef {import('../src/lib/Settings').DepCompSetts} DepCompSetts
- * @typedef {import('../src/lib/Messaging').GetSettsResult} GetSettsResult
- * @typedef {import('../src/lib/Messaging').GetAllCompsResult} GetAllCompsResult
- * @typedef {import('../src/lib/Messaging').GetSelectedCompsResult} GetSelectedCompsResult
- * @typedef {import('../src/lib/Messaging').SaveSettingsResults} SaveSettingsResults
- * @typedef {import('../src/lib/Messaging').BatchRenderResult} BatchRenderResult
- * @typedef {import('../src/lib/Messaging').RenderSettsResults} RenderSettsResults
- * @typedef {import('../src/lib/Messaging').BatchGenerateResult} BatchGenerateResult
- * @typedef {import('../src/lib/Messaging').GetCurrentValuesResults} GetCurrentValuesResults
- * @typedef {import('../src/lib/Messaging').GetTmplsResult} GetTmplsResult
- * @typedef {import('../src/lib/Messaging').PreviewRowResult} PreviewRowResult
- * @typedef {import('../src/lib/Messaging').SaveSettsRequest} SaveSettsRequest
- * @typedef {import('../src/lib/Messaging').IsSameProjectResult} IsSameProjectResult
- */
+/**Because random bugs happens that are difficult to track */
+var local_logs = [];
 
 function _HasTemplates() {
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
@@ -53,7 +37,9 @@ function GetTemplates() {
   var result = {};
 
   /**
-   * @type {Template[]}}
+   * Host only returns partial TemplateData (comp, comp_id, name, columns, dep_comps).
+   * The client merges these with stored settings via SettingsHelper.UpdateTemplates.
+   * @type {HostTemplateData[]}
    */
   var out_tmpls = [];
 
@@ -68,7 +54,8 @@ function GetTemplates() {
       ) {
         /**
          * Extract the controllers from the template / called columns in the app
-         * @type {Column[]}}
+         * Host only populates cont_name, type, values — the client merges with saved ColumnData.
+         * @type {HostColumnData[]}
          */
         var cols = [];
 
@@ -88,6 +75,7 @@ function GetTemplates() {
         for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
           var templ_prop = e_props[i_prop];
 
+          /** @type {number} */
           var t_type = templ_prop.propertyValueType;
           var val = "";
 
@@ -95,7 +83,7 @@ function GetTemplates() {
             val = templ_prop.value.text;
           } else if (templ_prop.canSetAlternateSource && templ_prop.matchName === "ADBE Layer Source Alternate") {
             t_type = 9001; //Custom type for replaceable sources, the client will handle it accordingly
-          } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE 
+          } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE
             && templ_prop.matchName !== "ADBE Layer Overrides Comment") {
             val = templ_prop.value;
           }
@@ -125,14 +113,15 @@ function GetTemplates() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetTemplates";
+    result.error_obj.source = "host.jsx @ GetTemplates";
     return JSON.stringify(result);
   }
 }
 
 /**
  * Checks if the given composition is included on other compositions
- * @returns {DependentComps}
+ * @param {CompItem} parent_comp
+ * @returns {Comp[]}
  */
 function _GetDependentComps(parent_comp) {
   /**@type {Comp[]} */
@@ -161,10 +150,9 @@ function _GetDependentComps(parent_comp) {
 
 /**
  * Returns all compositions in the project.
- * @param {string} used_in_id - The ID of the composition used to for the is_dependent parameter. Determines if the composition passed is included in the returned compositions.
- * //todo: implement used_in_id
+ * @returns {string} Stringified JSON of `GetAllCompsResult` object
  */
-function GetAllComps(used_in_id) {
+function GetAllComps() {
   /**@type {GetAllCompsResult} */
   var result = {
     success: false,
@@ -184,7 +172,7 @@ function GetAllComps(used_in_id) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetAllComps";
+    result.error_obj.source = "host.jsx @ GetAllComps";
   }
 
   return JSON.stringify(result);
@@ -213,7 +201,7 @@ function GetSelectedComps() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetSelectedComps";
+    result.error_obj.source = "host.jsx @ GetSelectedComps";
   }
 
   return JSON.stringify(result);
@@ -232,9 +220,9 @@ function _SettingsExist() {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var uri = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(xmp, "AUTOMATOR_DATA", XMPConst.STRING);
+    var prop = mdata.getProperty(uri, "ProjectData", XMPConst.STRING);
 
     if (prop === undefined || prop.value === undefined) {
       return false;
@@ -244,37 +232,58 @@ function _SettingsExist() {
   }
 }
 
-function _SettingsId() {
-  try {
-    // load the XMPlibrary as an ExtendScript ExternalObject
-    if (ExternalObject.AdobeXMPScript === undefined) {
-      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
-    }
-    var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+function _ProjectID() {
+  // load the XMPlibrary as an ExtendScript ExternalObject
+  if (ExternalObject.AdobeXMPScript === undefined) {
+    ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+  }
+  var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
+  var xmp = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(xmp, "AUTOMATOR_DATA", XMPConst.STRING);
-
-    if (prop === undefined || prop.value === undefined) {
-      not_found = true;
-      throw new ResponseError("No settings found in the project", {
-        not_found: true,
-      });
-    }
-
-    var data = prop.value;
-
-    /**@type {Settings} */
-    var setts = JSON.parse(data);
-    return setts.id;
-  } catch (e) {
+  if (xmp === undefined || xmp === "") {
     return null;
   }
+
+  var prop = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
+
+  if (prop === undefined || prop.value === undefined) {
+    return null;
+  }
+
+  /**@type {ProjData} */
+  var ProjData = JSON.parse(prop.value);
+  return ProjData.id;
 }
 
-function LoadSettings() {
-  /**@type {GetSettsResult} */
+/**
+ * @returns {string} Stringified JSON of `ProjectIdResult` object
+ */
+function ProjectID() {
 
+  /**@type {ProjectIdResult} */
+  var result = {
+    success: false,
+    id: null
+  };
+
+  try {
+    result.success = true;
+    result.id = _ProjectID();
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "host.jsx @ ProjectID";
+  }
+  return JSON.stringify(result);
+}
+
+/**
+ * Loads the project settings and data from the project's XMP metadata.
+ * @returns {string} Stringified JSON of `GetSettsResult` object
+ */
+function LoadSettings() {
+
+  /**@type {GetSettsResult} */
   var result = {};
 
   try {
@@ -283,20 +292,21 @@ function LoadSettings() {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var xmp = XMPMeta.getNamespaceURI("easybatch");
 
-    var prop = mdata.getProperty(xmp, "AUTOMATOR_DATA", XMPConst.STRING);
-
-    if (prop === undefined || prop.value === undefined) {
-      not_found = true;
-      throw new ResponseError("No settings found in the project", {
-        not_found: true,
-      });
+    if (xmp === undefined || xmp === "") {
+      throw new ResponseError("No settings found in the project, failed to retrieve namespace URI", { not_found: true });
     }
 
-    var data = prop.value;
+    var p_proj_setts = mdata.getProperty(xmp, "ProjectSettings", XMPConst.STRING);
+    var p_proj_data = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
 
-    result.setts = JSON.parse(data);
+    if (p_proj_setts === undefined || p_proj_data === undefined || p_proj_setts.value === undefined || p_proj_data.value === undefined) {
+      throw new ResponseError("No settings found in the project, failed to retrieve ProjectSettings/ProjectData property", { not_found: true });
+    }
+
+    result.proj_data = JSON.parse(p_proj_data.value);
+    result.proj_settings = JSON.parse(p_proj_setts.value);
 
     if (app.project.file !== null) {
       result.project_name = app.project.file.name;
@@ -309,24 +319,25 @@ function LoadSettings() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ LoadSettings";
+    result.error_obj.source = "host.jsx @ LoadSettings";
   }
 
   return JSON.stringify(result);
 }
 
+/**
+ * Saves the project settings and data to the project's XMP metadata.
+ * @param {string} s_request JSON of `SaveSettsRequest` object
+ * @returns {string}
+ */
 function SaveSettings(s_request) {
   _EscapeArgs(arguments);
 
   /**@type {SaveSettingsResults} */
   var response = {};
   try {
-    // load the XMPlibrary as an ExtendScript ExternalObject
-
     /** @type {SaveSettsRequest}*/
     var request = JSON.parse(s_request);
-
-    var str_setts = JSON.stringify(request.setts);
 
     //If this is the default project, we will not save the settings
     if (!_HasTemplates()) {
@@ -335,9 +346,15 @@ function SaveSettings(s_request) {
       });
     }
 
-    var setts_id = _SettingsId();
+    // load the XMPlibrary as an ExtendScript ExternalObject
+    if (ExternalObject.AdobeXMPScript === undefined) {
+      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+    }
 
-    if (!request.is_new && setts_id !== null && setts_id !== request.setts.id) {
+    var setts_id = _ProjectID();
+
+    $.writeln("Current project ID: " + setts_id);
+    if (!request.is_new && setts_id !== undefined && setts_id !== request.project_id) {
       throw new ResponseError(
         "The settings in the project have a different ID",
         {
@@ -346,13 +363,23 @@ function SaveSettings(s_request) {
       );
     }
 
-    if (ExternalObject.AdobeXMPScript === undefined) {
-      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
-    }
     var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-    var xmp = XMPMeta.getNamespaceURI("xmp");
+    var uri = XMPMeta.getNamespaceURI("easybatch");
 
-    mdata.setProperty(xmp, "AUTOMATOR_DATA", str_setts, 0, XMPConst.STRING);
+    if (uri === undefined || uri === "") {
+      //Register a namespace to store our data in the XMP metadata of the project
+      XMPMeta.registerNamespace("http://easybatch.setreports.com/", "easybatch");
+      uri = XMPMeta.getNamespaceURI("easybatch");
+    }
+
+    if (request.proj_data !== undefined && request.proj_data !== null) {
+      mdata.setProperty(uri, "ProjectData", JSON.stringify(request.proj_data), 0, XMPConst.STRING);
+    }
+
+    if (request.proj_settings !== undefined && request.proj_settings !== null) {
+      mdata.setProperty(uri, "ProjectSettings", JSON.stringify(request.proj_settings), 0, XMPConst.STRING);
+    }
+
     var serialized = mdata.serialize();
     app.project.xmpPacket = serialized;
 
@@ -360,38 +387,44 @@ function SaveSettings(s_request) {
   } catch (e) {
     response.success = false;
     response.error_obj = e;
-    response.error_obj.source = "index.jsx @ SaveSettings";
+    response.error_obj.source = "host.jsx @ SaveSettings";
   }
 
   return JSON.stringify(response);
 }
 
-function IsSameProject(proj_id) {
-  _EscapeArgs(arguments);
-  /**@type {IsSameProjectResult} */
-  var response = { success: true };
+/**
+ * Deletes the EasyBatch settings from the project's XMP metadata.
+ * Intended for use in testing only.
+ * @returns {string} Stringified JSON of a result object
+ */
+function DeleteSettings() {
+  /** @type {{ success: boolean, error_obj?: any }} */
+  var response = {
+    success: false
+  };
   try {
-    if (proj_id === undefined || proj_id === null) {
-      throw new ResponseError("No project ID provided at IsSameProject", {});
+    if (ExternalObject.AdobeXMPScript === undefined) {
+      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
 
-    var read_id = _SettingsId();
+    var mdata = new XMPMeta(app.project.xmpPacket);
+    var uri = XMPMeta.getNamespaceURI("easybatch");
 
-    if (read_id === null || read_id === undefined) {
-      response.same_project = false;
-    } else if (read_id === proj_id) {
-      response.same_project = true;
-    } else {
-      response.same_project = false;
+    if (uri !== undefined && uri !== "") {
+      mdata.deleteProperty(uri, "ProjectData");
+      mdata.deleteProperty(uri, "ProjectSettings");
+      app.project.xmpPacket = mdata.serialize();
     }
 
-    return JSON.stringify(response);
+    response.success = true;
   } catch (e) {
     response.success = false;
     response.error_obj = e;
-    response.error_obj.source = "index.jsx @ IsSameProject";
-    return JSON.stringify(response);
+    response.error_obj.source = "host.jsx @ DeleteSettings";
   }
+
+  return JSON.stringify(response);
 }
 
 function _SetupTemplatePreviewComp(remove_layers) {
@@ -401,7 +434,7 @@ function _SetupTemplatePreviewComp(remove_layers) {
 
   //Check if the composition already exists
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
-    var comp = app.project.item(i_items);
+    var comp = /** @type {CompItem} */ (app.project.item(i_items));
     if (comp instanceof CompItem && comp.name == "TemplatePreview") {
       //remove all layers from the comp
       if (remove_layers) {
@@ -415,14 +448,14 @@ function _SetupTemplatePreviewComp(remove_layers) {
   }
 
   //create a new comp with the name "TemplateRender"
-  var comp = app.project.items.addComp(
+  var comp = /** @type {CompItem} */ (app.project.items.addComp(
     "TemplatePreview",
     1920,
     1080,
     1,
     10,
     30
-  );
+  ));
 
   return comp;
 }
@@ -517,13 +550,16 @@ function _ResolveFootageItem(path, proj_folder) {
 
   //Check if the footage item exists in the project
   //Replace the <b> tag used to indicate the file was manually selected
-  var import_file = new File(path.replaceAll("\\\\", "/").replaceAll("<b>", "").replaceAll("</b>", ""));
+  // Note: split/join used instead of replaceAll — ExtendScript targets ES3
+  var clean_path = path.split("\\\\").join("/").split("<b>").join("").split("</b>").join("");
+  var import_file = new File(clean_path);
 
   var repl_f_item;
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var proj_item = app.project.item(i_items);
     if (proj_item instanceof FootageItem
       && proj_item.file !== null
+      && proj_item.footageMissing === false
       && proj_item.file.fullName.toLowerCase() == import_file.fullName.toLowerCase()) {
       return proj_item;
     }
@@ -533,35 +569,52 @@ function _ResolveFootageItem(path, proj_folder) {
     //Import the file
 
     var import_opt = new ImportOptions(import_file);
-    repl_f_item = app.project.importFile(import_opt);
+    repl_f_item = /** @type {FootageItem} */ (app.project.importFile(import_opt));
     repl_f_item.parentFolder = folder;
   }
 
-  return repl_f_item;
+  return /** @type {FootageItem} */ (repl_f_item);
 }
 
 /**
  * Replaces the values in the Essential Properties of a layer
  * with the values on the corresponding row of the template.
- * @param {*} layer
- * @param {Template} template
+ * @param {AVLayer} layer
+ * @param {TemplateData} template
  * @param {number} row_i
- * @param {boolean} replace_orgs Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
- * @returns {errors[]{message: string, column: number}} List of errors found during the process
+ * @param {boolean} [replace_orgs] Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
+ * @param {PropertyGroup} [e_props] Property group to iterate (used for recursion).
+ * @returns {{ message: string, column: number }[]} List of errors found during the process
  */
-function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
+function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
+
   if (replace_orgs === undefined) {
     replace_orgs = false;
   }
 
   var errors = [];
 
-  //Access the Essential Properties of the layer
-  var e_props = _FlattenPropertyGroup(layer.essentialProperty);
+  //This function is recursive, if no e_props will get them from the layer
+  //Donde this way because properties become invalid when flattened
+  if (e_props === undefined) {
+    //Access the Essential Properties of the layer
+    var e_props = layer.essentialProperty;
+  }
 
   //Loop through the properties and set the values
-  for (var i_prop = 0; i_prop < e_props.length; i_prop++) {
-    var ess_prop = e_props[i_prop];
+  for (var i_prop = 1; i_prop <= e_props.numProperties; i_prop++) {
+
+    /** @type {Property<any>} */
+    var ess_prop = /** @type {Property<any>} */ (e_props.property(i_prop));
+
+    //  local_logs.push("Processing property '" + ess_prop.name + "' of type " + ess_prop.propertyValueType + " in " + epname);
+
+    if (ess_prop.propertyType === PropertyType.INDEXED_GROUP || ess_prop.propertyType === PropertyType.NAMED_GROUP) {
+      //This is a group, go deeper
+      var group_errors = _ApplyTemplProps(layer, template, row_i, replace_orgs, /** @type {PropertyGroup} */(e_props.property(i_prop)));
+      errors = errors.concat(group_errors);
+      continue;
+    }
 
     //find the column in the template that matches the property name
     var col;
@@ -578,7 +631,7 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       continue;
     }
 
-    //REPLACEABLE / ALT SOURCE
+    //>>>REPLACEABLE / ALT SOURCE
     if (
       ess_prop.canSetAlternateSource &&
       ess_prop.matchName === "ADBE Layer Source Alternate"
@@ -590,10 +643,12 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       }
 
       //Depending if we're replacing the original or the Essential Property, we compare the correct source
+      /** @type {AVItem|CompItem|FootageItem|null} */
+      var alt_src;
       if (replace_orgs) {
-        var alt_src = ess_prop.essentialPropertySource.source;
+        alt_src = /** @type {AVLayer} */ (/** @type {unknown} */ (/** @type {Property<any>} */ (ess_prop.essentialPropertySource))).source;
       } else {
-        var alt_src = ess_prop.alternateSource;
+        alt_src = ess_prop.alternateSource;
       }
 
       //The current alt source is a composition,
@@ -610,8 +665,8 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       }
 
       //It is a footage item check if it's linked to the correct file
-      else if (alt_src !== null && alt_src.source instanceof FootageItem
-        && _ComparePaths(alt_src.source.file, col.values[row_i])
+      else if (alt_src !== null && /** @type {FootageItem} */ (alt_src).file !== null
+        && _ComparePaths(/** @type {FootageItem} */(alt_src).file, col.values[row_i])
       ) {
         //The footage item is already linked to the correct file
         continue;
@@ -628,16 +683,27 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       }
 
       if (replace_orgs) {
-        ess_prop.essentialPropertySource.replaceSource(new_footage, false);
+        /** @type {AVLayer} */
+        var ess_prop_src = /** @type {AVLayer} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource));
+        ess_prop_src.replaceSource(new_footage, false);
       } else {
-        ess_prop.setAlternateSource(new_footage);
-      }
+        var prev_alt_src = ess_prop.alternateSource;
 
+        ess_prop.setAlternateSource(new_footage);
+
+        //Cleanup the previous alt source if it was one of the dummy comps created by AE
+        if (prev_alt_src !== undefined
+          && prev_alt_src instanceof CompItem
+          && prev_alt_src.usedIn.length === 0
+          && prev_alt_src.name.indexOf(ess_prop.name) === 0) {
+          prev_alt_src.remove();
+        }
+      }
 
       continue;
     } //if replaceable
 
-    //TEXT
+    //>>>TEXT
     else if (
       ess_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT
     ) {
@@ -645,45 +711,42 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs) {
       if (
         (!replace_orgs && ess_prop.value.text === col.values[row_i]) ||
         (replace_orgs &&
-          ess_prop.essentialPropertySource.value.text ===
+          /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).value.text ===
           col.values[row_i])
       ) {
         continue;
       }
 
       if (replace_orgs)
-        ess_prop.essentialPropertySource.setValue(col.values[row_i]);
+        /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).setValue(col.values[row_i]);
       else ess_prop.setValue(col.values[row_i]);
-
       continue;
     }
 
-    //MOGRAPH COMMENT
+    //>>>MOGRAPH COMMENT
     else if (ess_prop.matchName === "ADBE Layer Overrides Comment") {
       continue;
     }
 
-    //COLOR / POSITION / SCALE / ROTATION
+    //>>>COLOR / POSITION / SCALE / ROTATION
     else {
       //Check if is different from the current value
       if (
         (ess_prop.value == col.values[row_i] && !replace_orgs) ||
         (replace_orgs &&
-          ess_prop.essentialPropertySource.value == col.values[row_i])
+          /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).value == col.values[row_i])
       ) {
         continue;
       }
 
       if (replace_orgs)
-        ess_prop.essentialPropertySource.setValue(col.values[row_i]);
+        /** @type {Property<any>} */ (/** @type {unknown} */ (ess_prop.essentialPropertySource)).setValue(col.values[row_i]);
       else ess_prop.setValue(col.values[row_i]);
 
       continue;
     }
   }
-
-
-  return { errors: errors };
+  return errors;
 }
 
 function _ComparePaths(path1, path2) {
@@ -722,11 +785,11 @@ function PreviewRow(s_template, row_i, open_prev) {
 
   try {
 
-    /** @type {Template} */
+    /** @type {TemplateData} */
     var templ = JSON.parse(s_template);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(templ.comp_id);
+    var templ_comp = /** @type {CompItem} */ (app.project.itemByID(templ.comp_id));
 
     if (templ_comp == undefined) {
       throw new Error("@PreviewRow: Template composition not found");
@@ -757,15 +820,15 @@ function PreviewRow(s_template, row_i, open_prev) {
       templ_layer = render_comp.layers.add(templ_comp);
     }
 
-    var props_res = _ApplyTemplProps(templ_layer, templ, row_i);
+    var props_errors = _ApplyTemplProps(/** @type {AVLayer} */(templ_layer), templ, row_i);
 
     //If errors while applying the properties, transfer them to the result object
-    if (props_res.errors.length > 0) {
+    if (props_errors.length > 0) {
 
       result.errors = [];
       //Transfer the errors to the result object
-      for (var i_err = 0; i_err < props_res.errors.length; i_err++) {
-        result.errors.push({ message: props_res.errors[i_err].message, type: "property", row: row_i });
+      for (var i_err = 0; i_err < props_errors.length; i_err++) {
+        result.errors.push({ message: props_errors[i_err].message, type: "property", row: row_i });
       }
     }
 
@@ -775,7 +838,7 @@ function PreviewRow(s_template, row_i, open_prev) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ PreviewRow";
+    result.error_obj.source = "host.jsx @ PreviewRow";
     return JSON.stringify(result);
   }
 }
@@ -796,7 +859,7 @@ function GetCurrentValues(s_template) {
     //The template composition will be loaded in our render comp
     var render_comp = _SetupTemplatePreviewComp(false);
 
-    /** @type {Template} */
+    /** @type {TemplateData} */
     var templ = JSON.parse(s_template);
 
     //Add a layer with the template composition to the render comp
@@ -841,7 +904,7 @@ function GetCurrentValues(s_template) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetCurrentValues";
+    result.error_obj.source = "host.jsx @ GetCurrentValues";
     return JSON.stringify(result);
   }
 }
@@ -849,9 +912,9 @@ function GetCurrentValues(s_template) {
 /**
  * Flattens a property group into a list of properties, going through all the groups inside it.
  * If keep_comments is true, it will pass groups labeled as ADBE Layer Overrides Comment
- * * @param {PropertyGroup} pg
- * @param {boolean} keep_comments
- * @returns {Property[]}
+ * @param {PropertyGroup} pg
+ * @param {boolean} [keep_comments]
+ * @returns {Property<any>[]}
  */
 function _FlattenPropertyGroup(pg, keep_comments) {
   if (keep_comments === undefined) {
@@ -861,7 +924,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
   var props = [];
 
   for (var i_prop = 1; i_prop <= pg.numProperties; i_prop++) {
-    var prop = pg.property(i_prop);
+    var prop = /** @type {Property<any>} */ (pg.property(i_prop));
 
     if (prop.propertyType === PropertyType.INDEXED_GROUP || prop.propertyType === PropertyType.NAMED_GROUP) {
 
@@ -870,7 +933,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
         props.push(prop);
       } else {
         //This is a group, go deeper
-        var group_props = _FlattenPropertyGroup(prop, keep_comments);
+        var group_props = _FlattenPropertyGroup(/** @type {PropertyGroup} */(/** @type {unknown} */ (prop)), keep_comments);
         props = props.concat(group_props);
       }
     } else {
@@ -881,18 +944,24 @@ function _FlattenPropertyGroup(pg, keep_comments) {
   return props;
 }
 
+/**
+ * Creates a render queue item for each row in the template and starts the render queue asynchronously.
+ * @param {string} str_template JSON of `TemplateData` object
+ * @param {string} folder Name of the project folder to store the generated render compositions
+ * @returns {string}
+ */
 function BatchRender(str_template, folder) {
   _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
-  var result = { errors: [], row_results: [] };
+  var result = { success: false, errors: [], row_results: [] };
 
   try {
-    /** @type {Template}*/
+    /** @type {TemplateData}*/
     var templ = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
-    var tmpl_comp = app.project.itemByID(templ.comp_id);
+    var tmpl_comp = /** @type {CompItem} */ (app.project.itemByID(templ.comp_id));
 
     if (tmpl_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -903,7 +972,7 @@ function BatchRender(str_template, folder) {
     }
 
     //Loop through the rows and set the values of the template
-    for (var i_row = 0; i_row < templ.rows.length; i_row++) {
+    for (var i_row = 0; i_row < templ.columns[0].values.length; i_row++) {
       var render_comp = _CreateTemplateRenderComp(
         templ.name + "_" + i_row,
         tmpl_comp,
@@ -916,7 +985,7 @@ function BatchRender(str_template, folder) {
         var layer = render_comp.layers.add(tmpl_comp);
 
         //Set the values of the essential properties
-        var p_err = _ApplyTemplProps(layer, templ, i_row).errors;
+        var p_err = _ApplyTemplProps(layer, templ, i_row);
 
         //Convert errors to a string
         var prop_error_str = null;
@@ -949,7 +1018,7 @@ function BatchRender(str_template, folder) {
         result.row_results.push({
           row: i_row,
           status: 'error',
-          error_message: e.message
+          error: e.message
         });
 
 
@@ -965,22 +1034,27 @@ function BatchRender(str_template, folder) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ BatchRender";
+    result.error_obj.source = "host.jsx @ BatchRender";
     return JSON.stringify(result);
   }
 }
 
+/**
+ * Generates one composition per row in the project, populated with the template data. Does not render.
+ * @param {string} str_template - Stringified JSON of `TemplateData` object
+ * @returns {string} Stringified JSON of `BatchGenerateResult` object
+ */
 function BatchGenerate(str_template) {
   _EscapeArgs(arguments);
   /** @type {BatchGenerateResult} */
-  var result = { errors: [] };
+  var result = { success: false, errors: [] };
 
   try {
-    /** @type {Template}*/
+    /** @type {TemplateData}*/
     var tmpl_data = JSON.parse(str_template);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(tmpl_data.comp_id);
+    var templ_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl_data.comp_id));
 
     if (templ_comp == undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -991,7 +1065,7 @@ function BatchGenerate(str_template) {
     }
 
     //Loop through the rows and set the values of the template
-    for (var i_row = 0; i_row < tmpl_data.rows.length; i_row++) {
+    for (var i_row = 0; i_row < tmpl_data.columns[0].values.length; i_row++) {
       var comp_name =
         tmpl_data.generate_names[i_row] || tmpl_data.name + "_" + i_row;
 
@@ -1009,7 +1083,7 @@ function BatchGenerate(str_template) {
         //Set the values of the essential properties
         _ApplyTemplProps(layer, tmpl_data, i_row);
       } catch (e) {
-        result.errors.push({ message: e.message, row: i_row });
+        result.errors.push({ message: e.message, type: '@row', row: i_row });
       }
     } //loop template rows
 
@@ -1018,7 +1092,7 @@ function BatchGenerate(str_template) {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ BatchGenerate";
+    result.error_obj.source = "host.jsx @ BatchGenerate";
     return JSON.stringify(result);
   }
 }
@@ -1069,6 +1143,11 @@ function _ClearRenderQueue() {
   }
 }
 
+/**
+ * Retrieves the available render settings and output module templates from After Effects.
+ * Temporarily adds a dummy item to the render queue in order to read the template lists.
+ * @returns {string} Stringified JSON of `RenderSettsResults` object
+ */
 function GetRenderTemplates() {
   //Per the documentation we can only gather the templates once an item is in the render queue
 
@@ -1110,7 +1189,7 @@ function GetRenderTemplates() {
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "index.jsx @ GetRenderTemplates";
+    result.error_obj.source = "host.jsx @ GetRenderTemplates";
   }
 
   return JSON.stringify(result);
@@ -1129,10 +1208,10 @@ function PickColorFromPreview(startValue) {
   //add a null
   var null_layer = prev_comp.layers.addNull();
 
-  var cc = null_layer
-    .property("ADBE Effect Parade")
+  var cc = /** @type {PropertyGroup} */ (null_layer
+    .property("ADBE Effect Parade"))
     .addProperty("ADBE Color Control");
-  var color_prop = cc.property("ADBE Color Control-0001");
+  var color_prop = /** @type {Property<any>} */ (cc.property("ADBE Color Control-0001"));
 
   color_prop.setValue(startValue);
   color_prop.selected = true;
@@ -1210,7 +1289,7 @@ function ImportFile(filter) {
     filter = "*.*";
   }
 
-  var file = File.openDialog("Select a file", filter);
+  var file = /** @type {File} */ (File.openDialog("Select a file", filter));
 
   file.open("r");
   var content = file.read();
@@ -1259,16 +1338,25 @@ function _CreateSubfolders(path) {
 /** @type {BatchRenderResult} */
 var dep_result;
 
+/** @type {{rqi: RenderQueueItem, row_result: RowRenderResult}[]} */
+var queued_items;
+
+/**
+ * Renders all dependent compositions for each row in the template (One-to-Many mode).
+ * Renders synchronously, blocking the AE UI until complete.
+ * @param {string} str_template - Stringified JSON of `TemplateData` object
+ * @returns {string} Stringified JSON of `BatchRenderResult` object
+ */
 function BatchRenderDepComps(str_template) {
   _EscapeArgs(arguments);
 
   dep_result = { success: false, row_results: [] };
+  queued_items = [];
 
   try {
-
     _SetGlobalCurrentPath();
 
-    /** @type {Template} */
+    /** @type {TemplateData} */
     var tmpl = JSON.parse(str_template);
 
     //Add the template composition to the render comp as a layer
@@ -1276,7 +1364,7 @@ function BatchRenderDepComps(str_template) {
     var prev_comp = _SetupTemplatePreviewComp(true);
 
     //Find the composition referenced by the template in the project
-    var templ_comp = app.project.itemByID(tmpl.comp_id);
+    var templ_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.comp_id));
 
     if (templ_comp === undefined)
       throw new Error("@BatchRender: Template composition not found");
@@ -1297,7 +1385,7 @@ function BatchRenderDepComps(str_template) {
   } catch (e) {
     dep_result.success = false;
     dep_result.error_obj = e;
-    dep_result.error_obj.source = "index.jsx @ BatchRenderDepComps";
+    dep_result.error_obj.source = "host.jsx @ BatchRenderDepComps";
     return JSON.stringify(dep_result);
   }
 }
@@ -1305,15 +1393,15 @@ function BatchRenderDepComps(str_template) {
 
 /**
  * Renders the dependent compositions
- * @param {Template} tmpl
+ * @param {TemplateData} tmpl
  */
 function RenderDeps(tmpl, props_layer) {
 
   //Loop through the rows and set the values of the template
-  for (var dep_render_row = 0; dep_render_row < tmpl.rows.length; dep_render_row++) {
+  for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
 
     try {
-      var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true).errors;
+      var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
       //Convert errors to a string
       var prop_error_str = null;
@@ -1325,18 +1413,25 @@ function RenderDeps(tmpl, props_layer) {
         }
       }
 
-
       //Add the dependent compositions to the render queue
       for (var i = 0; i < tmpl.dep_comps.length; i++) {
 
+        if (ShouldCancelRenderDeps()) {
+          dep_result.user_stopped = true;
+          return;
+        }
+
         //Find the configuration of the dep composition to get the render settin  gs and the path
         /**@type {DepCompSetts} */
-        var dep_config = tmpl.dep_config[tmpl.dep_comps[i].id];
+        var dep_config = tmpl.dep_config[i];
 
         //If disabled, skip
         if (!dep_config.enabled) continue;
 
-        var dep_comp = app.project.itemByID(tmpl.dep_comps[i].id);
+        var dep_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.dep_comps[i].id));
+
+        /** @type {RowRenderResult} */
+        var row_result;
 
         //Check if the render is a single frame
         if (dep_config.render_out_module_templ === "EB_Single_Frame_PNG") {
@@ -1344,13 +1439,12 @@ function RenderDeps(tmpl, props_layer) {
           var file = new File(dep_config.save_paths[dep_render_row] + ".png");
           dep_comp.saveFrameToPng(0, file);
 
-          //Log the result
-          dep_result.row_results.push({
+          row_result = {
             row: dep_render_row,
             status: prop_error_str === null ? 'success' : 'warning',
             rendered_path: file.fsName,
             error: prop_error_str
-          });
+          };
 
         } else {
           var rq_item = _QueueComp(
@@ -1360,21 +1454,30 @@ function RenderDeps(tmpl, props_layer) {
             dep_config.render_out_module_templ
           );
 
-          //Log the result
-          dep_result.row_results.push({
+          /** @type {RowRenderResult} */
+          row_result = {
             row: dep_render_row,
             status: prop_error_str === null ? 'success' : 'warning',
             rendered_path: dep_config.save_paths[dep_render_row],
             error: prop_error_str
-          });
+          };
         }
+
+        queued_items.push({
+          rqi: rq_item,
+          row_result: row_result
+        });
+
+        //Store result for UI
+        dep_result.row_results.push(row_result);
+
       }//Loop dep comps
 
     } catch (e) {
       dep_result.row_results.push({
         row: dep_render_row,
         status: 'error',
-        message: e.message
+        error: e.message
       });
     }
 
@@ -1382,7 +1485,28 @@ function RenderDeps(tmpl, props_layer) {
   } //loop template rows
 }
 
-// POLYFILLS //
+/**
+ * Checks if any of the queued render items has been stopped by the user,
+ * in which case the whole process should be stopped to avoid rendering unwanted files.
+ * @returns {boolean}
+ */
+function ShouldCancelRenderDeps() {
+  for (var i = 0; i < queued_items.length; i++) {
+    if (queued_items[i].rqi !== undefined
+      && queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
+      queued_items[i].row_result.status = 'stopped';
+      queued_items[i].row_result.error = 'Render stopped by user';
+      queued_items = [];
+      return true;
+    }
+  }
+  return false;
+}
+
+////////////
+//POLYFILLS
+////////////
+
 Object.create = function (o) {
   function F() { }
   F.prototype = o;
@@ -1404,7 +1528,11 @@ String.prototype.replaceAll = function (target, replacement) {
   return this.split(target).join(replacement);
 };
 
-// UTILS //
+
+/////////
+//UTILS
+/////////
+
 /**Escapes string arguments that are URI encoded */
 function _EscapeArgs(args) {
   if (!args || args.length === 0) return;
@@ -1420,4 +1548,233 @@ function _EscapeJSON(str) {
   return str.replaceAll(/\r?\n|\r/g, "\\n").replaceAll(/\\/g, "\\\\");
 }
 
+function _DumpLogs(erase) {
+  for (var i = 0; i < local_logs.length; i++) {
+    writeLn(local_logs[i]);
+  }
+  if (erase === undefined || erase) local_logs = [];
+}
+
 _SetGlobalCurrentPath();
+
+//////////
+//TESTING
+//////////
+
+/**
+ * Testing function: Finds the "Control" layer inside the "MasterOtM" composition,
+ * locates an effect called "Additional Property", and adds it to the
+ * Essential Graphics panel with the name "Other Prop".
+ * @returns {string} Stringified JSON result object
+ */
+function Test_AddPropToEGP() {
+  /** @type {{ success: boolean, error_obj?: any }} */
+  var result = { success: false };
+
+  try {
+    // 1. Find the "MasterOtM" composition in the project
+    /** @type {CompItem|undefined} */
+    var master_comp;
+    for (var i = 1; i <= app.project.numItems; i++) {
+      var item = app.project.item(i);
+      if (item instanceof CompItem && item.name === "MasterOtM") {
+        master_comp = item;
+        break;
+      }
+    }
+    if (master_comp === undefined) {
+      throw new Error("@Test_AddPropToEGP: Composition 'MasterOtM' not found");
+    }
+
+    // 2. Find the layer called "Controls" inside MasterOtM
+    /** @type {AVLayer|undefined} */
+    var control_layer;
+    for (var i = 1; i <= master_comp.numLayers; i++) {
+      var layer = master_comp.layer(i);
+      if (layer.name === "Controls") {
+        control_layer = /** @type {AVLayer} */ (layer);
+        break;
+      }
+    }
+    if (control_layer === undefined) {
+      throw new Error("@Test_AddPropToEGP: Layer 'Control' not found in 'MasterOtM'");
+    }
+
+    // 3. Find the effect called "Additional Property" on the Control layer
+    var effects = /** @type {PropertyGroup} */ (control_layer.property("ADBE Effect Parade"));
+    if (effects === null || effects === undefined) {
+      throw new Error("@Test_AddPropToEGP: No effects found on layer 'Control'");
+    }
+
+    /** @type {PropertyGroup|undefined} */
+    var target_effect;
+    for (var i = 1; i <= effects.numProperties; i++) {
+      var effect = effects.property(i);
+      if (effect.name === "Additional Property") {
+        target_effect = /** @type {PropertyGroup} */ (effect);
+        break;
+      }
+    }
+    if (target_effect === undefined) {
+      throw new Error("@Test_AddPropToEGP: Effect 'Additional Property' not found on layer 'Control'");
+    }
+
+    // 4. Add the effect property to the Essential Graphics panel with the name "Other Prop"
+    var added = /** @type {Property<any>} */ (target_effect.property(1)).addToMotionGraphicsTemplateAs(master_comp, "Other Prop");
+
+    result.success = true;
+    return JSON.stringify(result);
+  } catch (e) {
+    result.success = false;
+    result.error_obj = e;
+    result.error_obj.source = "host.jsx @ Test_AddPropToEGP";
+    return JSON.stringify(result);
+  }
+}
+
+/**
+ * Visual diff test helper. Intended for use in testing only.
+ *
+ * Imports the rendered video at `render_path` into the project, then finds a
+ * PNG with the same base name inside the project folder named "expected".
+ * It replaces:
+ *   - The "Origin" layer in "CompareResults" with the render footage.
+ *   - The "Expected" layer in "CompareResults" with the matching PNG footage.
+ *
+ * Finally it reads the RGBA value produced by the expression on the
+ * "ResultText" layer (sourceText property) and returns it.
+ * A result of [0, 0, 0, 1] means the render matches the expected output.
+ *
+ * @param {string} render_path - Absolute path to the rendered video file.
+ * @returns {string} Stringified JSON of `CheckRenderResultResult` object.
+ */
+function Test_CheckRenderResult(render_path) {
+  _EscapeArgs(arguments);
+
+  /** @type {CheckRenderResultResult} */
+  var response = { success: false };
+
+  try {
+    // ── 1. Resolve / import the render footage ────────────────────────────
+    var render_file = new File(render_path);
+    if (!render_file.exists) {
+      throw new Error("Render file not found: " + render_path);
+    }
+
+    // Derive the expected PNG name from the render file base name.
+    // e.g. "output_row0.mp4" → "output_row0.png"
+    var render_name = render_file.name; // includes extension
+    var base_name = render_name.substring(0, render_name.lastIndexOf("."));
+    var expected_name = base_name + ".png";
+
+    // ── 2. Find the "expected" folder item ───────────────────────────────
+    /** @type {FolderItem|undefined} */
+    var expected_folder;
+    for (var i = 1; i <= app.project.numItems; i++) {
+      var item = app.project.item(i);
+      if (item instanceof FolderItem && item.name === "Expected") {
+        expected_folder = item;
+        break;
+      }
+    }
+    if (expected_folder === undefined) {
+      throw new Error("Project folder 'expected' not found");
+    }
+
+    // ── 3. Find the matching PNG footage inside the expected folder ────────
+    /** @type {FootageItem|undefined} */
+    var expected_footage;
+    for (var i = 1; i <= expected_folder.numItems; i++) {
+      var f_item = expected_folder.item(i);
+      if (
+        f_item instanceof FootageItem &&
+        f_item.name === expected_name
+      ) {
+        expected_footage = f_item;
+        break;
+      }
+    }
+    if (expected_footage === undefined) {
+      throw new Error("Expected PNG not found in 'expected' folder: " + expected_name);
+    }
+
+    // ── 4. Import (or retrieve) the render footage ────────────────────────
+    var render_footage = _ResolveFootageItem(render_path, "To Compare");
+
+    // ── 5. Find the "CompareResults" composition ──────────────────────────
+    /** @type {CompItem|undefined} */
+    var compare_comp;
+    for (var i = 1; i <= app.project.numItems; i++) {
+      var c_item = app.project.item(i);
+      if (c_item instanceof CompItem && c_item.name === "CompareResults") {
+        compare_comp = c_item;
+        break;
+      }
+    }
+    if (compare_comp === undefined) {
+      throw new Error("Composition 'CompareResults' not found in the project");
+    }
+
+    // ── 6. Replace sources for "Origin" and "Expected" layers ─────────────
+    /** @type {AVLayer|undefined} */
+    var origin_layer;
+    /** @type {AVLayer|undefined} */
+    var expected_layer;
+
+    for (var i = 1; i <= compare_comp.numLayers; i++) {
+      var layer = compare_comp.layer(i);
+      if (layer.name === "Origin") {
+        origin_layer = /** @type {AVLayer} */ (layer);
+      } else if (layer.name === "Expected") {
+        expected_layer = /** @type {AVLayer} */ (layer);
+      }
+    }
+
+    if (origin_layer === undefined) {
+      throw new Error("Layer 'Origin' not found in 'CompareResults'");
+    }
+    if (expected_layer === undefined) {
+      throw new Error("Layer 'Expected' not found in 'CompareResults'");
+    }
+
+    origin_layer.replaceSource(render_footage, false);
+    expected_layer.replaceSource(expected_footage, false);
+
+    // ── 7. Read the color from "ResultText" expression sourceText ─────────
+    /** @type {TextLayer|undefined} */
+    var result_text_layer;
+    for (var i = 1; i <= compare_comp.numLayers; i++) {
+      if (compare_comp.layer(i).name === "ResultText") {
+        result_text_layer = /** @type {TextLayer} */ (compare_comp.layer(i));
+        break;
+      }
+    }
+    if (result_text_layer === undefined) {
+      throw new Error("Layer 'ResultText' not found in 'CompareResults'");
+    }
+
+    // The expression on sourceText evaluates sampleImage() which returns an
+    // [r, g, b, a] array. AE evaluates expressions lazily; set the comp time
+    // to 0 so we get a deterministic frame before reading.
+    compare_comp.time = 0;
+
+    var source_text_prop = /** @type {Property<any>} */ (
+      result_text_layer.property("Source Text")
+    );
+    var raw_text = source_text_prop.value.text;
+
+    // The expression output is "r,g,b,a" — wrap in brackets for JSON.parse
+    var color = JSON.parse("[" + raw_text + "]");
+
+    response.color = /** @type {[number, number, number, number]} */ (color);
+    response.success = true;
+  } catch (e) {
+    response.success = false;
+    response.error_obj = e;
+    response.error_obj.source = "host.jsx @ CheckRenderResult";
+  }
+
+  return JSON.stringify(response);
+}
+
+

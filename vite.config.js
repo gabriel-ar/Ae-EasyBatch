@@ -26,17 +26,31 @@ export default defineConfig(({ command, mode }) => {
         targets: [
           // Copy the manifest file, and update the version and main file path depending on mode
           {
-            src: 'CSXS/*',
+            src: 'src/host/manifest.xml',
             dest: 'dist/CSXS',
             transform: (contents, filename) => contents.toString()
               .replaceAll('_VERSION_', version)
+              .replaceAll('_EXTENSION_ID_', `com.setreports.${packageJson.name}`)
               .replace('_MAIN_FILE_', mode === 'development' ? './dev.html' : './index.html')
           },
+          //Copy debug files (only in development mode)
+          ...(mode === 'development' ? [
+            {
+              src: ['src/host/dev.html', 'src/host/.debug'],
+              dest: 'dist',
+              transform: (contents, filename) => {
+                  return contents.toString()
+                    .replaceAll('_VERSION_', version)
+                    .replaceAll('_EXTENSION_ID_', `com.setreports.${packageJson.name}`);                
+              }
+            }
+          ] : []),
           // Copy host files (ExtendScript files)
           {
-            src: 'host/*',
+            src: ['src/host/host.jsx', 'src/host/json2.js'],
             dest: 'dist/host'
-          }
+          },
+
         ],
         verbose: true,
         hook: command === 'build' ? 'writeBundle' : 'buildStart'

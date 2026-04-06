@@ -1,4 +1,4 @@
-import { Settings, Template } from "./Settings.ts"
+import { type ProjSettings, type ProjData, type TemplateData, type ColumnData, type Comp } from "./Settings.svelte.js"
 
 export type ResponseErrorBase = {
   /** If the project name is not found */
@@ -6,6 +6,9 @@ export type ResponseErrorBase = {
 
   /** If the project id does not match */
   id_mismatch?: boolean;
+
+  /** Raw unparseable response string, set when JSON.parse fails */
+  raw_response?: string;
 
   /** If there are no templates */
   no_templates?: boolean;
@@ -15,6 +18,17 @@ export type ResponseErrorBase = {
 
   /** If the project name is not found */
   no_project_name?: boolean;
+
+  /** Identifies which host.jsx function produced this error */
+  source?: string;
+
+  reasons?: {
+    not_found?: boolean;
+    id_mismatch?: boolean;
+    no_templates?: boolean;
+    no_settings?: boolean;
+    no_project_name?: boolean;
+  };
 }
 
 export type ResponseError = ResponseErrorBase & Error;
@@ -31,10 +45,17 @@ export class SaveSettsRequest extends Request {
 
   /** Project name */
   project_name: string;
-  /** Settings object */
-  setts: Settings;
+  
+    /** Project data to save */
+  proj_data?: ProjData;
+
+  /** Settings to save */
+  proj_settings?: ProjSettings;
+
   /** Defined if we should save the settings on a project that doesn't have any */
   is_new?: boolean;
+
+  project_id: string;
 }
 
 /** Base result type */
@@ -49,8 +70,9 @@ export interface Result {
 
 /** Result for getting settings */
 export interface GetSettsResult extends Result {
-  /** Stringified JSON of the `Settings` object */
-  setts?: string;
+  proj_data: ProjData;
+  proj_settings: ProjSettings;
+
   /** True if not found */
   not_found?: boolean;
   /** Project name */
@@ -58,20 +80,35 @@ export interface GetSettsResult extends Result {
 }
 
 /** Result for getting templates */
+
+/**
+ * The subset of ColumnData that host.jsx populates during a template scan.
+ * The client fills in the remaining fields via ColumnHelper.FromJson().
+ */
+export type HostColumnData = Pick<ColumnData, 'cont_name' | 'type' | 'values'>;
+
+/**
+ * The subset of TemplateData that host.jsx populates during a template scan.
+ * The client merges these with stored settings via SettingsHelper.UpdateTemplates().
+ */
+export type HostTemplateData = Pick<TemplateData, 'comp' | 'comp_id' | 'name' | 'dep_comps'> & {
+  columns: HostColumnData[];
+};
+
 export interface GetTmplsResult extends Result {
-  /** Array of templates */
-  tmpls?: Template[];
+  /** Array of partial templates as scanned from AE — merged with stored settings on the client */
+  tmpls?: HostTemplateData[];
 }
 
 /** Result for getting settings */
 export interface GetAllCompsResult extends Result {
   /** Collection of after effects compositions*/
-  comps?: {id: string; name: string; is_dependent: boolean}[];
+  comps?: {id: number; name: string}[];
 }
 
 export interface GetSelectedCompsResult extends Result {
   /** Collection of selected after effects compositions*/
-  comps?: {id: string; name: string;}[];
+  comps?: {id: number; name: string;}[];
 }
 
 /** Result for rendering settings */
@@ -91,7 +128,7 @@ export type RowRenderResult ={
   /** Row number */
   row: number;
   /**Status */
-  status: 'success' | 'error' | 'warning';
+  status: 'success' | 'error' | 'warning'| 'stopped';
   /** If successful, the path to the rendered file */
   rendered_path?: string;
   /** If not successful, the error message (user facing) */
@@ -102,6 +139,8 @@ export type RowRenderResult ={
 export interface BatchRenderResult extends Result {
   /** Array of row render results */
   row_results?: RowRenderResult[];
+
+  user_stopped?: boolean;
 }
 
 /** Result for saving settings */
@@ -114,13 +153,27 @@ export type BatchGenerateResult = Result;
 export type PreviewRowResult = Result;
 
 /** Result for getting current values */
-export interface GetCurrentValuesResults {
+export interface GetCurrentValuesResults extends Result {
   /** Array of name/value pairs */
   values: { name: string; value: string }[];
 }
 
 /** Result for checking if same project */
-export interface IsSameProjectResult extends Result {
-  /** True if same project */
-  same_project: boolean;
+export interface ProjectIdResult extends Result {
+ id: string;
+}
+
+/**
+ * Result for CheckRenderResult.
+ * Returns the RGBA color sampled from the ResultText layer of the CompareResults
+ * composition after swapping in the rendered file and its expected PNG reference.
+ * A value of [0,0,0,1] (pure black, full alpha) means the render matches the expected output.
+ */
+export interface CheckRenderResultResult extends Result {
+  /**
+   * The RGBA color array [r, g, b, a] sampled from the ResultText expression layer.
+   * Values are in the 0–1 range as returned by sampleImage().
+   * Undefined if the operation failed before the sample could be read.
+   */
+  color?: [number, number, number, number];
 }

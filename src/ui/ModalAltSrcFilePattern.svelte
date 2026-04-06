@@ -1,12 +1,16 @@
-<script>
-  import CSAdapter from "../lib/CSAdapter.ts";
-  import { getContext, onMount } from "svelte";
-  import { l } from "./States.svelte.ts";
-    import Dropdown from "./Dropdown.svelte";
+<script lang="ts">
+  /**
+   * Input modal to enter the pattern to find the alternate source files for a column
+   */
+
+  import { onMount } from "svelte";
+  import { l, s, csa } from "./States.svelte.ts";
+  import Dropdown from "./Dropdown.svelte";
+  import { ColumnHelper } from "../lib/Settings.svelte.ts";
+    import { CheckCircled, ExclamationTriangle } from "radix-icons-svelte";
 
   let {
     show = $bindable(false),
-    tmpl,
     col_i,
     onclose = $bindable(() => {}),
   } = $props();
@@ -14,8 +18,10 @@
   let sel_add_field = $state("base_path");
   let preview = $state("");
 
-  let pattern = $state();
-  let base_path = $state();
+  let pattern = $state("");
+  let base_path = $state("");
+
+  const tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
   onMount(() => {
     pattern = tmpl.columns[col_i].alt_src_pattern;
@@ -23,8 +29,11 @@
   });
 
   function AddField() {
-    /**@type {HTMLTextAreaElement}*/
-    let save_pattern_ta = document.querySelector("#alt_src_pattern_ta");
+    let save_pattern_ta = document.querySelector<HTMLTextAreaElement>(
+      "#alt_src_pattern_ta",
+    );
+
+    console.debug("cursor_pos:", save_pattern_ta.selectionStart);
 
     let cursor_pos = save_pattern_ta.selectionStart;
     let old_val = pattern;
@@ -35,17 +44,18 @@
       `{${sel_add_field}}` +
       old_val.slice(cursor_pos);
 
-    tmpl = tmpl;
-    l.debug("[ModalAltSrc] AddField called with pattern:", pattern);
+      save_pattern_ta.focus();
+      save_pattern_ta.selectionStart = save_pattern_ta.selectionEnd =
+        cursor_pos + sel_add_field.length + 2;
+
+    l.debug("[ModalAltSrc] AddField solved pattern:", pattern);
   }
 
   /**
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    let csa = new CSAdapter();
-
-    csa.OpenFolderDialog(base_path?base_path:undefined).then((result) => {
+    csa.OpenFolderDialog(base_path ? base_path : undefined).then((result) => {
       if (result === null) return;
 
       base_path = result;
@@ -54,7 +64,6 @@
 
   $effect(() => {
     UpdatePreview(pattern, base_path);
-    //l.debug('Effect triggered: UpdatePreview');
   });
 
   function UpdatePreview(dummy, dummy2) {
@@ -63,13 +72,51 @@
     col.alt_src_pattern = pattern;
     col.alt_src_base = base_path;
 
-    preview = col.ResolveAltSrcPath(0, tmpl.columns);
+    preview = ColumnHelper.ResolveAltSrcPath(col, 0, tmpl.columns);
+
+    if (file_exists_to) clearTimeout(file_exists_to);
+    file_exists_to = setTimeout(FileExists, 1000);
+
+    file_exists = "";
+
     l.debug(
       "[ModalAltSrc] UpdatePreview called with pattern:",
       pattern,
       "and base_path:",
       base_path,
     );
+  }
+
+  let file_exists = $state("");
+  let file_exists_to;
+  async function FileExists() {
+    if(pattern === "" || preview === "") {
+      file_exists = "";
+      return;
+    }
+
+    const fs = window.require("fs");
+    const path = window.require("path");
+
+    const proj_folder = (await csa.EvalDirectAsync(
+      `app.project.file.parent.fsName`,
+    )) as string;
+    let file = path.join(proj_folder, preview);
+
+    console.debug("[ModalAltSrc] Checking if file exists at path:", file);
+
+    fs.stat(file, (err, stats) => {
+      if (err) {
+        if (err.code === "ENOENT") {
+          file_exists = "no";
+        } else {
+          console.error("Error checking file existence:", err);
+          file_exists = "";
+        }
+      } else {
+        file_exists = stats.isFile() ? "yes" : "no";
+      }
+    });
   }
 
   function CloseDialog() {
@@ -95,7 +142,7 @@
         <div>
           <button onclick={SelectBasePath}>Pick Base Path</button>
 
-          <Dropdown 
+          <Dropdown
             bind:value={sel_add_field}
             labels={[
               "<b>Base Path</b>",
@@ -110,14 +157,20 @@
               ...tmpl.columns.map((col) => col.cont_name),
             ]}
             title="Add Field..."
-            onselect={() => AddField()}
-            />
+            onselect={() => AddField()} />
         </div>
       </div>
 
       <div style="margin-bottom: 10px;">
         <span>Preview:</span>
         <span class="out_prev">{preview}</span>
+        <span style="margin-left: 10px; vertical-align: -webkit-baseline-middle;" data-tooltip={file_exists === "yes" ? "File exists" : "File not found"}>
+          {#if file_exists === "yes"}
+            <CheckCircled color="green" size={17} />
+          {:else if file_exists === "no"}
+            <ExclamationTriangle color="yellow" size={17} />
+          {/if}
+        </span> 
       </div>
 
       <div class="modal-actions">

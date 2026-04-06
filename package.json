@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "papaparse": "^5.5.2",
-    "radix-icons-svelte": "^1.2.1"
+    "radix-icons-svelte": "^1.2.1",
+    "types-for-adobe": "^7.2.5"
   }
 }

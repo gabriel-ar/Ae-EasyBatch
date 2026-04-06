@@ -1,6 +1,5 @@
 <script>
-  import { getContext } from "svelte";
-  import { Column } from "../lib/Settings.ts";
+  import { ColumnHelper } from "../lib/Settings.svelte.ts";
   import { l } from "./States.svelte.ts";
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "../lib/CSAdapter.ts";
@@ -19,13 +18,12 @@
    * Updates the src alternate display
    */
   $effect(() => {
-    if (type === Column.PropertyValueType.SRC_ALTERNATE) {
+    if (type === ColumnHelper.PropertyValueType.SRC_ALTERNATE) {
       if (value.length > 45) {
         src_alt_val = "..." + value.substr(value.length - 45, value.length);
       } else {
         src_alt_val = value;
       }
-      //l.debug('SRC_ALTERNATE effect triggered with value:', value);
     }
   });
 
@@ -39,7 +37,7 @@
    *  to display it in color input picker
    */
   $effect(() => {
-    if (type === Column.PropertyValueType.COLOR) {
+    if (type === ColumnHelper.PropertyValueType.COLOR) {
       UpdateColorHex(value);
       //l.debug('COLOR effect triggered with value:', value);
     }
@@ -75,7 +73,7 @@
       let g = parseInt(hex.slice(2, 4), 16) / 255;
       let b = parseInt(hex.slice(4, 6), 16) / 255;
 
-      value = [r, g, b];
+      value = [r, g, b, 1];
       hex_color = hex;
 
       DebounceChange();
@@ -231,18 +229,18 @@
   }
 </script>
 
-{#if type === Column.PropertyValueType.TEXT_DOCUMENT}
+{#if type === ColumnHelper.PropertyValueType.TEXT_DOCUMENT}
   {@render text_input()}
-{:else if type === Column.PropertyValueType.OneD}
+{:else if type === ColumnHelper.PropertyValueType.OneD}
   {@render slider("X")}
   {@render number_input()}
-{:else if type === Column.PropertyValueType.TwoD || type === Column.PropertyValueType.TwoD_SPATIAL}
+{:else if type === ColumnHelper.PropertyValueType.TwoD || type === ColumnHelper.PropertyValueType.TwoD_SPATIAL}
   {@render slider("X", 0)}
   {@render array_input(0)}
 
   {@render slider("Y", 1)}
   {@render array_input(1)}
-{:else if type === Column.PropertyValueType.ThreeD || type === Column.PropertyValueType.ThreeD_SPATIAL}
+{:else if type === ColumnHelper.PropertyValueType.ThreeD || type === ColumnHelper.PropertyValueType.ThreeD_SPATIAL}
   {@render slider("X", 0)}
   {@render array_input(0)}
 
@@ -251,7 +249,7 @@
 
   {@render slider("Z", 2)}
   {@render array_input(2)}
-{:else if type === Column.PropertyValueType.COLOR}
+{:else if type === ColumnHelper.PropertyValueType.COLOR}
   <button
     class="color_show"
     style="background-color: #{hex_color};"
@@ -266,7 +264,7 @@
       style="width: 60px;"
       onchange={(e) => UpdateColor4D(e)} />
   </div>
-{:else if type === Column.PropertyValueType.SRC_ALTERNATE}
+{:else if type === ColumnHelper.PropertyValueType.SRC_ALTERNATE}
   <div style="display: inline;">
     {@html src_alt_val}
     <button

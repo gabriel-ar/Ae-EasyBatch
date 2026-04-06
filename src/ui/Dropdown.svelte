@@ -1,7 +1,6 @@
 <script lang="ts">
   import { ChevronDown } from "radix-icons-svelte";
   import { l } from "./States.svelte.ts";
-  import { getContext } from "svelte";
 
   let {
     value = $bindable(),
@@ -65,7 +64,7 @@
   }
 
   //Update displayed options when original options or labels change
-    $effect(() => {
+  $effect(() => {
     show_options = options;
     show_labels = labels !== undefined ? labels : options;
   });

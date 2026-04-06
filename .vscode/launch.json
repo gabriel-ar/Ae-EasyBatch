@@ -26,14 +26,17 @@
             "type": "extendscript-debug",
             "hostAppSpecifier": "aftereffects-26.0",
             "request": "attach",
+            "windows": {
+                "aliasPath": "C:\\Users\\Gabe\\AppData\\Roaming\\Adobe\\CEP\\extensions\\EasyBatch"
+            }
         },
         {
             "name": "Launch in CEP",
             "type": "extendscript-debug",
             "request": "launch",
             "hostAppSpecifier": "aftereffects-26.0",
-            "script": "${workspaceFolder}/host/host.jsx",
             "bringToFront": false,
+            "script": "${workspaceFolder}/src/host/host.jsx",
         },
     ]
 }
