@@ -66,6 +66,26 @@ interface XMPConstConstructor {
   BOOLEAN: number;
 }
 
+// ─── Property augmentations ──────────────────────────────────────────────────
+// types-for-adobe 24.6 doesn't include newer Property attributes.
+// Extend the generic interface so host.jsx can reference them with type-safety.
+
+interface Property<T> {
+  /**
+   * When `true`, the property is the Menu property of a Dropdown Menu Control
+   * effect and can have its items updated with setPropertyParameters.
+   * Available since After Effects 17.0.1 (2020).
+   */
+  readonly isDropdownEffect: boolean;
+
+  /**
+   * An array of all item strings in a dropdown menu property.
+   * Available since After Effects 26.0. On older versions accessing this will
+   * throw or return `undefined`.
+   */
+  readonly propertyParameters: string[] | undefined;
+}
+
 // ─── AVLayer / Layer augmentations ───────────────────────────────────────────
 // types-for-adobe 24.6 omits essentialProperty from AVLayer and source from the
 // base Layer class. Use interface merging (interfaces can augment classes in TS)

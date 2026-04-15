@@ -144,6 +144,8 @@ export interface ColumnData {
   menu_params: string[];
   alt_src_pattern: string;
   alt_src_base: string;
+  /**Hint for the UI on how to display/edit this column's values.*/
+  display?: "checkbox" | "menu";
 }
 
 export class TemplateHelper {
@@ -594,6 +596,7 @@ export class ColumnHelper {
       menu_params: [],
       alt_src_pattern: "",
       alt_src_base: "",
+      display: undefined,
     };
   }
 
@@ -649,6 +652,9 @@ export class ColumnHelper {
       col.type = new_col.type;
       col.values = new Array(col.values.length).fill("");
     }
+    // Always refresh display hint and menu options from the latest scan
+    col.display = new_col.display;
+    col.menu_params = new_col.menu_params;
   }
 
   static ValidateValue(value: any, type: number) {

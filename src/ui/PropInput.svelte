@@ -5,8 +5,8 @@
   import CSAdapter from "../lib/CSAdapter.ts";
   import { File } from "radix-icons-svelte";
 
-  /** @type {{ value: any, type:any, onchange?: function(value):void, inline?: boolean}}*/
-  let { value = $bindable(), type, onchange, inline = true } = $props();
+  /** @type {{ value: any, type:any, onchange?: function(value):void, inline?: boolean, display?: "checkbox" | "menu", menu_params?: string[]}}*/
+  let { value = $bindable(), type, onchange, inline = true, display, menu_params = [] } = $props();
 
   let is_color_update = false;
 
@@ -229,7 +229,27 @@
   }
 </script>
 
-{#if type === ColumnHelper.PropertyValueType.TEXT_DOCUMENT}
+{#if display === "checkbox"}
+  <input
+    class:inline_input={inline}
+    type="checkbox"
+    checked={value === 1 || value === true}
+    onchange={(e) => { value = e.currentTarget.checked ? 1 : 0; CallChange(); }} />
+{:else if display === "menu"}
+  {#if menu_params.length > 0}
+    <select
+      value={value}
+      onchange={(e) => { value = parseInt(e.currentTarget.value); CallChange(); }}>
+      {#each menu_params as item, i}
+          <option value={i + 1}>{item}</option>
+      {/each}
+    </select>
+  {:else}
+    <!-- propertyParameters unavailable on this AE version — fall back to number -->
+    {@render slider("X")}
+    {@render number_input()}
+  {/if}
+{:else if type === ColumnHelper.PropertyValueType.TEXT_DOCUMENT}
   {@render text_input()}
 {:else if type === ColumnHelper.PropertyValueType.OneD}
   {@render slider("X")}

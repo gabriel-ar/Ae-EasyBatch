@@ -79,6 +79,11 @@ function GetTemplates() {
           var t_type = templ_prop.propertyValueType;
           var val = "";
 
+          /** @type {ColumnData["display"]} */
+          var display = undefined;
+          /** @type {string[]} */
+          var menu_params = [];
+
           if (templ_prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT) {
             val = templ_prop.value.text;
           } else if (templ_prop.canSetAlternateSource && templ_prop.matchName === "ADBE Layer Source Alternate") {
@@ -86,12 +91,33 @@ function GetTemplates() {
           } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE
             && templ_prop.matchName !== "ADBE Layer Overrides Comment") {
             val = templ_prop.value;
+
+            // Detect display hint for OneD properties that are really checkboxes or menus
+            if (templ_prop.propertyValueType === PropertyValueType.OneD) {
+
+              if (templ_prop.isDropdownEffect === true) {
+                display = "menu";
+
+                // propertyParameters is available since AE 26.0
+                var params = templ_prop.propertyParameters;
+                if (params !== undefined && params.length !== undefined) {
+                  for (var i_p = 0; i_p < params.length; i_p++) {
+                    menu_params.push(params[i_p]);
+                  }
+                }
+              }
+              else if (templ_prop.matchName.indexOf("ADBE Checkbox") !== -1) {
+                display = "checkbox";
+              }
+            }
           }
 
           cols.push({
             cont_name: templ_prop.name,
             type: t_type,
             values: [val],
+            display: display,
+            menu_params: menu_params,
           });
         }
 
