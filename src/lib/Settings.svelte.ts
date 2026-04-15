@@ -314,6 +314,10 @@ export class TemplateHelper {
         tmpl.columns[i_col].values[index]
       );
     }
+
+    // Remove characters forbidden in file/folder names (Windows & macOS)
+    pattern = pattern.replace(/[<>"|?*]/g, "");
+
     return pattern;
   }
 
@@ -368,6 +372,10 @@ export class TemplateHelper {
         tmpl.columns[i_col].values[index]
       );
     }
+
+    // Remove characters forbidden in file/folder names (Windows & macOS)
+    pattern = pattern.replace(/[<>"|?*]/g, "");
+
     return pattern;
   }
 
@@ -607,6 +615,10 @@ export class ColumnHelper {
         columns[i_col].values[index]
       );
     }
+
+    // Remove characters forbidden in file/folder names (Windows & macOS)
+    pattern = pattern.replace(/[<>"|?*]/g, "");
+
     return pattern;
   }
 
