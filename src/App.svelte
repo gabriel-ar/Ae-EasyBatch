@@ -1275,6 +1275,8 @@
                     <PropInput
                       bind:value={sel_tmpl.columns[td_col_i].values[row_i]}
                       type={sel_tmpl.columns[td_col_i].type}
+                      display={sel_tmpl.columns[td_col_i].display}
+                      menu_params={sel_tmpl.columns[td_col_i].menu_params}
                       onchange={() => {
                         PreviewRow(row_i, true);
                       }} />
@@ -1346,6 +1348,8 @@
                   inline={false}
                   bind:value={sel_tmpl.columns[td_col_i].values[curr_row_i]}
                   type={sel_tmpl.columns[td_col_i].type}
+                  display={sel_tmpl.columns[td_col_i].display}
+                  menu_params={sel_tmpl.columns[td_col_i].menu_params}
                   onchange={() => {
                     PreviewRow(curr_row_i, true);
                   }} />

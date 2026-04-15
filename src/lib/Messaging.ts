@@ -85,7 +85,7 @@ export interface GetSettsResult extends Result {
  * The subset of ColumnData that host.jsx populates during a template scan.
  * The client fills in the remaining fields via ColumnHelper.FromJson().
  */
-export type HostColumnData = Pick<ColumnData, 'cont_name' | 'type' | 'values'>;
+export type HostColumnData = Pick<ColumnData, 'cont_name' | 'type' | 'values' | 'display' | 'menu_params'>;
 
 /**
  * The subset of TemplateData that host.jsx populates during a template scan.
