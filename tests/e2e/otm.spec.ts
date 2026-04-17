@@ -26,6 +26,25 @@ test.beforeAll(async () => {
 // Run tests in this suite sequentially to maintain state
 test.describe.configure({ mode: 'serial' });
 
+/**
+ * Wait for the CEF page execution context to be ready.
+ * After events that reload the page (app.open, window.location.reload)
+ * the old context is destroyed; any Puppeteer call will throw until the
+ * new context finishes loading.  This helper retries until #app is found.
+ */
+async function WaitForPageContext(page: Page, timeoutMs = 15_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        try {
+            await page.waitForSelector('#app', { timeout: 3000 });
+            return;
+        } catch {
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+    throw new Error(`Page context did not become ready within ${timeoutMs}ms`);
+}
+
 test.describe('Load the test project', async () => {
 
     test('sould close the previously opened project without saving', async () => {
@@ -61,6 +80,11 @@ test.describe('Reset and load template', async () => {
 
     test('dismises the "no templates" message if shown', async () => {
 
+        // After loading a new project the CEP extension reloads, which
+        // destroys the old page execution context.  Poll until the new
+        // context is ready.
+        await WaitForPageContext(page);
+
         const fs_no_tmpls = await page.$('.fs_no_tmpls');   
         if (fs_no_tmpls) {
             const dismissBtn = await fs_no_tmpls.$('button::-p-text(Reload)');
@@ -92,6 +116,11 @@ test.describe('Reset and load template', async () => {
         const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)', { timeout: 2000 });
         expect(resetButton, 'has Reset to Default button').toBeTruthy();
         await resetButton!.tap();
+
+        // ResetSettings() calls setTimeout(() => window.location.reload(), 1000)
+        // Wait for the reload to fire, then for the new context to be ready.
+        await new Promise(r => setTimeout(r, 1500));
+        await WaitForPageContext(page);
     });
 
     test('should find and select the template in the dropdown', async () => {
@@ -110,6 +139,8 @@ test.describe('Reset and load template', async () => {
         expect(await page.$('.dat_table th::-p-text(RepPos )'), 'table has RepPos header').toBeTruthy();
         expect(await page.$('.dat_table th::-p-text(RepImage )'), 'table has RepImage header').toBeTruthy();
         expect(await page.$('.dat_table th::-p-text(CommentField )'), 'table has CommentField header').toBeTruthy();
+        expect(await page.$('.dat_table th::-p-text(CB )'), 'table has CB header').toBeTruthy();
+        expect(await page.$('.dat_table th::-p-text(Select )'), 'table has Select header').toBeTruthy();
     });
 
     test('should display the default data from the template', async () => {
@@ -131,6 +162,9 @@ test.describe('Reset and load template', async () => {
 
         const img_in = await firstRow!.$('td:nth-child(6) button');
         expect(img_in, 'image input cell has default data').toBeTruthy();
+
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'checkbox input cell has default data').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'menu input cell has default data').toBe('1');
     });
 
     test('should allow for file path setup for the image replaceable', async () => {
@@ -208,6 +242,8 @@ test.describe('Filling Data', async () => {
         const img_in = await new_row?.$('td:nth-child(6)');
         expect(await img_in?.$('button'), 'new row has image input cell with setup button').toBeTruthy();
         expect(await GetCell(page, CellType.Image, 2, 6), 'new row has image input cell with expected file path').toBe("./assets/headshot1.jpg");
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'new row has checkbox input cell with default value').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'new row has menu input cell with default value').toBe('1');
     });
 
     test('edit the contents of the second row', async () => {
@@ -218,6 +254,8 @@ test.describe('Filling Data', async () => {
         await EditCell(page, CellType.Color, 2, 3, 'aa2233');
         await EditCell(page, CellType.D1, 2, 4, '123');
         await EditCell(page, CellType.D3, 2, 5, { x: '400', y: '500', z: '600' });
+        await EditCell(page, CellType.Checkbox, 2, 8, '0');
+        await EditCell(page, CellType.Menu, 2, 9, '2');
 
         // Verify the changes
         expect(await GetCell(page, CellType.Text, 2, 2), 'text input cell was updated').toBe('Row Two Custom');
@@ -227,6 +265,9 @@ test.describe('Filling Data', async () => {
         expect(updatedPos.x, 'triple dimension number input cell was updated for X').toBe('400');
         expect(updatedPos.y, 'triple dimension number input cell was updated for Y').toBe('500');
         expect(updatedPos.z, 'triple dimension number input cell was updated for Z').toBe('600');
+
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'checkbox input cell was updated').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'menu input cell was updated').toBe('2');
 
         let footerInfo = page.waitForFunction(
             () => {
@@ -255,6 +296,8 @@ test.describe('Filling Data', async () => {
 
         expect(await GetCell(page, CellType.Image, 1, 6), 'image path preview is unchanged').toBe('./assets/headshot0.jpg');
         expect(await GetCell(page, CellType.Text, 1, 7), 'comment field is unchanged').toBe('headshot');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'checkbox is unchanged').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'menu is unchanged').toBe('1');
 
     });
 
@@ -295,16 +338,22 @@ test.describe('Edit Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text is original').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color is original').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider is original').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox is original').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu is original').toBe('1');
 
         // Row 2: new row cloned from row 1 (defaults)
         expect(await GetCell(page, CellType.Text, 2, 2), 'new row 2 text cloned from row 1').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 2, 3), 'new row 2 color cloned from row 1').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 2, 4), 'new row 2 slider cloned from row 1').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'new row 2 checkbox cloned from row 1').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'new row 2 menu cloned from row 1').toBe('1');
 
         // Row 3: previously row 2 (edited), shifted down
         expect(await GetCell(page, CellType.Text, 3, 2), 'old row 2 shifted to row 3').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 3, 3), 'old row 2 color shifted to row 3').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 3, 4), 'old row 2 slider shifted to row 3').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 3, 8), 'old row 2 checkbox shifted to row 3').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 3, 9), 'old row 2 menu shifted to row 3').toBe('2');
     });
 
     test('should add a row before the current row via Edit menu', async () => {
@@ -328,15 +377,21 @@ test.describe('Edit Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'new row 1 text is default').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'new row 1 color is default').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'new row 1 slider is default').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'new row 1 checkbox is default').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'new row 1 menu is default').toBe('1');
 
         // Row 2: original defaults (shifted from old row 1)
         expect(await GetCell(page, CellType.Text, 2, 2), 'original row shifted to row 2').toBe('Linked text');
         expect(await GetCell(page, CellType.D1, 2, 4), 'original row 2 slider is default').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'original row 2 checkbox is default').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'original row 2 menu is default').toBe('1');
 
         // Row 4: edited row (should still have distinct values)
         expect(await GetCell(page, CellType.Text, 4, 2), 'edited row at position 4').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 4, 3), 'edited row color at position 4').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 4, 4), 'edited row slider at position 4').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 4, 8), 'edited row checkbox at position 4').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 4, 9), 'edited row menu at position 4').toBe('2');
     });
 
     test('should delete a row via Edit menu', async () => {
@@ -360,10 +415,14 @@ test.describe('Edit Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text is original default').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color is original default').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider is original default').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox is original default').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu is original default').toBe('1');
 
         // Row 3: edited row is still at the end
         expect(await GetCell(page, CellType.Text, 3, 2), 'edited row still at row 3').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.D1, 3, 4), 'edited row slider still at row 3').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 3, 8), 'edited row checkbox still at row 3').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 3, 9), 'edited row menu still at row 3').toBe('2');
     });
 
     test('should delete the middle row to restore to 2 rows', async () => {
@@ -385,10 +444,14 @@ test.describe('Edit Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text intact').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color intact').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider intact').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox intact').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu intact').toBe('1');
 
         expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text intact').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color intact').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider intact').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'row 2 checkbox intact').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'row 2 menu intact').toBe('2');
     });
 
 });
@@ -451,11 +514,15 @@ test.describe('Right-Click Context Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text untouched').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color untouched').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider untouched').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox untouched').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu untouched').toBe('1');
 
         // Row 2: edited row (untouched)
         expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text untouched').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color untouched').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider untouched').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'row 2 checkbox untouched').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'row 2 menu untouched').toBe('2');
 
         // New row 3 should have values cloned from row 2 (the edited row)
         expect(await GetCell(page, CellType.Text, 3, 2), 'new row 3 text cloned from row 2').toBe('Row Two Custom');
@@ -468,6 +535,8 @@ test.describe('Right-Click Context Menu', async () => {
         expect(pos.z, 'new row 3 pos Z cloned from row 2').toBe('600');
 
         expect(await GetCell(page, CellType.Image, 3, 6), 'new row 3 image path cloned from row 2').toBe('./assets/headshot2.jpg');
+        expect(await GetCell(page, CellType.Checkbox, 3, 8), 'new row 3 checkbox cloned from row 2').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 3, 9), 'new row 3 menu cloned from row 2').toBe('2');
     });
 
     test('should delete the added row via context menu to restore state', async () => {
@@ -485,10 +554,14 @@ test.describe('Right-Click Context Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text intact').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color intact').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider intact').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox intact').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu intact').toBe('1');
 
         expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text intact').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color intact').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider intact').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'row 2 checkbox intact').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'row 2 menu intact').toBe('2');
     });
 
     test('should add a row before via context menu', async () => {
@@ -506,15 +579,21 @@ test.describe('Right-Click Context Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'new row 1 text is default').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'new row 1 color is default').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'new row 1 slider is default').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'new row 1 checkbox is default').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'new row 1 menu is default').toBe('1');
 
         // Row 2: original row 1 pushed down (defaults)
         expect(await GetCell(page, CellType.Text, 2, 2), 'original row 1 now at row 2').toBe('Linked text');
         expect(await GetCell(page, CellType.D1, 2, 4), 'original row 1 slider at row 2').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'original row 1 checkbox at row 2').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'original row 1 menu at row 2').toBe('1');
 
         // Row 3: edited row (distinctive values)
         expect(await GetCell(page, CellType.Text, 3, 2), 'edited row at position 3').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 3, 3), 'edited row color at position 3').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 3, 4), 'edited row slider at position 3').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 3, 8), 'edited row checkbox at position 3').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 3, 9), 'edited row menu at position 3').toBe('2');
     });
 
     test('should delete the row added before to restore state', async () => {
@@ -531,10 +610,14 @@ test.describe('Right-Click Context Menu', async () => {
         expect(await GetCell(page, CellType.Text, 1, 2), 'row 1 text intact').toBe('Linked text');
         expect(await GetCell(page, CellType.Color, 1, 3), 'row 1 color intact').toBe('00ffdc');
         expect(await GetCell(page, CellType.D1, 1, 4), 'row 1 slider intact').toBe('55');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox intact').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu intact').toBe('1');
 
         expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text intact').toBe('Row Two Custom');
         expect(await GetCell(page, CellType.Color, 2, 3), 'row 2 color intact').toBe('aa2233');
         expect(await GetCell(page, CellType.D1, 2, 4), 'row 2 slider intact').toBe('123');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'row 2 checkbox intact').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'row 2 menu intact').toBe('2');
     });
 
 });
@@ -865,6 +948,8 @@ test.describe('Final State Verification', async () => {
         expect(pos1.y, 'row 1 pos Y').toBe('20');
         expect(pos1.z, 'row 1 pos Z').toBe('0');
         expect(await GetCell(page, CellType.Text, 1, 7), 'row 1 comment').toBe('headshot');
+        expect(await GetCell(page, CellType.Checkbox, 1, 8), 'row 1 checkbox').toBe('1');
+        expect(await GetCell(page, CellType.Menu, 1, 9), 'row 1 menu').toBe('1');
 
         // Row 2: edited values (distinctive)
         expect(await GetCell(page, CellType.Text, 2, 2), 'row 2 text').toBe('Row Two Custom');
@@ -874,6 +959,8 @@ test.describe('Final State Verification', async () => {
         expect(pos2.x, 'row 2 pos X').toBe('400');
         expect(pos2.y, 'row 2 pos Y').toBe('500');
         expect(pos2.z, 'row 2 pos Z').toBe('600');
+        expect(await GetCell(page, CellType.Checkbox, 2, 8), 'row 2 checkbox').toBe('0');
+        expect(await GetCell(page, CellType.Menu, 2, 9), 'row 2 menu').toBe('2');
     });
 
 });
@@ -1010,8 +1097,8 @@ test.describe('OtM Render', async () => {
         const selRenderSetts = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(2) .dropdown', 'Best Settings');
         expect(selRenderSetts, 'selected Best Settings').toBeTruthy();
 
-        const selOutMode = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(3) .dropdown', 'H.264 - Match Render Settings - 40 Mbps');
-        expect(selOutMode, 'selected H.264 - Match Render Settings - 40 Mbps').toBeTruthy();
+        const selOutMode = await con.DropdownSelect('.out_sub_render_cont .setting:nth-of-type(3) .dropdown', 'High Quality with Alpha');
+        expect(selOutMode, 'selected High Quality with Alpha').toBeTruthy();
 
         //add second export
 
@@ -1064,7 +1151,7 @@ test.describe('OtM Render', async () => {
 
         // 4. Verify each output file was actually written to disk
         for (const p of renderedPaths) {
-            const fullPath = path.join(await GetProjectFilePath(page), p + ".mp4");
+            const fullPath = path.join(await GetProjectFilePath(page), p + ".mov");
 
             let exists = fs.existsSync(fullPath);
             let size = exists ? fs.statSync(fullPath).size : 0;
@@ -1085,7 +1172,7 @@ test.describe('OtM Render', async () => {
         const rendersFolder = path.join(await GetProjectFilePath(page), 'renders', 'otm_test');
 
         let renderedPaths = fs.readdirSync(rendersFolder)
-            .filter(file => file.endsWith('.mp4'))
+            .filter(file => file.endsWith('.mov'))
             .map(file => ({ path: path.join(rendersFolder, file), file: file }));
 
         console.log('Renders to check:', renderedPaths.map(p => p.path));
@@ -1153,7 +1240,9 @@ enum CellType {
     D1,
     D2,
     D3,
-    Image
+    Image,
+    Checkbox,
+    Menu
 }
 
 type CellRef = {
@@ -1216,6 +1305,22 @@ async function EditCell(page: Page, cellType: CellType, row: number, col: number
         }
         case CellType.Image:
             throw new Error(`Image cells are not directly editable via EditCell; use the file path modal instead`);
+        case CellType.Checkbox: {
+            const input = await cell.$('input[type="checkbox"]');
+            if (!input) throw new Error(`Checkbox input not found at row ${row}, col ${col}`);
+            const currentChecked = await input.evaluate(el => (el as HTMLInputElement).checked);
+            const desiredChecked = values === '1' || values === 'true';
+            if (currentChecked !== desiredChecked) {
+                await input.click();
+            }
+            break;
+        }
+        case CellType.Menu: {
+            const select = await cell.$('select');
+            if (!select) throw new Error(`Select input not found at row ${row}, col ${col}`);
+            await select.select(values as string);
+            break;
+        }
         default:
             throw new Error(`Unsupported cell type ${cellType}`);
     }
@@ -1261,6 +1366,17 @@ async function GetCell(page: Page, cellType: CellType, row: number, col: number)
         }
         case CellType.Image: {
             return cell.evaluate(el => el.textContent?.trim() ?? '');
+        }
+        case CellType.Checkbox: {
+            const input = await cell.$('input[type="checkbox"]');
+            if (!input) throw new Error(`Checkbox input not found at row ${row}, col ${col}`);
+            const checked = await input.evaluate(el => (el as HTMLInputElement).checked);
+            return checked ? '1' : '0';
+        }
+        case CellType.Menu: {
+            const select = await cell.$('select');
+            if (!select) throw new Error(`Select input not found at row ${row}, col ${col}`);
+            return select.evaluate(el => (el as HTMLSelectElement).value);
         }
         default:
             throw new Error(`Unsupported cell type ${cellType}`);

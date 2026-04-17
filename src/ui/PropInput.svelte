@@ -231,13 +231,14 @@
 
 {#if display === "checkbox"}
   <input
-    class:inline_input={inline}
+  class="in_cb"
     type="checkbox"
     checked={value === 1 || value === true}
     onchange={(e) => { value = e.currentTarget.checked ? 1 : 0; CallChange(); }} />
 {:else if display === "menu"}
   {#if menu_params.length > 0}
     <select
+      class="in_select"
       value={value}
       onchange={(e) => { value = parseInt(e.currentTarget.value); CallChange(); }}>
       {#each menu_params as item, i}
@@ -365,6 +366,15 @@
     margin-left: 2px;
 
     appearance: none;
+  }
+
+  .in_cb{
+    width: 14px;
+    height: 14px;
+  }
+
+  .in_select {
+    width: -webkit-fill-available;
   }
 
   .color_show {
