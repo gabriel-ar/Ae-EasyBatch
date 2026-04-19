@@ -59,6 +59,12 @@
       if (result === null) return;
 
       base_path = result;
+
+      //add base path is not already in the pattern
+      if (!pattern.includes("{base_path}")) {
+        sel_add_field = "base_path";
+        AddField();
+      }
     });
   }
 
