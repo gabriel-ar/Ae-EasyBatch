@@ -313,7 +313,7 @@
     save_timeout = setTimeout(SaveSettings, 2000, what);
   }
 
-  function SaveSettings(what: "proj" | "setts" | "all" = "all") {
+  async function SaveSettings(what: "proj" | "setts" | "all" = "all"): Promise<boolean> {
     last_type = "";
 
     if (
@@ -323,11 +323,11 @@
       s.proj === undefined ||
       no_tmpls
     )
-      return;
+      return false;
 
     let request = new SaveSettsRequest();
 
-    if(is_new_setts){
+    if (is_new_setts) {
       what = "all";
     }
 
@@ -345,27 +345,32 @@
     l.debug("SaveSettings called with request:", request);
     let s_request = JSON.stringify(request);
 
-    csa.Exec<SaveSettingsResults>("SaveSettings", s_request).then((result) => {
-      is_new_setts = false;
+    //promise used for settings tab reset option
+    return new Promise((resolve, reject) => {
+      csa
+        .Exec<SaveSettingsResults>("SaveSettings", s_request)
+        .then((result) => {
+          is_new_setts = false;
 
-      if (!result.success) {
-        let e = result.error_obj;
-        if (e?.reasons?.id_mismatch) {
-          l.warn(`Different project ID, reloading settings`);
-          StartupSequence();
-          return;
-        } else if (e?.reasons?.no_templates) {
-          l.warn(`No templates to save.`);
-          no_tmpls = true;
-          return;
-        } else {
-          l.error("Failed to save settings", result.error_obj);
-          //todo Handle Failed Save
-          return;
-        }
-      } else {
-        l.log(`Saved Settings`, result);
-      }
+          if (!result.success) {
+            let e = result.error_obj;
+            if (e?.reasons?.id_mismatch) {
+              l.warn(`Different project ID, reloading settings`);
+              StartupSequence();
+              resolve(false);
+            } else if (e?.reasons?.no_templates) {
+              l.warn(`No templates to save.`);
+              no_tmpls = true;
+              resolve(false);
+            } else {
+              l.error("Failed to save settings", result.error_obj);
+              reject(result.error_obj);
+            }
+          } else {
+            l.log(`Saved Settings`, result);
+            resolve(true);
+          }
+        });
     });
   }
 
