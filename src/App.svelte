@@ -1269,6 +1269,12 @@
                     data-tt-pos="top-right"
                     onclick={(e) => OpenRowMenu(e, row_i)}
                     ><HamburgerMenu /></button>
+                  <button
+                    class="delete_row"
+                    data-tooltip="Preview Row"
+                    data-tt-pos="top-right"
+                    onclick={(e) => PreviewRow(row_i)}
+                    ><EyeOpen /></button>
                 </td>
                 {#each sel_tmpl.view_cols as td_col_i}
                   <td
