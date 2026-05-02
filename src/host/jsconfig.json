@@ -2,6 +2,7 @@
   "compilerOptions": {
     // ExtendScript is ES3 — catch modern syntax accidentally used in host.jsx.
     // ES3 target was removed in TS 5.5; use ES5 (still catches most ES3 violations).
+    "ignoreDeprecations": "6.0",
     "target": "ES5",
     "checkJs": true,
     "strict": false,

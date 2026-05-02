@@ -182,7 +182,7 @@
           class="c_item"
           onclick={() => Selected("surprise")}
           data-tooltip="IDK, just click it"
-          ><Face />Surprise</button>
+          ><Face />?</button>
       {/if}
     </div>
   </div>
