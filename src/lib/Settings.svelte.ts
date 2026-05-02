@@ -211,7 +211,7 @@ export class TemplateHelper {
     });
 
     new_cols.forEach((new_col) => {
-      let base_val = new_col.values[0] || ColumnHelper.ValidateValue("", new_col.type);
+      let base_val = new_col.values[0] ?? ColumnHelper.ValidateValue("", new_col.type);
       let row_count = this.RowCount(tmpl);
 
       new_col.values = new Array(row_count);
@@ -276,7 +276,9 @@ export class TemplateHelper {
         id: comp.id,
         name: comp.name,
         enabled: true,
+        //@ts-ignore
         render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
+        //@ts-ignore
         render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
         save_pattern: "{base_path}/{comp_name}_{row_number}",
         save_path: "",
