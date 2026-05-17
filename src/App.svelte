@@ -134,8 +134,6 @@
     StartupSequence();
     SetupShortcuts();
 
-    m_proceed?.ShouldProceed();
-
     window.onfocus = (e) => {
       CheckDifferentProject();
     };
@@ -634,7 +632,7 @@
     ac.AddListener(
       "report_issue",
       () => {
-        ReportIssue();
+        m_proceed?.OpenBug();
       },
       "",
     );
@@ -643,6 +641,15 @@
       "surprise",
       () => {
         Surprise();
+      },
+      "",
+    );
+
+    //Licence
+    ac.AddListener(
+      "license",
+      () => {
+        m_proceed?.OpenLicense();
       },
       "",
     );
@@ -1836,7 +1843,7 @@
 
 <Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
-<ModalProceed bind:this={m_proceed} bind:proceed={proceed}></ModalProceed>
+<ModalProceed bind:proceed={proceed} bind:this={m_proceed}></ModalProceed>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">

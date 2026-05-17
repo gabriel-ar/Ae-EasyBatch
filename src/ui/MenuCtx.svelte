@@ -14,6 +14,8 @@
     FileText,
     GithubLogo,
     Face,
+    ExclamationTriangle,
+    LockOpen1,
   } from "radix-icons-svelte";
   import AddAfter from "../assets/AddAfter.svelte";
   import AddBefore from "../assets/AddBefore.svelte";
@@ -176,13 +178,21 @@
           class="c_item"
           onclick={() => Selected("report_issue")}
           data-tooltip="Report an issue on GitHub"
-          ><GithubLogo />Report Issue</button>
+          ><ExclamationTriangle />Report Issue</button>
+        <button
+          class="c_item"
+          onclick={() => Selected("license")}
+          data-tooltip="IDK, just click it"
+          ><LockOpen1 />Licensing</button>
         <div class="c_divider"></div>
         <button
           class="c_item"
           onclick={() => Selected("surprise")}
           data-tooltip="IDK, just click it"
           ><Face />?</button>
+
+
+
       {/if}
     </div>
   </div>
