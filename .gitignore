@@ -29,3 +29,6 @@ tests/projects/*Logs
 tests/projects/renders
 playwright-report/
 test-results/
+
+# AESP License Configuration
+.env
