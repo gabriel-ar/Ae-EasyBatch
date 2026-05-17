@@ -86,6 +86,7 @@
   let footer_txt_long = $state<string | undefined>();
 
   let has_opened_viewer = false;
+  let last_scroll_top = 0;
 
   let is_new_setts = false;
 
@@ -626,10 +627,19 @@
     );
   }
 
-  let last_opened_tab = $state<string | null>(null);
+  let active_tab = $state<string | null>(null);
   //Tab changed
   $effect(() => {
-    if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
+    if (active_tab === "data" && s.setts.active_tab !== "data") {
+      //Save the scroll position of the data tab when leaving it, so we can restore it when coming back
+      const main_data = document.querySelector("#main_data");
+      if (main_data) {
+        last_scroll_top = main_data.scrollTop;
+      }
+      console.debug("Saved scroll position:", last_scroll_top);
+    }
+
+    if (s.setts.active_tab === "output" && active_tab !== "output") {
       //Check if there's any template selected, otherwise just select the first one
 
       if (sel_tmpl !== undefined) {
@@ -653,11 +663,19 @@
             "";
         }
       }
-    } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
+    } else if (s.setts.active_tab === "data" && active_tab !== "data") {
       has_opened_viewer = false;
+
+      //Restore the scroll position of the data tab when coming back to it
+      requestAnimationFrame(() => {
+        const main_data = document.querySelector("#main_data");
+        if (main_data) {
+          main_data.scrollTop = last_scroll_top;
+        }
+      });
     }
 
-    last_opened_tab = s.setts.active_tab;
+    active_tab = s.setts.active_tab;
   });
 
   /////DATA TAB/////
@@ -1192,7 +1210,7 @@
     let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
 
-    if(row_i !== -1){
+    if (row_i !== -1) {
       UpdateStatusFooter("Queuing Multi-Output Render...");
     }
 
@@ -1220,8 +1238,8 @@
               "Check the log in the Render tab for details.",
             );
           }
-        } 
-        
+        }
+
         //User stopped the render
         else if (result.user_stopped) {
           l.log(`OtM Render stopped by user`);
@@ -1276,7 +1294,7 @@
 </header>
 
 <!-- DATA -->
-{#if s.setts.active_tab === "data"}
+{#if active_tab === "data"}
   <nav class="dat_bar">
     <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "file")}
       >File</button>
@@ -1285,7 +1303,7 @@
     <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "view")}
       >View</button>
   </nav>
-  <main>
+  <main id="main_data">
     {#if s.proj.sel_tmpl >= 0 && sel_tmpl !== undefined && s.proj.tmpls.length > 0}
       {#if s.setts.data_mode === "table"}
         <table class="dat_table">
@@ -1437,7 +1455,7 @@
   </footer>
 
   <ModalEditView bind:this={m_edit_view}></ModalEditView>
-{:else if s.setts.active_tab === "output"}
+{:else if active_tab === "output"}
   <!-- OUTPUT -->
   <main class="output">
     <span
@@ -1796,7 +1814,7 @@
   </main>
 
   <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
-{:else if s.setts.active_tab == "settings"}
+{:else if active_tab == "settings"}
   <!-- SETTINGS -->
   <SettingsPanel {SaveSettings} />
 {/if}
