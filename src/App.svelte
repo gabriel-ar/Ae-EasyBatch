@@ -82,33 +82,6 @@
   let menu = $state<Menu>();
   let curr_row_i = $state(0);
 
-  type ModalAction = { label: string; callback?: () => void };
-
-  function OpenMessage(
-    message: string,
-    title = "Message",
-    actions: ModalAction[] = [],
-  ) {
-    if (!m_message) {
-      l.warn("Cannot open message modal before component is mounted");
-      return;
-    }
-    m_message.Open(message, title, actions);
-  }
-
-  function OpenContextMenu(
-    x: number,
-    y: number,
-    callback: (action: string) => void,
-    type = "",
-  ) {
-    if (!menu) {
-      l.warn("Cannot open context menu before component is mounted");
-      return;
-    }
-    menu.Open(x, y, callback, type);
-  }
-
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
 
@@ -211,7 +184,7 @@
             });
           } else {
             l.error("Failed to load settings", result.error_obj);
-            OpenMessage(
+            m_message?.Open(
               `There was a problem loading the data in this project. Do you want to reset the EasyBatch data?`,
               "Open Error",
               [
@@ -258,7 +231,7 @@
             }) > 0
           ) {
             //Open a message
-            OpenMessage(
+            m_message?.Open(
               `This project was saved with version ${project_version} of EasyBatch, and you're using ${_VERSION_}. There may be potential incompatibilities. Do you want to continue loading the project?`,
               "Version Mismatch",
               [
@@ -594,7 +567,7 @@
     ac.AddListener(
       "edit_view",
       () => {
-        OpenEditViewModal();
+        m_edit_view?.Open(EditViewModalClosed);
       },
       "",
     );
@@ -731,7 +704,7 @@
           l.error("Failed to preview row", result.error_obj);
           const error_msg = result.error_obj?.message ?? "Unknown preview error";
           if (!prop_changed) {
-            OpenMessage(error_msg, "Error Previewing Row");
+            m_message?.Open(error_msg, "Error Previewing Row");
           } else {
             UpdateStatusFooter(
               "⚠️ Error Previewing Row " + row_i,
@@ -750,7 +723,7 @@
             );
             return;
           } else {
-            OpenMessage(
+            m_message?.Open(
               result.errors.map((e) => e.message).join("<br>"),
               "Error Previewing Row",
             );
@@ -804,7 +777,7 @@
 
     curr_row_i = row_i;
     e.preventDefault();
-    OpenContextMenu(e.pageX, e.pageY, MenuItemSelected);
+    menu?.Open(e.pageX, e.pageY, MenuItemSelected);
   }
 
   function MenuItemSelected(action: string) {
@@ -814,16 +787,7 @@
 
   function OpenBarMenu(e: MouseEvent, type: string) {
     let btn = e.target as HTMLButtonElement;
-    OpenContextMenu(
-      btn.offsetLeft,
-      btn.offsetTop + btn.offsetHeight,
-      BarMenuSelected,
-      type,
-    );
-  }
-
-  function OpenHelpMenu(e: MouseEvent) {
-    OpenContextMenu(e.pageX, e.pageY, MenuItemSelected, "help");
+    menu?.Open(btn.offsetLeft, btn.offsetTop + btn.offsetHeight, BarMenuSelected, type);
   }
 
   function BarMenuSelected(action: string) {
@@ -890,7 +854,7 @@
 
   function OpenStatusLongMsg() {
     if (footer_txt_long !== undefined && footer_txt_long !== "") {
-      OpenMessage(footer_txt_long, "Details");
+      m_message?.Open(footer_txt_long, "Details");
     }
   }
 
@@ -912,7 +876,7 @@
       .then(async (r) => {
         if (r.status === 200) {
           let data = await r.json();
-          OpenMessage(
+          m_message?.Open(
             `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
             "🐶 Take a Break",
           );
@@ -922,14 +886,6 @@
         l.error("Failed to fetch dog image", error);
       });
   }
-  function OpenEditViewModal() {
-    if (!m_edit_view) {
-      l.warn("Cannot open edit view modal before component is mounted");
-      return;
-    }
-    m_edit_view.Open(EditViewModalClosed);
-  }
-
   function EditViewModalClosed(new_table_cols: number[]) {
     sel_tmpl.view_cols = new_table_cols;
     s.proj = s.proj; // Force reactivity
@@ -1072,12 +1028,7 @@
   let edit_dep_comp_index = $state<number | undefined>();
   function DepFilePatternModalOpen(dep_index: number) {
     edit_dep_comp_index = dep_index;
-
-    if (!m_file_pattern) {
-      l.warn("Cannot open dependant file pattern modal before component is mounted");
-      return;
-    }
-    m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
+    m_file_pattern?.Open(dep_index, DepFilePatternModalClosed);
   }
 
   function DepFilePatternModalClosed(base_path: string, pattern: string) {
@@ -1146,7 +1097,7 @@
         if (!result.success) {
           l.error("Failed to batch render", result.error_obj);
           const error_msg = result.error_obj?.message ?? "Unknown render error";
-          OpenMessage(error_msg, "Error While Batch Rendering");
+          m_message?.Open(error_msg, "Error While Batch Rendering");
 
           if (row_i !== -1) {
             UpdateStatusFooter(
@@ -1239,7 +1190,7 @@
         if (!result.success) {
           l.error("Failed to render OtM", result.error_obj);
           const error_msg = result.error_obj?.message ?? "Unknown OtM render error";
-          OpenMessage(error_msg, "Error While Rendering One to Many");
+          m_message?.Open(error_msg, "Error While Rendering One to Many");
           return;
         }
 
@@ -1290,7 +1241,7 @@
     <button onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
-      onclick={OpenHelpMenu}
+      onclick={(e) => menu?.Open(e.pageX, e.pageY, MenuItemSelected, "help")}
       ><QuestionMark /></button>
   </div>
 </header>
@@ -1493,27 +1444,27 @@
         bind:value={sel_tmpl.save_pattern}></textarea>
 
       <div class="setting" style="margin-top: 4px;">
-        <button onclick={SelRenderBasePath}>Pick Base Path</button>
+        <button onclick={SelRenderBasePath}>Pick Base Folder</button>
 
         <Dropdown
           style={"margin-left: 15px;"}
           labels={[
-            "Base Path",
+            "Base Folder",
             "Template Name",
             "Row Number",
             "Increment",
             ...sel_tmpl.columns.map((col) => col.cont_name),
           ]}
           options={[
-            "base_path",
+            "base_folder",
             "template_name",
             "row_number",
             "increment:0000",
             ...sel_tmpl.columns.map((col) => col.cont_name),
           ]}
+          title="Add Field..."
+          onselect={() => RenderSave_AddField()}
           bind:value={sel_add_field} />
-
-        <button onclick={RenderSave_AddField}>Add Field</button>
       </div>
 
       <div class="setting">
@@ -1600,15 +1551,7 @@
         id="generate_proj_ta"
         spellcheck="false"
         bind:value={sel_tmpl.generate_pattern}></textarea>
-
-      <div class="setting">
-        <span>Preview:</span>
-        <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
-      </div>
-
-      <div class="setting">
-        <div>
-          <button onclick={GenerateName_AddField}>Add Field</button>
+             <div class="setting" style="margin-top: 4px;">
           <Dropdown
             labels={[
               "Template Name",
@@ -1622,9 +1565,15 @@
               "increment:0000",
               ...sel_tmpl.columns.map((col) => col.cont_name),
             ]}
+            title="Add Field..."
+            onselect={() => GenerateName_AddField()}
             bind:value={sel_add_field_gen} />
-        </div>
       </div>
+
+      <div class="setting">
+        <span>Preview:</span>
+        <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
+      </div> 
 
       <div class="setting">
         <label for="in_imported_folder">Generated Comps Folder Name </label>

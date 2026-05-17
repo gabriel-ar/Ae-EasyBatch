@@ -157,7 +157,7 @@ export class TemplateHelper {
       active: true,
       columns: columns,
       base_path: "",
-      save_pattern: "{base_path}/{template_name}_{row_number}",
+      save_pattern: "Renders/{template_name}_{row_number}",
       render_setts_templ: "",
       render_out_module_templ: "",
       generate_pattern: "Generated_{increment:0000}",
@@ -280,7 +280,7 @@ export class TemplateHelper {
         render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
         //@ts-ignore
         render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
-        save_pattern: "{base_path}/{comp_name}_{row_number}",
+        save_pattern: "Renders/{comp_name}_{row_number}",
         save_path: "",
         save_paths: [],
       });
@@ -301,7 +301,9 @@ export class TemplateHelper {
   }
 
   static ResolveSavePath(tmpl: TemplateData, pattern: string, index: number, comp_name?: string): string {
+    // Support both {base_path} (legacy) and {base_folder} (new terminology) for backwards compatibility
     pattern = pattern.replaceAll("{base_path}", tmpl.base_path);
+    pattern = pattern.replaceAll("{base_folder}", tmpl.base_path);
     pattern = pattern.replaceAll("{row_number}", index.toString());
     pattern = pattern.replaceAll("{template_name}", tmpl.name);
     pattern = pattern.replaceAll("{comp_name}", comp_name || tmpl.comp);
@@ -605,7 +607,9 @@ export class ColumnHelper {
   static ResolveAltSrcPath(col: ColumnData, index: number, columns: ColumnData[]): string {
     let pattern = col.alt_src_pattern;
 
+    // Support both {base_path} (legacy) and {base_folder} (new terminology) for backwards compatibility
     pattern = pattern.replace("{base_path}", col.alt_src_base);
+    pattern = pattern.replace("{base_folder}", col.alt_src_base);
     pattern = pattern.replace("{row_number}", index.toString());
 
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
