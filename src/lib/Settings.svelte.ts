@@ -533,7 +533,16 @@ export class TemplateHelper {
     tmpl.columns.forEach((tmpl_col) => {
       let col_i = header.indexOf(tmpl_col.cont_name);
 
-      if (col_i < 0) return;
+      if (col_i < 0){
+        //Fill with pre existing values if column not found in CSV
+        //Use all values avaiable and fill the rest with the last one
+        let last_val = tmpl_col.values[tmpl_col.values.length - 1];
+
+        if(last_val === undefined){last_val = ColumnHelper.ValidateValue("", tmpl_col.type);}
+        tmpl_col.values = [...tmpl_col.values,  ...new Array(csv_rows.length - tmpl_col.values.length).fill(last_val)];
+        
+        return;
+      }
 
       tmpl_col.values = csv_rows.map((csv_row) => {
         if (csv_row[col_i] === undefined) return null;
