@@ -38,6 +38,7 @@
   import {
     SaveSettsRequest,
     type GetSelectedCompsResult,
+    type HostTemplateData,
   } from "./lib/Messaging";
 
   import type {
@@ -66,6 +67,7 @@
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import { l, s, csa } from "./ui/States.svelte.ts";
+    import ModalProceed from "./ui/ModalProceed.svelte";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
@@ -74,8 +76,38 @@
   let m_file_pattern = $state<ModalFilePattern>();
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
+  let m_proceed = $state<ModalProceed>();
+  let proceed = $state(true);
+
   let menu = $state<Menu>();
   let curr_row_i = $state(0);
+
+  type ModalAction = { label: string; callback?: () => void };
+
+  function OpenMessage(
+    message: string,
+    title = "Message",
+    actions: ModalAction[] = [],
+  ) {
+    if (!m_message) {
+      l.warn("Cannot open message modal before component is mounted");
+      return;
+    }
+    m_message.Open(message, title, actions);
+  }
+
+  function OpenContextMenu(
+    x: number,
+    y: number,
+    callback: (action: string) => void,
+    type = "",
+  ) {
+    if (!menu) {
+      l.warn("Cannot open context menu before component is mounted");
+      return;
+    }
+    menu.Open(x, y, callback, type);
+  }
 
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
@@ -101,6 +133,8 @@
 
     StartupSequence();
     SetupShortcuts();
+
+    m_proceed?.ShouldProceed();
 
     window.onfocus = (e) => {
       CheckDifferentProject();
@@ -152,7 +186,7 @@
             reject(result.error_obj);
           } else {
             l.log(`Retrieved Templates`, result);
-            resolve(result.tmpls);
+            resolve(result.tmpls ?? []);
           }
         })
         .catch((e) => {
@@ -177,7 +211,7 @@
             });
           } else {
             l.error("Failed to load settings", result.error_obj);
-            m_message.Open(
+            OpenMessage(
               `There was a problem loading the data in this project. Do you want to reset the EasyBatch data?`,
               "Open Error",
               [
@@ -217,14 +251,15 @@
           };
 
           //check if the version is newer and warn the user
+          const project_version = l_proj.version ?? "0.0.0";
           if (
-            l_proj.version.localeCompare(_VERSION_, undefined, {
+            project_version.localeCompare(_VERSION_, undefined, {
               numeric: true,
             }) > 0
           ) {
             //Open a message
-            m_message.Open(
-              `This project was saved with version ${l_proj.version} of EasyBatch, and you're using ${_VERSION_}. There may be potential incompatibilities. Do you want to continue loading the project?`,
+            OpenMessage(
+              `This project was saved with version ${project_version} of EasyBatch, and you're using ${_VERSION_}. There may be potential incompatibilities. Do you want to continue loading the project?`,
               "Version Mismatch",
               [
                 {
@@ -297,7 +332,7 @@
     $state.snapshot(s.proj);
   });
 
-  let save_timeout;
+  let save_timeout: ReturnType<typeof setTimeout> | undefined;
   let last_type = "";
   function DebouceSaveSettings(what = "all") {
     if (save_timeout !== undefined) {
@@ -374,7 +409,25 @@
     });
   }
 
-  let render_setts_templs = $state<RenderSettsResults>();
+  let render_setts_templs = $state<RenderSettsResults>({
+    success: true,
+    render_templs: [],
+    default_render_templ: 0,
+    output_modules_templs: [],
+    default_output_module_templ: 0,
+  });
+
+  let visible_render_templates = $derived(
+    (render_setts_templs.render_templs ?? []).filter(
+      (templ) => !templ.startsWith("_HIDDEN"),
+    ),
+  );
+
+  let visible_output_module_templates = $derived(
+    (render_setts_templs.output_modules_templs ?? []).filter(
+      (templ) => !templ.startsWith("_HIDDEN"),
+    ),
+  );
 
   function GetRenderSettsTempls(): Promise<RenderSettsResults> {
     return new Promise((resolve, reject) => {
@@ -601,19 +654,23 @@
     if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
       //Check if there's any template selected, otherwise just select the first one
 
-      if (sel_tmpl !== undefined && render_setts_templs !== undefined) {
+      if (sel_tmpl !== undefined) {
+        let render_templs = render_setts_templs.render_templs ?? [];
+        let output_module_templs = render_setts_templs.output_modules_templs ?? [];
+        let default_render_templ_i = render_setts_templs.default_render_templ ?? 0;
+        let default_output_module_templ_i =
+          render_setts_templs.default_output_module_templ ?? 0;
+
         if (sel_tmpl.render_setts_templ == "") {
           sel_tmpl.render_setts_templ =
-            render_setts_templs.render_templs[
-              render_setts_templs.default_render_templ
-            ] || render_setts_templs.render_templs[0];
+            render_templs[default_render_templ_i] || render_templs[0] || "";
         }
 
         if (sel_tmpl.render_out_module_templ == "") {
           sel_tmpl.render_out_module_templ =
-            render_setts_templs.output_modules_templs[
-              render_setts_templs.default_output_module_templ
-            ] || render_setts_templs.output_modules_templs[0];
+            output_module_templs[default_output_module_templ_i] ||
+            output_module_templs[0] ||
+            "";
         }
       }
     } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
@@ -631,7 +688,7 @@
    * @param row_i
    * @param prop_changed True if the preview is being called due to a property change
    */
-  function PreviewRow(row_i, prop_changed = false) {
+  function PreviewRow(row_i: number, prop_changed = false) {
     l.debug(
       "PreviewRow called with row index:",
       row_i,
@@ -672,12 +729,13 @@
         //General failure
         if (!result.success) {
           l.error("Failed to preview row", result.error_obj);
+          const error_msg = result.error_obj?.message ?? "Unknown preview error";
           if (!prop_changed) {
-            m_message.Open(result.error_obj.message, "Error Previewing Row");
+            OpenMessage(error_msg, "Error Previewing Row");
           } else {
             UpdateStatusFooter(
               "⚠️ Error Previewing Row " + row_i,
-              result.error_obj.message,
+              error_msg,
             );
           }
           return;
@@ -692,7 +750,7 @@
             );
             return;
           } else {
-            m_message.Open(
+            OpenMessage(
               result.errors.map((e) => e.message).join("<br>"),
               "Error Previewing Row",
             );
@@ -707,7 +765,7 @@
    * Copies the values in the previrew to the template for the given row, then previews the row again to update the viewer with the new values
    * @param row_i
    */
-  function SampleRow(row_i) {
+  function SampleRow(row_i: number) {
     let s_templt = JSON.stringify(sel_tmpl);
     l.debug("SampleRow called with row index:", row_i);
 
@@ -735,7 +793,7 @@
       });
   }
 
-  function OpenRowMenu(e, row_i) {
+  function OpenRowMenu(e: MouseEvent, row_i: number) {
     //if the active element is an input, don't open the menu
     if (
       document.activeElement instanceof HTMLInputElement ||
@@ -746,22 +804,26 @@
 
     curr_row_i = row_i;
     e.preventDefault();
-    menu.Open(e.pageX, e.pageY, MenuItemSelected);
+    OpenContextMenu(e.pageX, e.pageY, MenuItemSelected);
   }
 
-  function MenuItemSelected(action) {
+  function MenuItemSelected(action: string) {
     l.debug("RowMenuSelected called with action:", action, "row:", curr_row_i);
     ac.Fire(action);
   }
 
   function OpenBarMenu(e: MouseEvent, type: string) {
     let btn = e.target as HTMLButtonElement;
-    menu.Open(
+    OpenContextMenu(
       btn.offsetLeft,
       btn.offsetTop + btn.offsetHeight,
       BarMenuSelected,
       type,
     );
+  }
+
+  function OpenHelpMenu(e: MouseEvent) {
+    OpenContextMenu(e.pageX, e.pageY, MenuItemSelected, "help");
   }
 
   function BarMenuSelected(action: string) {
@@ -782,7 +844,7 @@
   }
 
   /**Renders only the selected row instead of batch rendering*/
-  function RenderRow(row_i) {
+  function RenderRow(row_i: number) {
     switch (s.setts.out_mode) {
       case "render":
         s.setts.active_tab = Tabs.Output;
@@ -828,7 +890,7 @@
 
   function OpenStatusLongMsg() {
     if (footer_txt_long !== undefined && footer_txt_long !== "") {
-      m_message.Open(footer_txt_long, "Details");
+      OpenMessage(footer_txt_long, "Details");
     }
   }
 
@@ -850,7 +912,7 @@
       .then(async (r) => {
         if (r.status === 200) {
           let data = await r.json();
-          m_message.Open(
+          OpenMessage(
             `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
             "🐶 Take a Break",
           );
@@ -861,6 +923,10 @@
       });
   }
   function OpenEditViewModal() {
+    if (!m_edit_view) {
+      l.warn("Cannot open edit view modal before component is mounted");
+      return;
+    }
     m_edit_view.Open(EditViewModalClosed);
   }
 
@@ -889,8 +955,10 @@
 
   let sel_add_field = $state("base_path");
   function RenderSave_AddField() {
-    let save_pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#save_pattern_ta");
+    let save_pattern_ta = document.querySelector<HTMLTextAreaElement>(
+      "#save_pattern_ta",
+    );
+    if (!save_pattern_ta) return;
 
     let cursor_pos = save_pattern_ta.selectionStart;
     let old_val = sel_tmpl.save_pattern;
@@ -915,8 +983,10 @@
 
   let sel_add_field_gen = $state("row_number");
   function GenerateName_AddField() {
-    let pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#generate_proj_ta");
+    let pattern_ta = document.querySelector<HTMLTextAreaElement>(
+      "#generate_proj_ta",
+    );
+    if (!pattern_ta) return;
 
     let cursor_pos = pattern_ta.selectionStart;
     let old_val = sel_tmpl.generate_pattern;
@@ -946,7 +1016,7 @@
         l.error("Failed to get all comps", result.error_obj);
         return;
       } else {
-        all_comps = result.comps;
+        all_comps = result.comps ?? [];
         l.debug(`Got All Comps`, all_comps);
       }
     });
@@ -977,7 +1047,7 @@
       //Update the comps with the latest data
       GetAllComps();
 
-      for (let comp_info of result.comps) {
+      for (let comp_info of result.comps ?? []) {
         let comp = all_comps.find((c) => c.id === comp_info.id);
 
         if (comp) {
@@ -991,7 +1061,7 @@
     });
   }
 
-  function DeleteDependentComp(dep_index) {
+  function DeleteDependentComp(dep_index: number) {
     TemplateHelper.RemoveDependantComp(sel_tmpl, dep_index);
     TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
 
@@ -1003,23 +1073,29 @@
   function DepFilePatternModalOpen(dep_index: number) {
     edit_dep_comp_index = dep_index;
 
+    if (!m_file_pattern) {
+      l.warn("Cannot open dependant file pattern modal before component is mounted");
+      return;
+    }
     m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
   }
 
-  function DepFilePatternModalClosed(base_path, pattern) {
+  function DepFilePatternModalClosed(base_path: string, pattern: string) {
+    if (edit_dep_comp_index === undefined) return;
     sel_tmpl.dep_config[edit_dep_comp_index].save_pattern = pattern;
 
     TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
   }
 
-  function SetupAlternateSource(col_i) {
+  function SetupAlternateSource(col_i: number) {
     show_alt_src_modal = true;
     alt_src_modal_col = col_i;
   }
 
   let show_alt_src_modal = $state(false);
   let alt_src_modal_col = $state<number | undefined>();
-  function AlertSrcModalClosed(base_path, pattern) {
+  function AlertSrcModalClosed(base_path: string, pattern: string) {
+    if (alt_src_modal_col === undefined) return;
     sel_tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
     sel_tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
 
@@ -1031,8 +1107,13 @@
 
   //User facing render results
   let render_results = $state<RowRenderResult[]>([]);
-  function BatchRender(row_i = -1) {
+  function BatchRender(row_i: number = -1) {
     l.log("BatchRender called");
+
+    //check if we should 'proceed'
+    if (!proceed) {
+      return;
+    }
 
     let send_templ;
     //If just rendering a single row, clone the template and trim it down to that row
@@ -1064,15 +1145,13 @@
       .then((result) => {
         if (!result.success) {
           l.error("Failed to batch render", result.error_obj);
-          m_message.Open(
-            result.error_obj.message,
-            "Error While Batch Rendering",
-          );
+          const error_msg = result.error_obj?.message ?? "Unknown render error";
+          OpenMessage(error_msg, "Error While Batch Rendering");
 
           if (row_i !== -1) {
             UpdateStatusFooter(
               "⚠️ Error While Queuing Row " + row_i,
-              result.error_obj.message,
+              error_msg,
             );
           }
           return;
@@ -1081,7 +1160,7 @@
         //Some errors happened, log it as a warning (default txt log file level)
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`Batch Render completed with errors`, result.errors);
-          render_results = result.row_results;
+          render_results = result.row_results ?? [];
 
           if (row_i !== -1) {
             UpdateStatusFooter(
@@ -1095,7 +1174,7 @@
         //All rows queued up successfully
         else {
           l.debug(`Batch Render Results`, render_results);
-          render_results = result.row_results;
+          render_results = result.row_results ?? [];
 
           if (row_i !== -1) {
             UpdateStatusFooter("Row Queued Successfully");
@@ -1127,7 +1206,7 @@
 
   let dep_row_results = $state<RowRenderResult[]>([]);
   let user_stopped_deps = $state(false);
-  function BatchOneToMany(row_i = -1) {
+  function BatchOneToMany(row_i: number = -1) {
     l.log("BatchOneToMany called");
 
     let send_templ;
@@ -1159,26 +1238,24 @@
 
         if (!result.success) {
           l.error("Failed to render OtM", result.error_obj);
-          m_message.Open(
-            result.error_obj.message,
-            "Error While Rendering One to Many",
-          );
+          const error_msg = result.error_obj?.message ?? "Unknown OtM render error";
+          OpenMessage(error_msg, "Error While Rendering One to Many");
           return;
         }
 
         //Some rows had errors, but the queing went through
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`OtM Render completed with errors`, result.errors);
-          dep_row_results = result.row_results;
+          dep_row_results = result.row_results ?? [];
         } else if (result.user_stopped) {
           l.log(`OtM Render stopped by user`);
           user_stopped_deps = true;
-          dep_row_results = result.row_results;
+          dep_row_results = result.row_results ?? [];
         }
 
         //All rows rendered successfully
         else {
-          dep_row_results = result.row_results;
+          dep_row_results = result.row_results ?? [];
         }
       });
   }
@@ -1213,7 +1290,7 @@
     <button onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
-      onclick={(e) => menu.Open(e.pageX, e.pageY, MenuItemSelected, "help")}
+      onclick={OpenHelpMenu}
       ><QuestionMark /></button>
   </div>
 </header>
@@ -1458,12 +1535,8 @@
         <label for="sel_render_setts_templ">Render Settings Template</label>
 
         <Dropdown
-          labels={render_setts_templs.render_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN"),
-          )}
-          options={render_setts_templs.render_templs.filter(
-            (templ) => !templ.startsWith("_HIDDEN"),
-          )}
+          labels={visible_render_templates}
+          options={visible_render_templates}
           bind:value={sel_tmpl.render_setts_templ} />
       </div>
 
@@ -1472,15 +1545,11 @@
         <Dropdown
           labels={[
             "<b>Single Frame PNG</b>",
-            ...render_setts_templs.output_modules_templs.filter(
-              (templ) => !templ.startsWith("_HIDDEN"),
-            ),
+            ...visible_output_module_templates,
           ]}
           options={[
             "EB_Single_Frame_PNG",
-            ...render_setts_templs.output_modules_templs.filter(
-              (templ) => !templ.startsWith("_HIDDEN"),
-            ),
+            ...visible_output_module_templates,
           ]}
           bind:value={sel_tmpl.render_out_module_templ} />
       </div>
@@ -1680,12 +1749,8 @@
             <div class="setting">
               <label for="sel_render_setts_templ">Render Settings</label>
               <Dropdown
-                labels={render_setts_templs.render_templs.filter(
-                  (templ) => !templ.startsWith("_HIDDEN"),
-                )}
-                options={render_setts_templs.render_templs.filter(
-                  (templ) => !templ.startsWith("_HIDDEN"),
-                )}
+                labels={visible_render_templates}
+                options={visible_render_templates}
                 bind:value={sel_tmpl.dep_config[dc_i].render_setts_templ} />
             </div>
 
@@ -1695,15 +1760,11 @@
               <Dropdown
                 labels={[
                   "<b>Single Frame PNG</b>",
-                  ...render_setts_templs.output_modules_templs.filter(
-                    (templ) => !templ.startsWith("_HIDDEN"),
-                  ),
+                  ...visible_output_module_templates,
                 ]}
                 options={[
                   "EB_Single_Frame_PNG",
-                  ...render_setts_templs.output_modules_templs.filter(
-                    (templ) => !templ.startsWith("_HIDDEN"),
-                  ),
+                  ...visible_output_module_templates,
                 ]}
                 bind:value={
                   sel_tmpl.dep_config[dc_i].render_out_module_templ
@@ -1769,12 +1830,13 @@
 {#if sel_tmpl !== undefined && show_alt_src_modal}
   <ModalAltSrcFilePattern
     bind:show={show_alt_src_modal}
-    col_i={alt_src_modal_col}
+    col_i={alt_src_modal_col ?? 0}
     onclose={AlertSrcModalClosed} />
 {/if}
 
 <Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
+<ModalProceed bind:this={m_proceed} bind:proceed={proceed}></ModalProceed>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">
