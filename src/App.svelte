@@ -110,8 +110,17 @@
 
     m_proceed?.ShouldProceed();
 
+
+    let window_returns = 0;
     window.onfocus = (e) => {
       CheckDifferentProject();
+
+      if (window_returns < 1) {
+        window_returns++;
+      } else {
+        has_opened_viewer = false;
+        window_returns = 0;
+      }
     };
   });
 
