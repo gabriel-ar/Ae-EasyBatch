@@ -510,15 +510,18 @@
     ac.AddListener(
       "delete",
       () => {
-        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
-      },
-      "Delete",
-    );
+        //prevent deleting the row if only one row is left
+        if (row_count <= 1) {
+         footer_txt = "⚠️ Cannot delete the last row";
+         return;
+        }
 
-    ac.AddListener(
-      "delete",
-      () => {
         TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
+
+        //move the selected row up if the last row was deleted
+        if (curr_row_i >= row_count) {
+          curr_row_i = row_count - 1;
+        }
       },
       "Backspace",
     );

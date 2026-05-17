@@ -477,7 +477,7 @@ export class TemplateHelper {
     tmpl.columns.forEach((col) => {
       col.values.splice(index, 1);
     });
-
+  
     this.ResolveAltSrcPaths(tmpl);
   }
 
