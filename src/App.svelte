@@ -67,7 +67,7 @@
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import { l, s, csa } from "./ui/States.svelte.ts";
-    import ModalProceed from "./ui/ModalProceed.svelte";
+  import ModalProceed from "./ui/ModalProceed.svelte";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
@@ -321,7 +321,9 @@
     save_timeout = setTimeout(SaveSettings, 2000, what);
   }
 
-  async function SaveSettings(what: "proj" | "setts" | "all" = "all"): Promise<boolean> {
+  async function SaveSettings(
+    what: "proj" | "setts" | "all" = "all",
+  ): Promise<boolean> {
     last_type = "";
 
     if (
@@ -512,8 +514,8 @@
       () => {
         //prevent deleting the row if only one row is left
         if (row_count <= 1) {
-         footer_txt = "⚠️ Cannot delete the last row";
-         return;
+          footer_txt = "⚠️ Cannot delete the last row";
+          return;
         }
 
         TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
@@ -632,8 +634,10 @@
 
       if (sel_tmpl !== undefined) {
         let render_templs = render_setts_templs.render_templs ?? [];
-        let output_module_templs = render_setts_templs.output_modules_templs ?? [];
-        let default_render_templ_i = render_setts_templs.default_render_templ ?? 0;
+        let output_module_templs =
+          render_setts_templs.output_modules_templs ?? [];
+        let default_render_templ_i =
+          render_setts_templs.default_render_templ ?? 0;
         let default_output_module_templ_i =
           render_setts_templs.default_output_module_templ ?? 0;
 
@@ -705,14 +709,12 @@
         //General failure
         if (!result.success) {
           l.error("Failed to preview row", result.error_obj);
-          const error_msg = result.error_obj?.message ?? "Unknown preview error";
+          const error_msg =
+            result.error_obj?.message ?? "Unknown preview error";
           if (!prop_changed) {
             m_message?.Open(error_msg, "Error Previewing Row");
           } else {
-            UpdateStatusFooter(
-              "⚠️ Error Previewing Row " + row_i,
-              error_msg,
-            );
+            UpdateStatusFooter("⚠️ Error Previewing Row " + row_i, error_msg);
           }
           return;
         }
@@ -790,7 +792,12 @@
 
   function OpenBarMenu(e: MouseEvent, type: string) {
     let btn = e.target as HTMLButtonElement;
-    menu?.Open(btn.offsetLeft, btn.offsetTop + btn.offsetHeight, BarMenuSelected, type);
+    menu?.Open(
+      btn.offsetLeft,
+      btn.offsetTop + btn.offsetHeight,
+      BarMenuSelected,
+      type,
+    );
   }
 
   function BarMenuSelected(action: string) {
@@ -814,11 +821,9 @@
   function RenderRow(row_i: number) {
     switch (s.setts.out_mode) {
       case "render":
-        s.setts.active_tab = Tabs.Output;
         BatchRender(row_i);
         break;
       case "dependant":
-        s.setts.active_tab = Tabs.Output;
         BatchOneToMany(row_i);
         break;
     }
@@ -914,9 +919,8 @@
 
   let sel_add_field = $state("base_path");
   function RenderSave_AddField() {
-    let save_pattern_ta = document.querySelector<HTMLTextAreaElement>(
-      "#save_pattern_ta",
-    );
+    let save_pattern_ta =
+      document.querySelector<HTMLTextAreaElement>("#save_pattern_ta");
     if (!save_pattern_ta) return;
 
     let cursor_pos = save_pattern_ta.selectionStart;
@@ -942,9 +946,8 @@
 
   let sel_add_field_gen = $state("row_number");
   function GenerateName_AddField() {
-    let pattern_ta = document.querySelector<HTMLTextAreaElement>(
-      "#generate_proj_ta",
-    );
+    let pattern_ta =
+      document.querySelector<HTMLTextAreaElement>("#generate_proj_ta");
     if (!pattern_ta) return;
 
     let cursor_pos = pattern_ta.selectionStart;
@@ -1131,7 +1134,7 @@
           render_results = result.row_results ?? [];
 
           if (row_i !== -1) {
-            UpdateStatusFooter("Row Queued Successfully");
+            UpdateStatusFooter("Render Queued Successfully");
           }
           return;
         }
@@ -1163,6 +1166,10 @@
   function BatchOneToMany(row_i: number = -1) {
     l.log("BatchOneToMany called");
 
+    if (!proceed) {
+      return;
+    }
+
     let send_templ;
 
     //If just rendering a single row, clone the template and trim it down to that row
@@ -1185,6 +1192,10 @@
     let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
 
+    if(row_i !== -1){
+      UpdateStatusFooter("Queuing Multi-Output Render...");
+    }
+
     csa
       .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt)
       .then((result) => {
@@ -1192,8 +1203,9 @@
 
         if (!result.success) {
           l.error("Failed to render OtM", result.error_obj);
-          const error_msg = result.error_obj?.message ?? "Unknown OtM render error";
-          m_message?.Open(error_msg, "Error While Rendering One to Many");
+          const error_msg =
+            result.error_obj?.message ?? "Unknown Multi-Output render error";
+          m_message?.Open(error_msg, "Error While Rendering Multi-Output");
           return;
         }
 
@@ -1201,7 +1213,17 @@
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`OtM Render completed with errors`, result.errors);
           dep_row_results = result.row_results ?? [];
-        } else if (result.user_stopped) {
+
+          if (row_i !== -1) {
+            UpdateStatusFooter(
+              "⚠️ Multi-Output Render completed with errors for Row " + row_i,
+              "Check the log in the Render tab for details.",
+            );
+          }
+        } 
+        
+        //User stopped the render
+        else if (result.user_stopped) {
           l.log(`OtM Render stopped by user`);
           user_stopped_deps = true;
           dep_row_results = result.row_results ?? [];
@@ -1210,6 +1232,10 @@
         //All rows rendered successfully
         else {
           dep_row_results = result.row_results ?? [];
+
+          if (row_i !== -1) {
+            UpdateStatusFooter("Queued Successfully");
+          }
         }
       });
   }
@@ -1304,8 +1330,7 @@
                     class="delete_row"
                     data-tooltip="Preview Row"
                     data-tt-pos="top-right"
-                    onclick={(e) => PreviewRow(row_i)}
-                    ><EyeOpen /></button>
+                    onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
                 </td>
                 {#each sel_tmpl.view_cols as td_col_i}
                   <td
@@ -1501,10 +1526,7 @@
             "<b>Single Frame PNG</b>",
             ...visible_output_module_templates,
           ]}
-          options={[
-            "EB_Single_Frame_PNG",
-            ...visible_output_module_templates,
-          ]}
+          options={["EB_Single_Frame_PNG", ...visible_output_module_templates]}
           bind:value={sel_tmpl.render_out_module_templ} />
       </div>
 
@@ -1554,29 +1576,29 @@
         id="generate_proj_ta"
         spellcheck="false"
         bind:value={sel_tmpl.generate_pattern}></textarea>
-             <div class="setting" style="margin-top: 4px;">
-          <Dropdown
-            labels={[
-              "Template Name",
-              "Row Number",
-              "Increment",
-              ...sel_tmpl.columns.map((col) => col.cont_name),
-            ]}
-            options={[
-              "template_name",
-              "row_number",
-              "increment:0000",
-              ...sel_tmpl.columns.map((col) => col.cont_name),
-            ]}
-            title="Add Field..."
-            onselect={() => GenerateName_AddField()}
-            bind:value={sel_add_field_gen} />
+      <div class="setting" style="margin-top: 4px;">
+        <Dropdown
+          labels={[
+            "Template Name",
+            "Row Number",
+            "Increment",
+            ...sel_tmpl.columns.map((col) => col.cont_name),
+          ]}
+          options={[
+            "template_name",
+            "row_number",
+            "increment:0000",
+            ...sel_tmpl.columns.map((col) => col.cont_name),
+          ]}
+          title="Add Field..."
+          onselect={() => GenerateName_AddField()}
+          bind:value={sel_add_field_gen} />
       </div>
 
       <div class="setting">
         <span>Preview:</span>
         <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
-      </div> 
+      </div>
 
       <div class="setting">
         <label for="in_imported_folder">Generated Comps Folder Name </label>
@@ -1788,7 +1810,7 @@
 
 <Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
-<ModalProceed bind:this={m_proceed} bind:proceed={proceed}></ModalProceed>
+<ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">
