@@ -363,8 +363,8 @@ export class TemplateHelper {
   }
 
   static ResolveCompName(tmpl: TemplateData, pattern: string, index: number): string {
-    pattern = pattern.replace("{row_number}", index.toString());
-    pattern = pattern.replace("{template_name}", tmpl.name);
+    pattern = pattern.replaceAll("{row_number}", index.toString());
+    pattern = pattern.replaceAll("{template_name}", tmpl.name);
 
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
@@ -373,14 +373,14 @@ export class TemplateHelper {
     });
 
     for (let i_col in tmpl.columns) {
-      pattern = pattern.replace(
+      pattern = pattern.replaceAll(
         `{${tmpl.columns[i_col].cont_name}}`,
         tmpl.columns[i_col].values[index]
       );
     }
 
     // Remove characters forbidden in file/folder names (Windows & macOS)
-    pattern = pattern.replace(/[<>"|?*]/g, "");
+    pattern = pattern.replaceAll(/[<>"|?*]/g, "");
 
     return pattern;
   }
@@ -617,9 +617,9 @@ export class ColumnHelper {
     let pattern = col.alt_src_pattern;
 
     // Support both {base_path} (legacy) and {base_folder} (new terminology) for backwards compatibility
-    pattern = pattern.replace("{base_path}", col.alt_src_base);
-    pattern = pattern.replace("{base_folder}", col.alt_src_base);
-    pattern = pattern.replace("{row_number}", index.toString());
+    pattern = pattern.replaceAll("{base_path}", col.alt_src_base);
+    pattern = pattern.replaceAll("{base_folder}", col.alt_src_base);
+    pattern = pattern.replaceAll("{row_number}", index.toString());
 
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
@@ -628,14 +628,14 @@ export class ColumnHelper {
     });
 
     for (let i_col in columns) {
-      pattern = pattern.replace(
+      pattern = pattern.replaceAll(
         `{${columns[i_col].cont_name}}`,
         columns[i_col].values[index]
       );
     }
 
     // Remove characters forbidden in file/folder names (Windows & macOS)
-    pattern = pattern.replace(/[<>"|?*]/g, "");
+    pattern = pattern.replaceAll(/[<>"|?*]/g, "");
 
     return pattern;
   }
