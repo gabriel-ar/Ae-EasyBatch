@@ -110,7 +110,6 @@
 
     m_proceed?.ShouldProceed();
 
-
     let window_returns = 0;
     window.onfocus = (e) => {
       CheckDifferentProject();
@@ -846,7 +845,7 @@
 
   /**Renders only the selected row instead of batch rendering*/
   function RenderRow(row_i: number) {
-    switch (s.setts.out_mode) {
+    switch (sel_tmpl.out_mode) {
       case "render":
         BatchRender(row_i);
         break;
@@ -921,6 +920,7 @@
         l.error("Failed to fetch dog image", error);
       });
   }
+
   function EditViewModalClosed(new_table_cols: number[]) {
     sel_tmpl.view_cols = new_table_cols;
     s.proj = s.proj; // Force reactivity
@@ -1115,6 +1115,20 @@
     TemplateHelper.ResolveSavePaths(send_templ);
     TemplateHelper.ResolveAltSrcPaths(send_templ);
 
+    //checks for dupliate save paths
+    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "render");
+    if (path_conflicts.length > 0) {
+      const details = path_conflicts
+        .map((c) => `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`)
+        .join("<br>");
+
+      m_message?.Open(
+        `Two or more rows will render files with the same output path. After Effects will not start the queue until this is fixed.<br><br>${details}`,
+        "Duplicate Output Paths Detected",
+      );
+      return;
+    }
+
     render_results = [];
 
     let string_templt = JSON.stringify(send_templ);
@@ -1215,6 +1229,22 @@
     TemplateHelper.ResolveCompsNames(send_templ);
     TemplateHelper.ResolveAltSrcPaths(send_templ);
     TemplateHelper.ResolveSavePathDeps(send_templ);
+
+    //checks for dupliate save paths
+    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "dependant");
+    if (dep_path_conflicts.length > 0) {
+      const details = dep_path_conflicts
+        .map((c) => {
+          const comp_label = c.comp_name ? `${c.comp_name}` : "";
+          return `<b>${comp_label}</b> Rows with the same output: ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`;
+        })
+        .join("<br>");
+      m_message?.Open(
+        `Two or more rows resolve to the same output file path. Your files will be overwritten.<br><br>${details}`,
+        "Duplicate Output Paths Detected",
+      );
+      return;
+    }
 
     let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
@@ -1473,11 +1503,11 @@
         variant="discrete"
         labels={["One Per Row", "Multi-Output", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
-        bind:value={s.setts.out_mode} />
+        bind:value={sel_tmpl.out_mode} />
     </span>
 
     <!-- MODE: RENDER -->
-    {#if s.setts.out_mode === "render"}
+    {#if sel_tmpl.out_mode === "render"}
       <p class="modal-description">
         Exports a single render per row. When you only need to export a final
         file for each version.
@@ -1590,7 +1620,7 @@
           </tbody>
         </table>
       {/if}
-    {:else if s.setts.out_mode === "generate"}
+    {:else if sel_tmpl.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 
       <p class="modal-description">
@@ -1637,7 +1667,7 @@
 
       <button class="setting" onclick={BatchGenerate}
         >Generate Compositions</button>
-    {:else if s.setts.out_mode === "dependant"}
+    {:else if sel_tmpl.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
       <p class="modal-description">
