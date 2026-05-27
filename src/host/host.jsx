@@ -1430,6 +1430,8 @@ function RenderDeps(tmpl, props_layer) {
   //Loop through the rows and set the values of the template
   for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
 
+    var cleanup = [];
+
     try {
       var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
@@ -1484,6 +1486,8 @@ function RenderDeps(tmpl, props_layer) {
             dep_config.render_out_module_templ
           );
 
+          cleanup.push(rq_item);
+
           /** @type {RowRenderResult} */
           row_result = {
             row: dep_render_row,
@@ -1509,6 +1513,14 @@ function RenderDeps(tmpl, props_layer) {
         status: 'error',
         error: e.message
       });
+    }
+
+    // Delete existing rendered files before queuing
+    for (var i = 0; i < cleanup.length; i++) {
+      var existing_file = new File(cleanup[i].outputModule(1).file.fullName);
+      if (existing_file.exists) {
+      existing_file.remove();
+      }
     }
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
