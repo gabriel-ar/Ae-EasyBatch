@@ -317,7 +317,9 @@ export class TemplateHelper {
     for (let i_col in tmpl.columns) {
       pattern = pattern.replaceAll(
         `{${tmpl.columns[i_col].cont_name}}`,
-        tmpl.columns[i_col].values[index]
+        typeof tmpl.columns[i_col].values[index] === "string" 
+        ? tmpl.columns[i_col].values[index].trim() 
+        : tmpl.columns[i_col].values[index]
       );
     }
 
