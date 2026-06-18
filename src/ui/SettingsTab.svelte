@@ -44,14 +44,8 @@
 
   async function ResetSettings() {
 
-    const pid = structuredClone(s.proj.id);
-
     s.setts = SettingsHelper.DefaultProjSettings;
     s.proj = SettingsHelper.DefaultProjectData;
-
-    //copy the project ID so the host side doesnt refuse to save
-    s.proj.id = pid;
-
     s.proj.sel_tmpl = 0;
 
     l.debug("[SettingsTab] ResetSettings called");

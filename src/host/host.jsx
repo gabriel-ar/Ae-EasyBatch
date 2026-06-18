@@ -260,47 +260,40 @@ function _SettingsExist() {
   }
 }
 
-function _ProjectID() {
-  // load the XMPlibrary as an ExtendScript ExternalObject
-  if (ExternalObject.AdobeXMPScript === undefined) {
-    ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
-  }
-  var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-  var xmp = XMPMeta.getNamespaceURI("easybatch");
-
-  if (xmp === undefined || xmp === "") {
+function _NormalizePath(path) {
+  if (path === undefined || path === null || path === "") {
     return null;
   }
 
-  var prop = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
+  return path.split("\\").join("/").toLowerCase();
+}
 
-  if (prop === undefined || prop.value === undefined) {
+function _ProjectPath() {
+  if (app.project.file === null) {
     return null;
   }
 
-  /**@type {ProjData} */
-  var ProjData = JSON.parse(prop.value);
-  return ProjData.id;
+  return _NormalizePath(app.project.file.fullName);
 }
 
 /**
- * @returns {string} Stringified JSON of `ProjectIdResult` object
+ * @returns {string} Stringified JSON of `ProjectPathResult` object
  */
-function ProjectID() {
+function ProjectPath() {
 
-  /**@type {ProjectIdResult} */
+  /**@type {ProjectPathResult} */
   var result = {
     success: false,
-    id: null
+    path: null
   };
 
   try {
     result.success = true;
-    result.id = _ProjectID();
+    result.path = _ProjectPath();
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "host.jsx @ ProjectID";
+    result.error_obj.source = "host.jsx @ ProjectPath";
   }
   return JSON.stringify(result);
 }
@@ -379,14 +372,14 @@ function SaveSettings(s_request) {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
 
-    var setts_id = _ProjectID();
+    var project_path = _ProjectPath();
 
-    $.writeln("Current project ID: " + setts_id);
-    if (!request.is_new && setts_id !== undefined && setts_id !== request.project_id) {
+    $.writeln("Current project path: " + project_path);
+    if (!request.is_new && project_path !== request.project_path) {
       throw new ResponseError(
-        "The settings in the project have a different ID",
+        "The settings in the project have a different path",
         {
-          id_mismatch: true,
+          path_mismatch: true,
         }
       );
     }

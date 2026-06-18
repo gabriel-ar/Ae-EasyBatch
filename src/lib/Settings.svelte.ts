@@ -13,7 +13,6 @@ export interface ProjSettings {
 }
 
 export interface ProjData {
-  id: string;
   tmpls: TemplateData[];
   sel_tmpl: number;
   version?: string;
@@ -25,7 +24,7 @@ export class SettingsHelper {
       active_tab: Tabs.Data,
       data_mode: "table",
       log_level: Logger.Levels.Warn,
-      render_comps_folder: "~Automator Comps",
+      render_comps_folder: "~EasyBatch Comps",
       auto_preview: true,
       update_visible_col_only: true,
     };
@@ -33,18 +32,10 @@ export class SettingsHelper {
 
   static get DefaultProjectData(): ProjData {
     return {
-      id: SettingsHelper.MakeId(),
       tmpls: [],
       sel_tmpl: -1,
       version: _VERSION_
     };
-  }
-
-  static MakeId(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
-    );
   }
 
   static UpdateTemplates(project: ProjData, host_templates: any[]) {
@@ -95,8 +86,7 @@ export class SettingsHelper {
 
   static LoadProjectData(json: any): ProjData {
     let proj: ProjData = { ...this.DefaultProjectData, ...json};
-    if (!proj.id) proj.id = this.MakeId();
-    
+
     proj.tmpls = [];
     if (json.tmpls !== undefined) {
       json.tmpls.forEach((templ: any) => {

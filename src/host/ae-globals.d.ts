@@ -173,5 +173,5 @@ type HostTemplateData        = import('../lib/Messaging').HostTemplateData;
 type HostColumnData          = import('../lib/Messaging').HostColumnData;
 type PreviewRowResult        = import('../lib/Messaging').PreviewRowResult;
 type SaveSettsRequest        = import('../lib/Messaging').SaveSettsRequest;
-type ProjectIdResult     = import('../lib/Messaging').ProjectIdResult;
+type ProjectPathResult   = import('../lib/Messaging').ProjectPathResult;
 type CheckRenderResultResult = import('../lib/Messaging').CheckRenderResultResult;

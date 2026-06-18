@@ -48,7 +48,7 @@
     RenderSettsResults,
     BatchRenderResult,
     BatchGenerateResult,
-    ProjectIdResult,
+    ProjectPathResult,
     GetAllCompsResult,
     RowRenderResult,
     PreviewRowResult,
@@ -87,6 +87,7 @@
 
   let has_opened_viewer = false;
   let last_scroll_top = 0;
+  let loaded_project_path = $state<string | null>(null);
 
   let is_new_setts = false;
 
@@ -136,6 +137,8 @@
       if (no_tmpls) return;
 
       let { l_proj, l_setts } = await GetSettings();
+
+      loaded_project_path = await GetProjectPath();
 
       render_setts_templs = await GetRenderSettsTempls();
 
@@ -290,15 +293,29 @@
   }
 
   function CheckDifferentProject() {
-    csa.Exec<ProjectIdResult>("ProjectID").then((result) => {
+    csa.Exec<ProjectPathResult>("ProjectPath").then((result) => {
       if (!result.success) {
-        l.error("Failed to check project ID", result.error_obj);
+        l.error("Failed to check project path", result.error_obj);
         return;
       }
-      if (s.proj.id !== result.id) {
-        l.warn("Project ID mismatch, reloading settings");
+      if (loaded_project_path !== result.path) {
+        l.warn("Project path changed, reloading settings");
         StartupSequence();
       }
+    });
+  }
+
+  function GetProjectPath(): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      csa.Exec<ProjectPathResult>("ProjectPath").then((result) => {
+        if (!result.success) {
+          l.error("Failed to get project path", result.error_obj);
+          reject(result.error_obj);
+          return;
+        }
+
+        resolve(result.path ?? null);
+      });
     });
   }
 
@@ -333,6 +350,9 @@
   async function SaveSettings(
     what: "proj" | "setts" | "all" = "all",
   ): Promise<boolean> {
+
+    console.debug("SaveSettings called with type:", what);
+
     last_type = "";
 
     if (
@@ -358,7 +378,7 @@
       request.proj_settings = s.setts; // Sending settings data
     }
 
-    request.project_id = s.proj.id;
+    request.project_path = await GetProjectPath();
     request.is_new = is_new_setts;
 
     l.debug("SaveSettings called with request:", request);
@@ -373,16 +393,19 @@
 
           if (!result.success) {
             let e = result.error_obj;
-            if (e?.reasons?.id_mismatch) {
-              l.warn(`Different project ID, reloading settings`);
+            if (e?.reasons?.path_mismatch) {
+              l.warn(`Different project path, reloading settings`);
+              console.debug("Path mismatch error details:", e);
               StartupSequence();
               resolve(false);
             } else if (e?.reasons?.no_templates) {
               l.warn(`No templates to save.`);
+              console.debug("No templates error details:", e);
               no_tmpls = true;
               resolve(false);
             } else {
               l.error("Failed to save settings", result.error_obj);
+              console.debug("Save settings error details:", e);
               reject(result.error_obj);
             }
           } else {
