@@ -1,6 +1,6 @@
 <script lang="ts">
   import CSAdapter from "./lib/CSAdapter.ts";
-  import { onMount, setContext } from "svelte";
+  import { onMount, setContext} from "svelte";
 
   import {
     Camera,
@@ -348,7 +348,7 @@
   }
 
   async function SaveSettings(
-    what: "proj" | "setts" | "all" = "all",
+    what: "reset" | "proj" | "setts" | "all" = "all",
   ): Promise<boolean> {
 
     console.debug("SaveSettings called with type:", what);
@@ -376,6 +376,11 @@
 
     if (what === "setts" || what === "all") {
       request.proj_settings = s.setts; // Sending settings data
+    }
+
+    if(what === "reset") {
+      request.proj_settings = SettingsHelper.DefaultProjSettings;
+      request.proj_data = SettingsHelper.DefaultProjectData;
     }
 
     request.project_path = await GetProjectPath();
@@ -414,6 +419,22 @@
           }
         });
     });
+  }
+
+  async function ResetSettings() {
+    l.debug("ResetSettings called");
+    let res = await SaveSettings("reset").catch((e) => {
+      l.error("Failed to save settings after reset", e);
+      return false;
+    });
+
+    if (!res) {
+      l.error("Failed to save settings after reset");
+      return;
+    }
+
+    console.debug("Settings reset, reloading...");
+    StartupSequence();
   }
 
   let render_setts_templs = $state<RenderSettsResults>({
@@ -1878,7 +1899,7 @@
   <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
 {:else if active_tab == "settings"}
   <!-- SETTINGS -->
-  <SettingsPanel {SaveSettings} />
+  <SettingsPanel {ResetSettings} />
 {/if}
 
 {#if sel_tmpl !== undefined && show_alt_src_modal}

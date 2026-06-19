@@ -7,9 +7,9 @@
   type AppSettings = typeof SettingsHelper.DefaultProjSettings;
 
   let {
-    SaveSettings,
+    ResetSettings: ResetSettings,
   }: {
-    SaveSettings?: (what: "proj" | "setts" | "all") => Promise<boolean>;
+    ResetSettings?: () => Promise<void>;
   }= $props();
 
   function SaveJSON() {
@@ -38,26 +38,10 @@
         Object.assign(s.proj, SettingsHelper.LoadProjectData(loaded));
       }
       
-      if (SaveSettings !== undefined) SaveSettings("all");
+      if (ResetSettings !== undefined) ResetSettings();
     });
   }
 
-  async function ResetSettings() {
-
-    s.setts = SettingsHelper.DefaultProjSettings;
-    s.proj = SettingsHelper.DefaultProjectData;
-    s.proj.sel_tmpl = 0;
-
-    l.debug("[SettingsTab] ResetSettings called");
-    SaveSettings("all").then((res) => {
-      if (!res) {
-        l.error("[SettingsTab] Failed to save settings after reset");
-        return;
-      }
-      console.debug("[SettingsTab] Settings reset, reloading...");
-      window.location.reload()
-    });
-  }
 </script>
 
 <main class="settings">
