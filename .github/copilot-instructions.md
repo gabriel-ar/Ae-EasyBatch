@@ -153,6 +153,21 @@ Templates support dynamic paths with placeholders:
 - Column data as fields: `{column_0}`, `{column_1}`
 - Special fields: `{row_number}`, `{increment:0000}`
 
+## User Journey
+
+1. User opens EasyBatch in After Effects (Window > Extensions > EasyBatch).
+2. When opening on an empty project, user sees "No templates found" message.
+3. User configures a template by opening the Essential Graphics panel, and dragging properties from a composition into the panel.
+4. When opening EasyBatch and reloading, the new template appears in the list, and if its the only template, it is automatically selected.
+5. The properties of the template are shown as rows in a table inside the data tab.
+6. The user fills the data for each row.
+7. The user can import/export the data as CSV, which is parsed and mapped to the correct columns.
+8. To preview a row, the user clicks the preview button or the "p" key when the row is selected. This creates a temporary composition with the template applied, and opens it in the viewer (once per session).
+9. The user switches over the render tab to configure the output settings.
+10. A save pattern is configured for the template, which supports dynamic fields like `{base_path}/{template_name}_{row_number}` that will use the data from the template and the current row.
+11. The user selects the output module and render settings templates to use for rendering.
+12. The user clicks the "Render" button in the render tab or presses the "r" in the data view to render the current row.
+
 ## Gotchas
 
 1. **ExtendScript is ES3**: No arrow functions, `let`/`const`, template literals, modern APIs
