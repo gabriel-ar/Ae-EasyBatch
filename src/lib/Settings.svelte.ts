@@ -8,11 +8,13 @@ export interface ProjSettings {
   data_mode: "table" | "detail";
   log_level: number;
   render_comps_folder: string;
+  out_mode: OutMode;
   auto_preview: boolean;
   update_visible_col_only: boolean;
 }
 
 export interface ProjData {
+  id: string;
   tmpls: TemplateData[];
   sel_tmpl: number;
   version?: string;
@@ -24,7 +26,8 @@ export class SettingsHelper {
       active_tab: Tabs.Data,
       data_mode: "table",
       log_level: Logger.Levels.Warn,
-      render_comps_folder: "~EasyBatch Comps",
+      render_comps_folder: "~Automator Comps",
+      out_mode: OutMode.Render,
       auto_preview: true,
       update_visible_col_only: true,
     };
@@ -32,10 +35,18 @@ export class SettingsHelper {
 
   static get DefaultProjectData(): ProjData {
     return {
+      id: SettingsHelper.MakeId(),
       tmpls: [],
       sel_tmpl: -1,
       version: _VERSION_
     };
+  }
+
+  static MakeId(): string {
+    return (
+      Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15)
+    );
   }
 
   static UpdateTemplates(project: ProjData, host_templates: any[]) {
@@ -86,7 +97,8 @@ export class SettingsHelper {
 
   static LoadProjectData(json: any): ProjData {
     let proj: ProjData = { ...this.DefaultProjectData, ...json};
-
+    if (!proj.id) proj.id = this.MakeId();
+    
     proj.tmpls = [];
     if (json.tmpls !== undefined) {
       json.tmpls.forEach((templ: any) => {
@@ -103,7 +115,6 @@ export interface TemplateData {
   comp_id: number;
   active: boolean;
   columns: ColumnData[];
-  out_mode: OutMode;
   base_path: string;
   save_pattern: string;
   render_setts_templ: string;
@@ -146,8 +157,7 @@ export class TemplateHelper {
       active: true,
       columns: columns,
       base_path: "",
-      out_mode: OutMode.Render,
-      save_pattern: "Renders/{template_name}_{row_number}",
+      save_pattern: "{base_path}/{template_name}_{row_number}",
       render_setts_templ: "",
       render_out_module_templ: "",
       generate_pattern: "Generated_{increment:0000}",
@@ -270,7 +280,7 @@ export class TemplateHelper {
         render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
         //@ts-ignore
         render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
-        save_pattern: "Renders/{comp_name}_{row_number}",
+        save_pattern: "{base_path}/{comp_name}_{row_number}",
         save_path: "",
         save_paths: [],
       });
@@ -291,9 +301,7 @@ export class TemplateHelper {
   }
 
   static ResolveSavePath(tmpl: TemplateData, pattern: string, index: number, comp_name?: string): string {
-    // Support both {base_path} (legacy) and {base_folder} (new terminology) for backwards compatibility
     pattern = pattern.replaceAll("{base_path}", tmpl.base_path);
-    pattern = pattern.replaceAll("{base_folder}", tmpl.base_path);
     pattern = pattern.replaceAll("{row_number}", index.toString());
     pattern = pattern.replaceAll("{template_name}", tmpl.name);
     pattern = pattern.replaceAll("{comp_name}", comp_name || tmpl.comp);
@@ -307,9 +315,7 @@ export class TemplateHelper {
     for (let i_col in tmpl.columns) {
       pattern = pattern.replaceAll(
         `{${tmpl.columns[i_col].cont_name}}`,
-        typeof tmpl.columns[i_col].values[index] === "string" 
-        ? tmpl.columns[i_col].values[index].trim() 
-        : tmpl.columns[i_col].values[index]
+        tmpl.columns[i_col].values[index]
       );
     }
 
@@ -354,49 +360,9 @@ export class TemplateHelper {
     }
   }
 
-  /**
-   * Checks for duplicate save paths for the given render mode.
-   * - "render": checks the main template's `save_paths` only.
-   * - "dependant": checks each dependent comp's `save_paths` only.
-   * Returns an array of conflicts, each with the duplicated path, the row indices involved,
-   * and (for dep comps) the comp name.
-   */
-  static CheckDuplicateSavePaths(tmpl: TemplateData, mode: "render" | "dependant"): { path: string; rows: number[]; comp_name?: string }[] {
-    const conflicts: { path: string; rows: number[]; comp_name?: string }[] = [];
-
-    if (mode === "render") {
-      // Check main template save paths
-      const main_map = new Map<string, number[]>();
-      for (let i = 0; i < tmpl.save_paths.length; i++) {
-        const path = tmpl.save_paths[i];
-        if (!main_map.has(path)) main_map.set(path, []);
-        main_map.get(path)!.push(i);
-      }
-      for (const [path, rows] of main_map) {
-        if (rows.length > 1) conflicts.push({ path, rows });
-      }
-    } else if (mode === "dependant") {
-      // Check each dependent comp's save paths
-      for (const dep of tmpl.dep_config) {
-        if (!dep.save_paths || dep.save_paths.length === 0) continue;
-        const dep_map = new Map<string, number[]>();
-        for (let i = 0; i < dep.save_paths.length; i++) {
-          const path = dep.save_paths[i];
-          if (!dep_map.has(path)) dep_map.set(path, []);
-          dep_map.get(path)!.push(i);
-        }
-        for (const [path, rows] of dep_map) {
-          if (rows.length > 1) conflicts.push({ path, rows, comp_name: dep.name });
-        }
-      }
-    }
-
-    return conflicts;
-  }
-
   static ResolveCompName(tmpl: TemplateData, pattern: string, index: number): string {
-    pattern = pattern.replaceAll("{row_number}", index.toString());
-    pattern = pattern.replaceAll("{template_name}", tmpl.name);
+    pattern = pattern.replace("{row_number}", index.toString());
+    pattern = pattern.replace("{template_name}", tmpl.name);
 
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
@@ -405,14 +371,14 @@ export class TemplateHelper {
     });
 
     for (let i_col in tmpl.columns) {
-      pattern = pattern.replaceAll(
+      pattern = pattern.replace(
         `{${tmpl.columns[i_col].cont_name}}`,
         tmpl.columns[i_col].values[index]
       );
     }
 
     // Remove characters forbidden in file/folder names (Windows & macOS)
-    pattern = pattern.replaceAll(/[<>"|?*]/g, "");
+    pattern = pattern.replace(/[<>"|?*]/g, "");
 
     return pattern;
   }
@@ -509,7 +475,7 @@ export class TemplateHelper {
     tmpl.columns.forEach((col) => {
       col.values.splice(index, 1);
     });
-  
+
     this.ResolveAltSrcPaths(tmpl);
   }
 
@@ -565,16 +531,7 @@ export class TemplateHelper {
     tmpl.columns.forEach((tmpl_col) => {
       let col_i = header.indexOf(tmpl_col.cont_name);
 
-      if (col_i < 0){
-        //Fill with pre existing values if column not found in CSV
-        //Use all values avaiable and fill the rest with the last one
-        let last_val = tmpl_col.values[tmpl_col.values.length - 1];
-
-        if(last_val === undefined){last_val = ColumnHelper.ValidateValue("", tmpl_col.type);}
-        tmpl_col.values = [...tmpl_col.values,  ...new Array(csv_rows.length - tmpl_col.values.length).fill(last_val)];
-        
-        return;
-      }
+      if (col_i < 0) return;
 
       tmpl_col.values = csv_rows.map((csv_row) => {
         if (csv_row[col_i] === undefined) return null;
@@ -648,10 +605,8 @@ export class ColumnHelper {
   static ResolveAltSrcPath(col: ColumnData, index: number, columns: ColumnData[]): string {
     let pattern = col.alt_src_pattern;
 
-    // Support both {base_path} (legacy) and {base_folder} (new terminology) for backwards compatibility
-    pattern = pattern.replaceAll("{base_path}", col.alt_src_base);
-    pattern = pattern.replaceAll("{base_folder}", col.alt_src_base);
-    pattern = pattern.replaceAll("{row_number}", index.toString());
+    pattern = pattern.replace("{base_path}", col.alt_src_base);
+    pattern = pattern.replace("{row_number}", index.toString());
 
     pattern = pattern.replace(/\{increment:(\d.*?)\}/gm, (match, p1) => {
       let incr = parseInt(p1) + index;
@@ -660,14 +615,14 @@ export class ColumnHelper {
     });
 
     for (let i_col in columns) {
-      pattern = pattern.replaceAll(
+      pattern = pattern.replace(
         `{${columns[i_col].cont_name}}`,
         columns[i_col].values[index]
       );
     }
 
     // Remove characters forbidden in file/folder names (Windows & macOS)
-    pattern = pattern.replaceAll(/[<>"|?*]/g, "");
+    pattern = pattern.replace(/[<>"|?*]/g, "");
 
     return pattern;
   }

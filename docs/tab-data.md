@@ -35,9 +35,9 @@ The replaceable properties will have a cob icon on their columns (in green). Cli
 ##### Preview
 The preview will be showing you the resulting path where the extension is going to search for the file. The preview will always use the first row as a sample.
 
-##### Field: Base Folder
-Most of the times the patterns will include a base folder, this is the folder the assets you want to import have in common. 
-To select a base folder, click on the `Pick Base Folder` button. Then add it to the pattern: Click on the dropdown at the left of `Add Field`, and select `Base Folder`, then click on `Add Field`. This is the same as if you typed `{base_folder}` or `{base_path}` inside the pattern. (Both terms are supported for backwards compatibility.)
+##### Field: Base Path
+Most of the times the patterns will include a base path, this is the folder the assets you want to import have in common. 
+To select a base path, click on the `Pick Base Path` button. The add it to the pattern: Click on the dropdown at the left of `Add Field`, and select `Base Path`, then click on `Add Field`. This is the same as if you typed `{base_path}` inside the pattern.
 
 ##### Field: Row Number
 It will replace `{row_number}` with the current row index. If you have 20 renders, the first one will be `0` and the last one `19`.

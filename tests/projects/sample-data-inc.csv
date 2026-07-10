@@ -1,8 +1,0 @@
-RepText,RepColor,RepSlider,RepImage,CommentField,CB,Select
-Linked text,"0,1,0.86274509803922,1",55,./assets/headshot0.jpg,headshot,1,1
-Row Two Custom,"0.13333334028721,0.15424872934818,0.66666668653488,1",115,./assets/headshot1.jpg,headshot,0,2
-Row X Random,"0.13333334028721,0.66666668653488,0.42614352703094,1",129,./assets/headshot2.jpg,headshot,1,1
-Row X Minus,"0.13333334028721,0.62274497747421,0.66666668653488,1",150,./assets/headshot3.jpg,headshot,0,2
-Row X Custom,"1,0.79869282245636,0.80185067653656,1",0,./assets/headshot4.jpg,headshot,0,3
-Row X Other,"0,0,0,1",-5,./assets/headshot5.jpg,headshot,1,2
-Row X More,"0.59607940912247,1,0,1",-20,./assets/headshot6.jpg,headshot,1,1

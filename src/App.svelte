@@ -1,6 +1,6 @@
 <script lang="ts">
   import CSAdapter from "./lib/CSAdapter.ts";
-  import { onMount, setContext} from "svelte";
+  import { onMount, setContext } from "svelte";
 
   import {
     Camera,
@@ -48,7 +48,7 @@
     RenderSettsResults,
     BatchRenderResult,
     BatchGenerateResult,
-    ProjectPathResult,
+    ProjectIdResult,
     GetAllCompsResult,
     RowRenderResult,
     PreviewRowResult,
@@ -67,7 +67,7 @@
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import { l, s, csa } from "./ui/States.svelte.ts";
-  import ModalProceed from "./ui/ModalProceed.svelte";
+    import ModalProceed from "./ui/ModalProceed.svelte";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
@@ -82,12 +82,37 @@
   let menu = $state<Menu>();
   let curr_row_i = $state(0);
 
+  type ModalAction = { label: string; callback?: () => void };
+
+  function OpenMessage(
+    message: string,
+    title = "Message",
+    actions: ModalAction[] = [],
+  ) {
+    if (!m_message) {
+      l.warn("Cannot open message modal before component is mounted");
+      return;
+    }
+    m_message.Open(message, title, actions);
+  }
+
+  function OpenContextMenu(
+    x: number,
+    y: number,
+    callback: (action: string) => void,
+    type = "",
+  ) {
+    if (!menu) {
+      l.warn("Cannot open context menu before component is mounted");
+      return;
+    }
+    menu.Open(x, y, callback, type);
+  }
+
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
 
   let has_opened_viewer = false;
-  let last_scroll_top = 0;
-  let loaded_project_path = $state<string | null>(null);
 
   let is_new_setts = false;
 
@@ -109,18 +134,8 @@
     StartupSequence();
     SetupShortcuts();
 
-    m_proceed?.ShouldProceed();
-
-    let window_returns = 0;
     window.onfocus = (e) => {
       CheckDifferentProject();
-
-      if (window_returns < 1) {
-        window_returns++;
-      } else {
-        has_opened_viewer = false;
-        window_returns = 0;
-      }
     };
   });
 
@@ -137,8 +152,6 @@
       if (no_tmpls) return;
 
       let { l_proj, l_setts } = await GetSettings();
-
-      loaded_project_path = await GetProjectPath();
 
       render_setts_templs = await GetRenderSettsTempls();
 
@@ -196,7 +209,7 @@
             });
           } else {
             l.error("Failed to load settings", result.error_obj);
-            m_message?.Open(
+            OpenMessage(
               `There was a problem loading the data in this project. Do you want to reset the EasyBatch data?`,
               "Open Error",
               [
@@ -243,7 +256,7 @@
             }) > 0
           ) {
             //Open a message
-            m_message?.Open(
+            OpenMessage(
               `This project was saved with version ${project_version} of EasyBatch, and you're using ${_VERSION_}. There may be potential incompatibilities. Do you want to continue loading the project?`,
               "Version Mismatch",
               [
@@ -293,29 +306,15 @@
   }
 
   function CheckDifferentProject() {
-    csa.Exec<ProjectPathResult>("ProjectPath").then((result) => {
+    csa.Exec<ProjectIdResult>("ProjectID").then((result) => {
       if (!result.success) {
-        l.error("Failed to check project path", result.error_obj);
+        l.error("Failed to check project ID", result.error_obj);
         return;
       }
-      if (loaded_project_path !== result.path) {
-        l.warn("Project path changed, reloading settings");
+      if (s.proj.id !== result.id) {
+        l.warn("Project ID mismatch, reloading settings");
         StartupSequence();
       }
-    });
-  }
-
-  function GetProjectPath(): Promise<string | null> {
-    return new Promise((resolve, reject) => {
-      csa.Exec<ProjectPathResult>("ProjectPath").then((result) => {
-        if (!result.success) {
-          l.error("Failed to get project path", result.error_obj);
-          reject(result.error_obj);
-          return;
-        }
-
-        resolve(result.path ?? null);
-      });
     });
   }
 
@@ -347,12 +346,7 @@
     save_timeout = setTimeout(SaveSettings, 2000, what);
   }
 
-  async function SaveSettings(
-    what: "reset" | "proj" | "setts" | "all" = "all",
-  ): Promise<boolean> {
-
-    console.debug("SaveSettings called with type:", what);
-
+  async function SaveSettings(what: "proj" | "setts" | "all" = "all"): Promise<boolean> {
     last_type = "";
 
     if (
@@ -378,12 +372,7 @@
       request.proj_settings = s.setts; // Sending settings data
     }
 
-    if(what === "reset") {
-      request.proj_settings = SettingsHelper.DefaultProjSettings;
-      request.proj_data = SettingsHelper.DefaultProjectData;
-    }
-
-    request.project_path = await GetProjectPath();
+    request.project_id = s.proj.id;
     request.is_new = is_new_setts;
 
     l.debug("SaveSettings called with request:", request);
@@ -398,19 +387,16 @@
 
           if (!result.success) {
             let e = result.error_obj;
-            if (e?.reasons?.path_mismatch) {
-              l.warn(`Different project path, reloading settings`);
-              console.debug("Path mismatch error details:", e);
+            if (e?.reasons?.id_mismatch) {
+              l.warn(`Different project ID, reloading settings`);
               StartupSequence();
               resolve(false);
             } else if (e?.reasons?.no_templates) {
               l.warn(`No templates to save.`);
-              console.debug("No templates error details:", e);
               no_tmpls = true;
               resolve(false);
             } else {
               l.error("Failed to save settings", result.error_obj);
-              console.debug("Save settings error details:", e);
               reject(result.error_obj);
             }
           } else {
@@ -419,22 +405,6 @@
           }
         });
     });
-  }
-
-  async function ResetSettings() {
-    l.debug("ResetSettings called");
-    let res = await SaveSettings("reset").catch((e) => {
-      l.error("Failed to save settings after reset", e);
-      return false;
-    });
-
-    if (!res) {
-      l.error("Failed to save settings after reset");
-      return;
-    }
-
-    console.debug("Settings reset, reloading...");
-    StartupSequence();
   }
 
   let render_setts_templs = $state<RenderSettsResults>({
@@ -565,18 +535,15 @@
     ac.AddListener(
       "delete",
       () => {
-        //prevent deleting the row if only one row is left
-        if (row_count <= 1) {
-          footer_txt = "⚠️ Cannot delete the last row";
-          return;
-        }
-
         TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
+      },
+      "Delete",
+    );
 
-        //move the selected row up if the last row was deleted
-        if (curr_row_i >= row_count) {
-          curr_row_i = row_count - 1;
-        }
+    ac.AddListener(
+      "delete",
+      () => {
+        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
       },
       "Backspace",
     );
@@ -625,7 +592,7 @@
     ac.AddListener(
       "edit_view",
       () => {
-        m_edit_view?.Open(EditViewModalClosed);
+        OpenEditViewModal();
       },
       "",
     );
@@ -688,27 +655,16 @@
     );
   }
 
-  let active_tab = $state<string | null>(null);
+  let last_opened_tab = $state<string | null>(null);
   //Tab changed
   $effect(() => {
-    if (active_tab === "data" && s.setts.active_tab !== "data") {
-      //Save the scroll position of the data tab when leaving it, so we can restore it when coming back
-      const main_data = document.querySelector("#main_data");
-      if (main_data) {
-        last_scroll_top = main_data.scrollTop;
-      }
-      console.debug("Saved scroll position:", last_scroll_top);
-    }
-
-    if (s.setts.active_tab === "output" && active_tab !== "output") {
+    if (s.setts.active_tab === "output" && last_opened_tab !== "output") {
       //Check if there's any template selected, otherwise just select the first one
 
       if (sel_tmpl !== undefined) {
         let render_templs = render_setts_templs.render_templs ?? [];
-        let output_module_templs =
-          render_setts_templs.output_modules_templs ?? [];
-        let default_render_templ_i =
-          render_setts_templs.default_render_templ ?? 0;
+        let output_module_templs = render_setts_templs.output_modules_templs ?? [];
+        let default_render_templ_i = render_setts_templs.default_render_templ ?? 0;
         let default_output_module_templ_i =
           render_setts_templs.default_output_module_templ ?? 0;
 
@@ -724,19 +680,11 @@
             "";
         }
       }
-    } else if (s.setts.active_tab === "data" && active_tab !== "data") {
+    } else if (s.setts.active_tab === "data" && last_opened_tab !== "data") {
       has_opened_viewer = false;
-
-      //Restore the scroll position of the data tab when coming back to it
-      requestAnimationFrame(() => {
-        const main_data = document.querySelector("#main_data");
-        if (main_data) {
-          main_data.scrollTop = last_scroll_top;
-        }
-      });
     }
 
-    active_tab = s.setts.active_tab;
+    last_opened_tab = s.setts.active_tab;
   });
 
   /////DATA TAB/////
@@ -788,12 +736,14 @@
         //General failure
         if (!result.success) {
           l.error("Failed to preview row", result.error_obj);
-          const error_msg =
-            result.error_obj?.message ?? "Unknown preview error";
+          const error_msg = result.error_obj?.message ?? "Unknown preview error";
           if (!prop_changed) {
-            m_message?.Open(error_msg, "Error Previewing Row");
+            OpenMessage(error_msg, "Error Previewing Row");
           } else {
-            UpdateStatusFooter("⚠️ Error Previewing Row " + row_i, error_msg);
+            UpdateStatusFooter(
+              "⚠️ Error Previewing Row " + row_i,
+              error_msg,
+            );
           }
           return;
         }
@@ -807,7 +757,7 @@
             );
             return;
           } else {
-            m_message?.Open(
+            OpenMessage(
               result.errors.map((e) => e.message).join("<br>"),
               "Error Previewing Row",
             );
@@ -861,7 +811,7 @@
 
     curr_row_i = row_i;
     e.preventDefault();
-    menu?.Open(e.pageX, e.pageY, MenuItemSelected);
+    OpenContextMenu(e.pageX, e.pageY, MenuItemSelected);
   }
 
   function MenuItemSelected(action: string) {
@@ -871,12 +821,16 @@
 
   function OpenBarMenu(e: MouseEvent, type: string) {
     let btn = e.target as HTMLButtonElement;
-    menu?.Open(
+    OpenContextMenu(
       btn.offsetLeft,
       btn.offsetTop + btn.offsetHeight,
       BarMenuSelected,
       type,
     );
+  }
+
+  function OpenHelpMenu(e: MouseEvent) {
+    OpenContextMenu(e.pageX, e.pageY, MenuItemSelected, "help");
   }
 
   function BarMenuSelected(action: string) {
@@ -898,11 +852,13 @@
 
   /**Renders only the selected row instead of batch rendering*/
   function RenderRow(row_i: number) {
-    switch (sel_tmpl.out_mode) {
+    switch (s.setts.out_mode) {
       case "render":
+        s.setts.active_tab = Tabs.Output;
         BatchRender(row_i);
         break;
       case "dependant":
+        s.setts.active_tab = Tabs.Output;
         BatchOneToMany(row_i);
         break;
     }
@@ -941,7 +897,7 @@
 
   function OpenStatusLongMsg() {
     if (footer_txt_long !== undefined && footer_txt_long !== "") {
-      m_message?.Open(footer_txt_long, "Details");
+      OpenMessage(footer_txt_long, "Details");
     }
   }
 
@@ -963,7 +919,7 @@
       .then(async (r) => {
         if (r.status === 200) {
           let data = await r.json();
-          m_message?.Open(
+          OpenMessage(
             `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
             "🐶 Take a Break",
           );
@@ -972,6 +928,13 @@
       .catch((error) => {
         l.error("Failed to fetch dog image", error);
       });
+  }
+  function OpenEditViewModal() {
+    if (!m_edit_view) {
+      l.warn("Cannot open edit view modal before component is mounted");
+      return;
+    }
+    m_edit_view.Open(EditViewModalClosed);
   }
 
   function EditViewModalClosed(new_table_cols: number[]) {
@@ -999,8 +962,9 @@
 
   let sel_add_field = $state("base_path");
   function RenderSave_AddField() {
-    let save_pattern_ta =
-      document.querySelector<HTMLTextAreaElement>("#save_pattern_ta");
+    let save_pattern_ta = document.querySelector<HTMLTextAreaElement>(
+      "#save_pattern_ta",
+    );
     if (!save_pattern_ta) return;
 
     let cursor_pos = save_pattern_ta.selectionStart;
@@ -1026,8 +990,9 @@
 
   let sel_add_field_gen = $state("row_number");
   function GenerateName_AddField() {
-    let pattern_ta =
-      document.querySelector<HTMLTextAreaElement>("#generate_proj_ta");
+    let pattern_ta = document.querySelector<HTMLTextAreaElement>(
+      "#generate_proj_ta",
+    );
     if (!pattern_ta) return;
 
     let cursor_pos = pattern_ta.selectionStart;
@@ -1114,7 +1079,12 @@
   let edit_dep_comp_index = $state<number | undefined>();
   function DepFilePatternModalOpen(dep_index: number) {
     edit_dep_comp_index = dep_index;
-    m_file_pattern?.Open(dep_index, DepFilePatternModalClosed);
+
+    if (!m_file_pattern) {
+      l.warn("Cannot open dependant file pattern modal before component is mounted");
+      return;
+    }
+    m_file_pattern.Open(dep_index, DepFilePatternModalClosed);
   }
 
   function DepFilePatternModalClosed(base_path: string, pattern: string) {
@@ -1168,20 +1138,6 @@
     TemplateHelper.ResolveSavePaths(send_templ);
     TemplateHelper.ResolveAltSrcPaths(send_templ);
 
-    //checks for dupliate save paths
-    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "render");
-    if (path_conflicts.length > 0) {
-      const details = path_conflicts
-        .map((c) => `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`)
-        .join("<br>");
-
-      m_message?.Open(
-        `Two or more rows will render files with the same output path. After Effects will not start the queue until this is fixed.<br><br>${details}`,
-        "Duplicate Output Paths Detected",
-      );
-      return;
-    }
-
     render_results = [];
 
     let string_templt = JSON.stringify(send_templ);
@@ -1197,7 +1153,7 @@
         if (!result.success) {
           l.error("Failed to batch render", result.error_obj);
           const error_msg = result.error_obj?.message ?? "Unknown render error";
-          m_message?.Open(error_msg, "Error While Batch Rendering");
+          OpenMessage(error_msg, "Error While Batch Rendering");
 
           if (row_i !== -1) {
             UpdateStatusFooter(
@@ -1228,7 +1184,7 @@
           render_results = result.row_results ?? [];
 
           if (row_i !== -1) {
-            UpdateStatusFooter("Render Queued Successfully");
+            UpdateStatusFooter("Row Queued Successfully");
           }
           return;
         }
@@ -1260,10 +1216,6 @@
   function BatchOneToMany(row_i: number = -1) {
     l.log("BatchOneToMany called");
 
-    if (!proceed) {
-      return;
-    }
-
     let send_templ;
 
     //If just rendering a single row, clone the template and trim it down to that row
@@ -1283,28 +1235,8 @@
     TemplateHelper.ResolveAltSrcPaths(send_templ);
     TemplateHelper.ResolveSavePathDeps(send_templ);
 
-    //checks for dupliate save paths
-    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "dependant");
-    if (dep_path_conflicts.length > 0) {
-      const details = dep_path_conflicts
-        .map((c) => {
-          const comp_label = c.comp_name ? `${c.comp_name}` : "";
-          return `<b>${comp_label}</b> Rows with the same output: ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`;
-        })
-        .join("<br>");
-      m_message?.Open(
-        `Two or more rows resolve to the same output file path. Your files will be overwritten.<br><br>${details}`,
-        "Duplicate Output Paths Detected",
-      );
-      return;
-    }
-
     let string_templt = JSON.stringify(send_templ);
     l.debug("OtM String Sent to csa:", string_templt);
-
-    if (row_i !== -1) {
-      UpdateStatusFooter("Queuing Multi-Output Render...");
-    }
 
     csa
       .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt)
@@ -1313,9 +1245,8 @@
 
         if (!result.success) {
           l.error("Failed to render OtM", result.error_obj);
-          const error_msg =
-            result.error_obj?.message ?? "Unknown Multi-Output render error";
-          m_message?.Open(error_msg, "Error While Rendering Multi-Output");
+          const error_msg = result.error_obj?.message ?? "Unknown OtM render error";
+          OpenMessage(error_msg, "Error While Rendering One to Many");
           return;
         }
 
@@ -1323,17 +1254,7 @@
         else if (result.errors !== undefined && result.errors.length > 0) {
           l.warn(`OtM Render completed with errors`, result.errors);
           dep_row_results = result.row_results ?? [];
-
-          if (row_i !== -1) {
-            UpdateStatusFooter(
-              "⚠️ Multi-Output Render completed with errors for Row " + row_i,
-              "Check the log in the Render tab for details.",
-            );
-          }
-        }
-
-        //User stopped the render
-        else if (result.user_stopped) {
+        } else if (result.user_stopped) {
           l.log(`OtM Render stopped by user`);
           user_stopped_deps = true;
           dep_row_results = result.row_results ?? [];
@@ -1342,10 +1263,6 @@
         //All rows rendered successfully
         else {
           dep_row_results = result.row_results ?? [];
-
-          if (row_i !== -1) {
-            UpdateStatusFooter("Queued Successfully");
-          }
         }
       });
   }
@@ -1380,13 +1297,13 @@
     <button onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
-      onclick={(e) => menu?.Open(e.pageX, e.pageY, MenuItemSelected, "help")}
+      onclick={OpenHelpMenu}
       ><QuestionMark /></button>
   </div>
 </header>
 
 <!-- DATA -->
-{#if active_tab === "data"}
+{#if s.setts.active_tab === "data"}
   <nav class="dat_bar">
     <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "file")}
       >File</button>
@@ -1395,7 +1312,7 @@
     <button data-variant="discrete" onclick={(e) => OpenBarMenu(e, "view")}
       >View</button>
   </nav>
-  <main id="main_data">
+  <main>
     {#if s.proj.sel_tmpl >= 0 && sel_tmpl !== undefined && s.proj.tmpls.length > 0}
       {#if s.setts.data_mode === "table"}
         <table class="dat_table">
@@ -1440,7 +1357,8 @@
                     class="delete_row"
                     data-tooltip="Preview Row"
                     data-tt-pos="top-right"
-                    onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
+                    onclick={(e) => PreviewRow(row_i)}
+                    ><EyeOpen /></button>
                 </td>
                 {#each sel_tmpl.view_cols as td_col_i}
                   <td
@@ -1547,7 +1465,7 @@
   </footer>
 
   <ModalEditView bind:this={m_edit_view}></ModalEditView>
-{:else if active_tab === "output"}
+{:else if s.setts.active_tab === "output"}
   <!-- OUTPUT -->
   <main class="output">
     <span
@@ -1556,11 +1474,11 @@
         variant="discrete"
         labels={["One Per Row", "Multi-Output", "Generate Comps"]}
         options={["render", "dependant", "generate"]}
-        bind:value={sel_tmpl.out_mode} />
+        bind:value={s.setts.out_mode} />
     </span>
 
     <!-- MODE: RENDER -->
-    {#if sel_tmpl.out_mode === "render"}
+    {#if s.setts.out_mode === "render"}
       <p class="modal-description">
         Exports a single render per row. When you only need to export a final
         file for each version.
@@ -1582,27 +1500,27 @@
         bind:value={sel_tmpl.save_pattern}></textarea>
 
       <div class="setting" style="margin-top: 4px;">
-        <button onclick={SelRenderBasePath}>Pick Base Folder</button>
+        <button onclick={SelRenderBasePath}>Pick Base Path</button>
 
         <Dropdown
           style={"margin-left: 15px;"}
           labels={[
-            "Base Folder",
+            "Base Path",
             "Template Name",
             "Row Number",
             "Increment",
             ...sel_tmpl.columns.map((col) => col.cont_name),
           ]}
           options={[
-            "base_folder",
+            "base_path",
             "template_name",
             "row_number",
             "increment:0000",
             ...sel_tmpl.columns.map((col) => col.cont_name),
           ]}
-          title="Add Field..."
-          onselect={() => RenderSave_AddField()}
           bind:value={sel_add_field} />
+
+        <button onclick={RenderSave_AddField}>Add Field</button>
       </div>
 
       <div class="setting">
@@ -1636,7 +1554,10 @@
             "<b>Single Frame PNG</b>",
             ...visible_output_module_templates,
           ]}
-          options={["EB_Single_Frame_PNG", ...visible_output_module_templates]}
+          options={[
+            "EB_Single_Frame_PNG",
+            ...visible_output_module_templates,
+          ]}
           bind:value={sel_tmpl.render_out_module_templ} />
       </div>
 
@@ -1673,7 +1594,7 @@
           </tbody>
         </table>
       {/if}
-    {:else if sel_tmpl.out_mode === "generate"}
+    {:else if s.setts.out_mode === "generate"}
       <!-- MODE: GENERATE -->
 
       <p class="modal-description">
@@ -1686,28 +1607,30 @@
         id="generate_proj_ta"
         spellcheck="false"
         bind:value={sel_tmpl.generate_pattern}></textarea>
-      <div class="setting" style="margin-top: 4px;">
-        <Dropdown
-          labels={[
-            "Template Name",
-            "Row Number",
-            "Increment",
-            ...sel_tmpl.columns.map((col) => col.cont_name),
-          ]}
-          options={[
-            "template_name",
-            "row_number",
-            "increment:0000",
-            ...sel_tmpl.columns.map((col) => col.cont_name),
-          ]}
-          title="Add Field..."
-          onselect={() => GenerateName_AddField()}
-          bind:value={sel_add_field_gen} />
-      </div>
 
       <div class="setting">
         <span>Preview:</span>
         <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
+      </div>
+
+      <div class="setting">
+        <div>
+          <button onclick={GenerateName_AddField}>Add Field</button>
+          <Dropdown
+            labels={[
+              "Template Name",
+              "Row Number",
+              "Increment",
+              ...sel_tmpl.columns.map((col) => col.cont_name),
+            ]}
+            options={[
+              "template_name",
+              "row_number",
+              "increment:0000",
+              ...sel_tmpl.columns.map((col) => col.cont_name),
+            ]}
+            bind:value={sel_add_field_gen} />
+        </div>
       </div>
 
       <div class="setting">
@@ -1720,7 +1643,7 @@
 
       <button class="setting" onclick={BatchGenerate}
         >Generate Compositions</button>
-    {:else if sel_tmpl.out_mode === "dependant"}
+    {:else if s.setts.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
       <p class="modal-description">
@@ -1906,9 +1829,9 @@
   </main>
 
   <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
-{:else if active_tab == "settings"}
+{:else if s.setts.active_tab == "settings"}
   <!-- SETTINGS -->
-  <SettingsPanel {ResetSettings} />
+  <SettingsPanel {SaveSettings} />
 {/if}
 
 {#if sel_tmpl !== undefined && show_alt_src_modal}
@@ -1920,7 +1843,7 @@
 
 <Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
-<ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
+<ModalProceed bind:proceed={proceed} bind:this={m_proceed}></ModalProceed>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">

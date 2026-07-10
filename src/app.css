@@ -41,10 +41,6 @@
 
 }
 
-html, body {
-  background-color: var(--color-base);
-}
-
 h3,
 h4 {
   margin: 0.5rem 0 0;

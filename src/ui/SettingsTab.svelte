@@ -7,9 +7,9 @@
   type AppSettings = typeof SettingsHelper.DefaultProjSettings;
 
   let {
-    ResetSettings: ResetSettings,
+    SaveSettings,
   }: {
-    ResetSettings?: () => Promise<void>;
+    SaveSettings?: (what: "proj" | "setts" | "all") => Promise<boolean>;
   }= $props();
 
   function SaveJSON() {
@@ -38,10 +38,32 @@
         Object.assign(s.proj, SettingsHelper.LoadProjectData(loaded));
       }
       
-      if (ResetSettings !== undefined) ResetSettings();
+      if (SaveSettings !== undefined) SaveSettings("all");
     });
   }
 
+  async function ResetSettings() {
+
+    const pid = structuredClone(s.proj.id);
+
+    s.setts = SettingsHelper.DefaultProjSettings;
+    s.proj = SettingsHelper.DefaultProjectData;
+
+    //copy the project ID so the host side doesnt refuse to save
+    s.proj.id = pid;
+
+    s.proj.sel_tmpl = 0;
+
+    l.debug("[SettingsTab] ResetSettings called");
+    SaveSettings("all").then((res) => {
+      if (!res) {
+        l.error("[SettingsTab] Failed to save settings after reset");
+        return;
+      }
+      console.debug("[SettingsTab] Settings reset, reloading...");
+      window.location.reload()
+    });
+  }
 </script>
 
 <main class="settings">

@@ -4,8 +4,8 @@ export type ResponseErrorBase = {
   /** If the project name is not found */
   not_found?: boolean;
 
-  /** If the project path does not match */
-  path_mismatch?: boolean;
+  /** If the project id does not match */
+  id_mismatch?: boolean;
 
   /** Raw unparseable response string, set when JSON.parse fails */
   raw_response?: string;
@@ -24,7 +24,7 @@ export type ResponseErrorBase = {
 
   reasons?: {
     not_found?: boolean;
-    path_mismatch?: boolean;
+    id_mismatch?: boolean;
     no_templates?: boolean;
     no_settings?: boolean;
     no_project_name?: boolean;
@@ -44,7 +44,7 @@ export class SaveSettsRequest extends Request {
   }
 
   /** Project name */
-  project_name?: string;
+  project_name: string;
   
     /** Project data to save */
   proj_data?: ProjData;
@@ -55,7 +55,7 @@ export class SaveSettsRequest extends Request {
   /** Defined if we should save the settings on a project that doesn't have any */
   is_new?: boolean;
 
-  project_path: string | null = null;
+  project_id: string;
 }
 
 /** Base result type */
@@ -159,8 +159,8 @@ export interface GetCurrentValuesResults extends Result {
 }
 
 /** Result for checking if same project */
-export interface ProjectPathResult extends Result {
- path: string | null;
+export interface ProjectIdResult extends Result {
+ id: string;
 }
 
 /**
