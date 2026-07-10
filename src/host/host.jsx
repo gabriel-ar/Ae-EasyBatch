@@ -14,7 +14,7 @@ Internal use functions are prefixed with an underscore `_`.
 /**Because random bugs happens that are difficult to track */
 var local_logs = [];
 
-var prev_comp_n = "TemplatePreview";
+var PREV_COMP_N = "TemplatePreview";
 
 function _HasTemplates() {
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
@@ -166,7 +166,7 @@ function _GetDependentComps(parent_comp) {
       if (
         comp instanceof CompItem &&
         comp.id !== parent_comp.id &&
-        comp.name !== prev_comp_n &&
+        comp.name !== PREV_COMP_N &&
         comp.comment !== comment_render_comp
       ) {
         deps.push({ name: comp.name, id: comp.id });
@@ -456,7 +456,7 @@ function _SetupTemplatePreviewComp(remove_layers) {
   //Check if the composition already exists
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var comp = /** @type {CompItem} */ (app.project.item(i_items));
-    if (comp instanceof CompItem && comp.name == prev_comp_n) {
+    if (comp instanceof CompItem && comp.name === PREV_COMP_N) {
 
       try {
         if (remove_layers) {
@@ -472,7 +472,7 @@ function _SetupTemplatePreviewComp(remove_layers) {
 
   //create a new comp with the name "TemplateRender"
   var comp = /** @type {CompItem} */ (app.project.items.addComp(
-    prev_comp_n,
+    PREV_COMP_N,
     1920,
     1080,
     1,
