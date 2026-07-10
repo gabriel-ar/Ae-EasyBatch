@@ -14,6 +14,8 @@ Internal use functions are prefixed with an underscore `_`.
 /**Because random bugs happens that are difficult to track */
 var local_logs = [];
 
+var PREV_COMP_N = "TemplatePreview";
+
 function _HasTemplates() {
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var item = app.project.item(i_items);
@@ -164,7 +166,7 @@ function _GetDependentComps(parent_comp) {
       if (
         comp instanceof CompItem &&
         comp.id !== parent_comp.id &&
-        comp.name !== "TemplatePreview" &&
+        comp.name !== PREV_COMP_N &&
         comp.comment !== comment_render_comp
       ) {
         deps.push({ name: comp.name, id: comp.id });
@@ -258,47 +260,40 @@ function _SettingsExist() {
   }
 }
 
-function _ProjectID() {
-  // load the XMPlibrary as an ExtendScript ExternalObject
-  if (ExternalObject.AdobeXMPScript === undefined) {
-    ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
-  }
-  var mdata = new XMPMeta(app.project.xmpPacket); //get the project's XMPmetadata
-  var xmp = XMPMeta.getNamespaceURI("easybatch");
-
-  if (xmp === undefined || xmp === "") {
+function _NormalizePath(path) {
+  if (path === undefined || path === null || path === "") {
     return null;
   }
 
-  var prop = mdata.getProperty(xmp, "ProjectData", XMPConst.STRING);
+  return path.split("\\").join("/").toLowerCase();
+}
 
-  if (prop === undefined || prop.value === undefined) {
+function _ProjectPath() {
+  if (app.project.file === null) {
     return null;
   }
 
-  /**@type {ProjData} */
-  var ProjData = JSON.parse(prop.value);
-  return ProjData.id;
+  return _NormalizePath(app.project.file.fullName);
 }
 
 /**
- * @returns {string} Stringified JSON of `ProjectIdResult` object
+ * @returns {string} Stringified JSON of `ProjectPathResult` object
  */
-function ProjectID() {
+function ProjectPath() {
 
-  /**@type {ProjectIdResult} */
+  /**@type {ProjectPathResult} */
   var result = {
     success: false,
-    id: null
+    path: null
   };
 
   try {
     result.success = true;
-    result.id = _ProjectID();
+    result.path = _ProjectPath();
   } catch (e) {
     result.success = false;
     result.error_obj = e;
-    result.error_obj.source = "host.jsx @ ProjectID";
+    result.error_obj.source = "host.jsx @ ProjectPath";
   }
   return JSON.stringify(result);
 }
@@ -377,14 +372,14 @@ function SaveSettings(s_request) {
       ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
     }
 
-    var setts_id = _ProjectID();
+    var project_path = _ProjectPath();
 
-    $.writeln("Current project ID: " + setts_id);
-    if (!request.is_new && setts_id !== undefined && setts_id !== request.project_id) {
+    $.writeln("Current project path: " + project_path);
+    if (!request.is_new && project_path !== request.project_path) {
       throw new ResponseError(
-        "The settings in the project have a different ID",
+        "The settings in the project have a different path",
         {
-          id_mismatch: true,
+          path_mismatch: true,
         }
       );
     }
@@ -461,13 +456,15 @@ function _SetupTemplatePreviewComp(remove_layers) {
   //Check if the composition already exists
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var comp = /** @type {CompItem} */ (app.project.item(i_items));
-    if (comp instanceof CompItem && comp.name == "TemplatePreview") {
-      //remove all layers from the comp
-      if (remove_layers) {
-        for (var i_layer = comp.numLayers; i_layer >= 1; i_layer--) {
-          comp.layer(i_layer).remove();
+    if (comp instanceof CompItem && comp.name === PREV_COMP_N) {
+
+      try {
+        if (remove_layers) {
+          for (var i_layer = comp.numLayers; i_layer >= 1; i_layer--) {
+            comp.layer(i_layer).remove();
+          }
         }
-      }
+      } catch (e) { }
 
       return comp;
     }
@@ -475,7 +472,7 @@ function _SetupTemplatePreviewComp(remove_layers) {
 
   //create a new comp with the name "TemplateRender"
   var comp = /** @type {CompItem} */ (app.project.items.addComp(
-    "TemplatePreview",
+    PREV_COMP_N,
     1920,
     1080,
     1,
@@ -1426,6 +1423,8 @@ function RenderDeps(tmpl, props_layer) {
   //Loop through the rows and set the values of the template
   for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
 
+    var cleanup = [];
+
     try {
       var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
 
@@ -1480,6 +1479,8 @@ function RenderDeps(tmpl, props_layer) {
             dep_config.render_out_module_templ
           );
 
+          cleanup.push(rq_item);
+
           /** @type {RowRenderResult} */
           row_result = {
             row: dep_render_row,
@@ -1505,6 +1506,14 @@ function RenderDeps(tmpl, props_layer) {
         status: 'error',
         error: e.message
       });
+    }
+
+    // Delete existing rendered files before queuing
+    for (var i = 0; i < cleanup.length; i++) {
+      var existing_file = new File(cleanup[i].outputModule(1).file.fullName);
+      if (existing_file.exists) {
+      existing_file.remove();
+      }
     }
 
     if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();

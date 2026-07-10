@@ -37,6 +37,9 @@
     option_callback: (option: string) => void,
     show_mode: string = "row",
   ) {
+
+    console.debug("Opening context menu at:", pos_x, pos_y, "with mode:", show_mode);
+
     onselect = option_callback;
     open = true;
     positioned = false;

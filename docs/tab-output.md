@@ -15,14 +15,14 @@ In the screenshot above, the pattern `{base_path}/INT_Matchup_{Tricode Home}vs{T
 
 If you include `/` in the pattern, this will interpreted as a subfolder, the pattern is capable of dynamically creating these subfolders.
 
-The pattern is made up of fields, in the case above `{base_path}`, `{Tricode Home}` and `{Tricode Away}` are fields.
+The pattern is made up of fields, in the case above `{base_folder}` (or `{base_path}` for backwards compatibility), `{Tricode Home}` and `{Tricode Away}` are fields.
 
 ![Screenshot of the available patterns](assets/ss_output_pattern.png)
 
-##### Field: Base Path
-Most of the times the patterns will include a base path, this is the folder that all the renders have in common. If you select a folder in the same drive, you'll see that the path will be relative (doesn't include the drive letter), and this will greatly help to keep the project portable. The path is relative to the project.
+##### Field: Base Folder
+Most of the times the patterns will include a base folder, this is the folder that all the renders have in common. If you select a folder in the same drive, you'll see that the path will be relative (doesn't include the drive letter), and this will greatly help to keep the project portable. The path is relative to the project.
 
-To select a base path, click on the `Pick Base Path` button. The add it to the pattern: Click on the dropdown at the left of `Add Field`, and select `Base Path`, then click on `Add Field`. This is the same as if you typed `{base_path}` inside the pattern.
+To select a base folder, click on the `Pick Base Folder` button. Then add it to the pattern: Click on the dropdown at the left of `Add Field`, and select `Base Folder`, then click on `Add Field`. This is the same as if you typed `{base_folder}` or `{base_path}` inside the pattern. (Both terms are supported for backwards compatibility.)
 
 In the screenshot above, we selected the folder `Render`, which is located inside the same folder where the project is saved. Since our path is relative to the location of the project, it is saved as `Render/`.
 

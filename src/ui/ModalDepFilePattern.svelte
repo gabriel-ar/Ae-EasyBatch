@@ -97,13 +97,13 @@
         <div>
           {#if pick_base}
             <button onclick={SelectBasePath} style="margin-right: 15px;"
-              >Pick Base Path</button>
+              >Pick Base Folder</button>
           {/if}
 
           <Dropdown 
             bind:value={sel_add_field}
             labels={[
-              "<b>Base Path</b>",
+              "<b>Base Folder</b>",
               "<b>Template Name</b>",
               "<b>Composition</b>",
               "<b>Row Number</b>",
@@ -111,7 +111,7 @@
               ...tmpl.columns.map((col) => col.cont_name),
             ]}
             options={[
-              "base_path",
+              "base_folder",
               "template_name",
               "comp_name",
               "row_number",

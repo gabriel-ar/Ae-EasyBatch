@@ -60,7 +60,7 @@
 
       base_path = result;
 
-      //add base path is not already in the pattern
+      //add base folder if not already in the pattern
       if (!pattern.includes("{base_path}")) {
         sel_add_field = "base_path";
         AddField();
@@ -146,18 +146,18 @@
           spellcheck="false"
           bind:value={pattern}></textarea>
         <div>
-          <button onclick={SelectBasePath}>Pick Base Path</button>
+          <button onclick={SelectBasePath}>Pick Base Folder</button>
 
           <Dropdown
             bind:value={sel_add_field}
             labels={[
-              "<b>Base Path</b>",
+              "<b>Base Folder</b>",
               "<b>Row Number</b>",
               "<b>Increment</b>",
               ...tmpl.columns.map((col) => col.cont_name),
             ]}
             options={[
-              "base_path",
+              "base_folder",
               "row_number",
               "increment:0000",
               ...tmpl.columns.map((col) => col.cont_name),
