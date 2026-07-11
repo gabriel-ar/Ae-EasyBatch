@@ -63,6 +63,12 @@
 			"script": "symlink:macos",
 			"label": "make_symlink_macos",
 			"problemMatcher": []
-		 }
+		 },
+		{
+			"type": "npm",
+			"script": "package",
+			"label": "npm_package",
+			"problemMatcher": []
+		}
 	]
 }
