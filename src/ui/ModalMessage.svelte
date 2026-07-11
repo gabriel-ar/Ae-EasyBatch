@@ -5,15 +5,16 @@
 
   let msg = $state("");
   let i_title = $state("");
-  let i_actions = $state<{ label: string; callback?: () => void }[]>([]);
+  type ModalAction = { label: string; callback: (() => void) | undefined };
+  let i_actions = $state<ModalAction[]>([]);
 
-  export function Open(message: string, title: string = "Message", actions: { label: string; callback?: () => void }[] = []) {
+  export function Open(message: string, title: string = "Message", actions: ModalAction[] = []) {
     show = true;
     msg = message;
     i_title = title;
 
     if (actions.length === 0) {
-      i_actions = [{ label: "Close"}];
+      i_actions = [{ label: "Close", callback: undefined }];
     } else {
     i_actions = actions;
     }
@@ -23,7 +24,7 @@
     );
   }
 
-  export function CloseDialog(callback?: () => void) {
+  export function CloseDialog(callback: (() => void) | undefined = undefined) {
     show = false;
     console.debug(`[ModalMsg] Closed modal with title: ${i_title} and callback: ${callback ? "Yes" : "No"}`);
     if (callback) callback();
