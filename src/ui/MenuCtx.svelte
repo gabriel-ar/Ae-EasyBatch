@@ -180,12 +180,12 @@
         <button
           class="c_item"
           onclick={() => Selected("report_issue")}
-          data-tooltip="Report an issue on GitHub"
+          data-tooltip="Report an issue through AeScripts.com"
           ><ExclamationTriangle />Report Issue</button>
         <button
           class="c_item"
           onclick={() => Selected("license")}
-          data-tooltip="IDK, just click it"
+          data-tooltip="AeScripts.com Licensing"
           ><LockOpen1 />Licensing</button>
         <div class="c_divider"></div>
         <button
