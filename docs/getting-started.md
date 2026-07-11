@@ -46,11 +46,11 @@
 
 10. Select the mode (in green). You can either create renders, or you can generate compositions with the updated values. The `Generate` feature could be useful if the project will edited by others without access to the extension.
 11. The `File Path/Name Pattern` (in red) defines the pattern that the extension will use to name the exported files. This pattern can also create folders.
-    - Click on `Select Base Path`, for now, this will be the folder that holds all our renders.
-    - In the dropdown to the left of the `Add Field` button, select `Base Path`. Now click on `Add Field`. This will add {base_path} to the pattern.
-    - Check the `Preview` section below, the `{base_path}` field on the pattern has been replaced by the path you selected.
+    - Click on `Select Base Folder`, for now, this will be the folder that holds all our renders.
+    - In the dropdown to the left of the `Add Field` button, select `Base Folder`. Now click on `Add Field`. This will add {base_folder} to the pattern (or {base_path} for backwards compatibility).
+    - Check the `Preview` section below, the `{base_folder}` or `{base_path}` field on the pattern has been replaced by the path you selected.
     - Other fields available are `Increment`, `Template name`, `Index` and every property from your template. Meaning that you can use the date of every row to name the render file.
-    - To get started you could use something like `{base_path}/mytemplate_{index}.mov`
+    - To get started you could use something like `{base_folder}/mytemplate_{index}.mov`
 12. In order to set the render settings you need to use a template. Choose a template for the render settings and output module (in blue).
 13. Whenever you're ready hit `Render`
 

@@ -1014,7 +1014,7 @@ test.describe('Add Property to Template', async () => {
 
 test.describe('OtM Render', async () => {
 
-    test('should change mode and allow for base path setup', async () => {
+    test('should change mode and allow for base folder setup', async () => {
         const outputTab = await page.$('.header_tabs button::-p-text(Output)');
         expect(outputTab, 'has Output tab button').toBeTruthy();
         await outputTab!.tap();
@@ -1028,7 +1028,7 @@ test.describe('OtM Render', async () => {
         });
 
         const pathPreview = await page.$('.output span::-p-text(renders/otm_test)');
-        expect(pathPreview, 'shows updated base path in Output tab').toBeTruthy();
+        expect(pathPreview, 'shows updated base folder in Output tab').toBeTruthy();
     });
 
     test('setup exports', async () => {
@@ -1054,7 +1054,7 @@ test.describe('OtM Render', async () => {
         //empty textarea and enter new pattern
         await textarea!.click({ clickCount: 3 });
 
-        await textarea!.type('{base_path}/');
+        await textarea!.type('{base_folder}/');
 
         const sel1 = await con.DropdownSelect('.modal .dropdown', 'Template Name');
         expect(sel1, 'selected Template Name').toBeTruthy();
@@ -1079,7 +1079,7 @@ test.describe('OtM Render', async () => {
 
 
         expect(await textarea?.evaluate(ta => ta.value.trim()), 'textarea has updated pattern')
-            .toBe('{base_path}/{template_name}-{comp_name}-{row_number}');
+            .toBe('{base_folder}/{template_name}-{comp_name}-{row_number}');
 
         let previewInfo = await page.waitForFunction(
             () => {
