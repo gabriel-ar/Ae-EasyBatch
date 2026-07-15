@@ -68,6 +68,9 @@
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import { l, s, csa } from "./ui/States.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
+  import ImportCSVModal from "./ui/importers/ImportCSV.svelte";
+  import ImportExcelModal from "./ui/importers/ImportExcel.svelte";
+  import type { ExcelImportResult } from "./ui/importers/ImportExcel.types.ts";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
@@ -77,6 +80,8 @@
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
   let m_proceed = $state<ModalProceed>();
+  let m_import_csv = $state<any>();
+  let m_import_excel = $state<any>();
   let proceed = $state(true);
 
   let menu = $state<Menu>();
@@ -522,9 +527,25 @@
     ac.AddListener(
       "import_csv",
       () => {
-        ImportCSV();
+        OpenCSVImporter();
       },
       "i",
+    );
+
+    ac.AddListener(
+      "import_excel",
+      () => {
+        OpenExcelImporter();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "reimport_excel",
+      () => {
+        ReImportExcelLast();
+      },
+      "",
     );
 
     ac.AddListener(
@@ -899,19 +920,64 @@
     }
   }
 
-  function ImportCSV() {
-    l.debug("ImportCSV called");
-    csa
-      .Eval("ImportFile", "CSV Files: *.csv, All Files: *.*")
-      .then((result) => {
-        if (result === "null") return;
+  function OpenCSVImporter() {
+    if (sel_tmpl === undefined) return;
 
-        let decoded = decodeURIComponent(result);
+    m_import_csv?.Open(sel_tmpl, (stats: { rows: number; mapped: number; total: number }) => {
 
-        TemplateHelper.LoadFromCSV(sel_tmpl, decoded);
+      const details =
+        `Rows imported: ${stats.rows}<br>` +
+        `Mapped properties: ${stats.mapped}/${stats.total}`;
+      UpdateStatusFooter("CSV imported", details);
+    });
+  }
 
-        s.proj = s.proj;
-      });
+  function OpenExcelImporter() {
+    if (sel_tmpl === undefined) return;
+
+    m_import_excel?.Open(
+      sel_tmpl,
+      (result: ExcelImportResult) => {
+        HandleExcelImportResult(result);
+      },
+    );
+  }
+
+  function ReImportExcelLast() {
+    if (sel_tmpl === undefined) return;
+
+    m_import_excel?.ReImportLast(
+      sel_tmpl,
+      (result: ExcelImportResult) => {
+        HandleExcelImportResult(result);
+      },
+    );
+  }
+
+  function HandleExcelImportResult(result: ExcelImportResult) {
+    if (!result.success) {
+      m_message?.Open(result.error, "Excel Import Error");
+      return;
+    }
+
+    s.proj = s.proj;
+
+    const details =
+      `Sheet: ${result.stats.sheet}<br>` +
+      `Rows imported: ${result.stats.rows}<br>` +
+      `Mapped properties: ${result.stats.mapped}/${result.stats.total}`;
+    UpdateStatusFooter(result.title, details);
+
+    if (result.warnings.length > 0) {
+      m_message?.Open(result.warnings.join("<br>"), "Excel Import Warnings");
+    }
+  }
+
+  function GetExcelLastImportLabel(): string {
+    const rel_path = sel_tmpl?.import_file_lasts?.excel?.path;
+    if (!rel_path) return "";
+
+    return rel_path.split(/[\\/]/).pop() ?? rel_path;
   }
 
   function ExportCSV() {
@@ -1909,9 +1975,11 @@
     onclose={AlertSrcModalClosed} />
 {/if}
 
-<Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
+  <Menu bind:this={menu} onselect={MenuItemSelected} excel_last_file_label={GetExcelLastImportLabel()}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 <ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
+<ImportCSVModal bind:this={m_import_csv}></ImportCSVModal>
+<ImportExcelModal bind:this={m_import_excel}></ImportExcelModal>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">

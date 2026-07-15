@@ -14,15 +14,22 @@
     FileText,
     GithubLogo,
     Face,
+    Reload,
   } from "radix-icons-svelte";
   import AddAfter from "../assets/AddAfter.svelte";
   import AddBefore from "../assets/AddBefore.svelte";
 
-  let { onselect = (option, index) => {} } = $props();
+  let {
+    onselect = (option: string) => {},
+    excel_last_file_label = "",
+  }: {
+    onselect?: (option: string) => void;
+    excel_last_file_label?: string;
+  } = $props();
 
   let open = $state(false);
   let positioned = $state(false);
-  let elm_menu: HTMLDivElement = $state();
+  let elm_menu = $state<HTMLDivElement | undefined>();
   let x = $state(0);
   let y = $state(0);
   let mode: string = $state("");
@@ -30,8 +37,8 @@
   let req_pos = { x: 0, y: 0 };
 
   export function Open(
-    pos_x,
-    pos_y,
+    pos_x: number,
+    pos_y: number,
     option_callback: (option: string) => void,
     show_mode: string = "row",
   ) {
@@ -58,6 +65,7 @@
   $effect(() => {
     if (open && elm_menu) {
       requestAnimationFrame(() => {
+        if (!elm_menu) return;
         const rect = elm_menu.getBoundingClientRect();
         if (req_pos.x + rect.width > window.innerWidth) {
           x = req_pos.x - (req_pos.x + rect.width - window.innerWidth + 10); // 10px padding from edge
@@ -128,7 +136,22 @@
           data-tooltip="Renders this row"
           ><Camera />Render Row<span class="c_shortcut">R</span></button>
       {:else if mode === "file"}
+      <div class="c_divider">Excel</div>
         <button
+          class="c_item"
+          onclick={() => Selected("import_excel")}
+          data-tooltip="Import data from Excel file"
+          ><Enter />Import Excel Data<span class="c_shortcut"></span></button>
+        {#if excel_last_file_label !== ""}
+          <button
+            class="c_item c_subitem"
+            onclick={() => Selected("reimport_excel")}
+            data-tooltip="Re-import the last Excel file"
+            ><div><Reload />Re-import Last File</div>
+            <span class="c_subtitle">{excel_last_file_label}</span></button>
+        {/if}
+        <div class="c_divider">CSV</div>
+          <button
           class="c_item"
           onclick={() => Selected("import_csv")}
           data-tooltip="Import data from CSV file"
@@ -231,6 +254,19 @@
     outline: none;
   }
 
+  .c_subitem {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .c_subtitle {
+    color: var(--color-text-disabled);
+    font-size: 11px;
+    margin-left: 22px;
+  }
+
   .c_item:focus {
     background-color: var(--color-p1);
     outline: none;
@@ -245,6 +281,8 @@
   .c_divider {
     border-bottom: solid 1px var(--color-border-p1);
     margin: 2px 6px;
+    color: var(--color-text-sec);
+    font-size: 0.9em;
   }
 
   :global(.c_item svg) {

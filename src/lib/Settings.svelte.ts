@@ -18,6 +18,18 @@ export interface ProjData {
   version?: string;
 }
 
+export interface ExcelImportState {
+  path: string | null;
+  sheet: string | null;
+  mapping: Record<string, string | null>;
+}
+
+export interface ImportFileLasts {
+  csv_folder: string | null;
+  config_folder: string | null;
+  excel: ExcelImportState;
+}
+
 export class SettingsHelper {
   static get DefaultProjSettings(): ProjSettings {
     return {
@@ -116,10 +128,7 @@ export interface TemplateData {
   view_cols: number[];
   dep_comps: Comp[];
   dep_config: DepCompSetts[];
-  import_file_lasts: {
-    csv_folder: string | null;
-    config_folder: string | null;
-  };
+  import_file_lasts: ImportFileLasts;
   save_file_lasts: {
     csv_folder: string | null;
     config_folder: string | null;
@@ -138,6 +147,18 @@ export interface ColumnData {
 }
 
 export class TemplateHelper {
+  static get DefaultImportFileLasts(): ImportFileLasts {
+    return {
+      csv_folder: null,
+      config_folder: null,
+      excel: {
+        path: null,
+        sheet: null,
+        mapping: {},
+      },
+    };
+  }
+
   static DefaultTemplate(eg_name = "", comp_name = "", columns: ColumnData[] = []): TemplateData {
     let tmpl: TemplateData = {
       name: eg_name,
@@ -158,10 +179,7 @@ export class TemplateHelper {
       view_cols: [0],
       dep_comps: [],
       dep_config: [],
-      import_file_lasts: {
-        csv_folder: null,
-        config_folder: null,
-      },
+      import_file_lasts: this.DefaultImportFileLasts,
       save_file_lasts: {
         csv_folder: null,
         config_folder: null,
@@ -173,6 +191,14 @@ export class TemplateHelper {
   static FromJson(json: any): TemplateData {
     let templ = Object.assign({}, this.DefaultTemplate(), json);
     templ.columns = [];
+    templ.import_file_lasts = {
+      ...this.DefaultImportFileLasts,
+      ...(json.import_file_lasts ?? {}),
+      excel: {
+        ...this.DefaultImportFileLasts.excel,
+        ...((json.import_file_lasts ?? {}).excel ?? {}),
+      },
+    };
 
     if (json.columns !== undefined) {
       json.columns.forEach((col: any) => {
@@ -553,32 +579,60 @@ export class TemplateHelper {
     // no-op: rows is now always computed on demand via AsRows()
   }
 
-  static LoadFromCSV(tmpl: TemplateData, csv: string) {
-    if (!csv || csv.trim() === "") return;
+  static #ResolveMappedHeaderIndex(
+    header: any[],
+    tmpl_col_name: string,
+    column_mapping?: Record<string, string | null>,
+  ): number {
+    if (
+      column_mapping !== undefined &&
+      Object.prototype.hasOwnProperty.call(column_mapping, tmpl_col_name)
+    ) {
+      const mapped_col = column_mapping[tmpl_col_name];
+      if (mapped_col === null || mapped_col === "") return -1;
+      return header.indexOf(mapped_col);
+    }
 
-    let csv_rows = papa.parse(csv, { skipEmptyLines: true }).data as any[][];
+    return header.indexOf(tmpl_col_name);
+  }
 
-    if (csv_rows.length === 0) return;
-
-    let header: any[] = csv_rows.shift() as any[];
-
+  static ApplyImportedRows(
+    tmpl: TemplateData,
+    header: any[],
+    data_rows: any[][],
+    column_mapping?: Record<string, string | null>,
+  ) {
     tmpl.columns.forEach((tmpl_col) => {
-      let col_i = header.indexOf(tmpl_col.cont_name);
+      const col_i = this.#ResolveMappedHeaderIndex(
+        header,
+        tmpl_col.cont_name,
+        column_mapping,
+      );
 
-      if (col_i < 0){
-        //Fill with pre existing values if column not found in CSV
-        //Use all values avaiable and fill the rest with the last one
+      if (col_i < 0) {
+        // Fill with existing values if column was not mapped/found.
+        // Reuse available values and pad the rest with the last value.
         let last_val = tmpl_col.values[tmpl_col.values.length - 1];
 
-        if(last_val === undefined){last_val = ColumnHelper.ValidateValue("", tmpl_col.type);}
-        tmpl_col.values = [...tmpl_col.values,  ...new Array(csv_rows.length - tmpl_col.values.length).fill(last_val)];
-        
+        if (last_val === undefined) {
+          last_val = ColumnHelper.ValidateValue("", tmpl_col.type);
+        }
+
+        if (tmpl_col.values.length > data_rows.length) {
+          tmpl_col.values = tmpl_col.values.slice(0, data_rows.length);
+          return;
+        }
+
+        tmpl_col.values = [
+          ...tmpl_col.values,
+          ...new Array(data_rows.length - tmpl_col.values.length).fill(last_val),
+        ];
         return;
       }
 
-      tmpl_col.values = csv_rows.map((csv_row) => {
-        if (csv_row[col_i] === undefined) return null;
-        return ColumnHelper.ValidateValue(csv_row[col_i], tmpl_col.type);
+      tmpl_col.values = data_rows.map((data_row) => {
+        if (data_row[col_i] === undefined) return null;
+        return ColumnHelper.ValidateValue(data_row[col_i], tmpl_col.type);
       });
     });
 
