@@ -5,7 +5,8 @@ https://aescripts.com/learn/aescripts-aeplugins-manager-app/
 To install a trial you can select 'Add Trial' from the 'Account' menu.
 
 Manual Installation:
-  1) Copy the "EasyBatch" folder into the following folder:
+  1) Change the extension of the "EasyBatch.zxp" file to .zip
+  1) Copy the extracted "EasyBatch" folder into the following folder:
 
    Windows: C:\Users\{YOUR USER NAME}\AppData\Roaming\Adobe\CEP\extensions
 
