@@ -10,6 +10,7 @@
     "symlink:windows": "node ./tools/debug_create_symlink.mjs --platform=windows",
     "symlink:macos": "node ./tools/debug_create_symlink.mjs --platform=macos",
     "package": "node ./tools/package.mjs",
+    "sign-package": "node ./tools/package-signed.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

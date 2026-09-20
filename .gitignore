@@ -30,8 +30,8 @@ tests/projects/*Logs
 tests/projects/renders
 playwright-report/
 test-results/
-pkg/easybatch*.zip
-pkg/easybatch*.zXP
+pkg/exports/*
+pkg/*.p12
 
 # AESP License Configuration
 .env
