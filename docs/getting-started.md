@@ -1,16 +1,7 @@
 # Getting Started
 
-### Install The Extension
-
-1. You can use ZXPInstaller to install the extension package. Download ZXPInstaller [here.](https://zxpinstaller.com/)
-2. Download the EasyBatch release package [here](https://github.com/gabriel-ar/Ae-EasyBatch/releases).
-3. Open ZXPInstaller
-4. Drag and drop the `EasyBatch.zxp` inside ZXPInstaller.
-5. If open, restart After Effects.
-
 ### Your First Template
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/RliiWGdY_nU?si=5xt8QpTTe-ZrVhAY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/Mx7asOxHmfQ?si=a1bc1DjFvpqHD2SJ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 #### A. Setup the Motion Graphics Template
 1. Open your Motion Graphics Panel: `Window` > `Essential Graphics Panel`
