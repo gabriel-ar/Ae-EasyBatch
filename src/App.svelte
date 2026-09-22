@@ -1833,7 +1833,7 @@
 
       <!-- Dependant Compositions -->
       {#each sel_tmpl.dep_comps as dc, dc_i}
-        <details class="out_sub_render" open>
+        <details class="out_sub_render">
           <summary>
             <input
               type="checkbox"

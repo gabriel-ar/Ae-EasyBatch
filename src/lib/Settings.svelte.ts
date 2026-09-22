@@ -653,7 +653,8 @@ export class TemplateHelper {
       header: false,
     });
 
-    return headers + "\r\n" + csv;
+    // Prepend UTF-8 BOM so apps like Excel detect the encoding correctly
+    return "\uFEFF" + headers + "\r\n" + csv;
   }
 
   static CopyValuesFromPreview(tmpl: TemplateData, data: any, row_i: number) {

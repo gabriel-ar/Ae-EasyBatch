@@ -1314,6 +1314,7 @@ function ImportFile(filter) {
 
   var file = /** @type {File} */ (File.openDialog("Select a file", filter));
 
+  file.encoding = "UTF-8";
   file.open("r");
   var content = file.read();
   file.close();
@@ -1329,6 +1330,7 @@ function ExportFile(content, filters) {
   }
 
   var file = File.saveDialog("Save a file", filters);
+  file.encoding = "UTF-8";
   file.open("w");
   file.write(content);
   file.close();

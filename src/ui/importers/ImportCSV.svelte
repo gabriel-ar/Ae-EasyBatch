@@ -123,7 +123,7 @@
 				return;
 			}
 
-			csv_raw = decodeURIComponent(result);
+			csv_raw = decodeURIComponent(result).replace(/^\uFEFF/, "");
 			const parsed = papa.parse(csv_raw, { skipEmptyLines: true }).data as any[][];
 
 			if (parsed.length === 0) {

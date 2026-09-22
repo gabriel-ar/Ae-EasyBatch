@@ -280,7 +280,7 @@
 
   .c_divider {
     border-bottom: solid 1px var(--color-border-p1);
-    margin: 2px 6px;
+    margin: 2px 8px;
     color: var(--color-text-sec);
     font-size: 0.9em;
   }
