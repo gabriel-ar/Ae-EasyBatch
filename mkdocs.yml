@@ -14,5 +14,7 @@ nav:
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - pymdownx.blocks.caption
   - pymdownx.details
   - pymdownx.superfences
