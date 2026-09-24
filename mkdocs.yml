@@ -1,11 +1,16 @@
 site_name: EasyBatch Documentation
 theme:
+  logo: assets/logo-round.png
   name: material
+  language: en
+  features:
+    - navigation.path
+    - navigation.expand
   palette:
     scheme: slate
 
 nav:
-  - Home: index.md
+  - Welcome: index.md
   - Getting Started: getting-started.md
   - User Guide:
     - Data Tab: tab-data.md
@@ -18,3 +23,12 @@ markdown_extensions:
   - pymdownx.blocks.caption
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+  - git-revision-date-localized

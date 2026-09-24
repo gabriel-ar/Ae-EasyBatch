@@ -1,4 +1,4 @@
-Each property in your Essential Graphics template becomes a column in the `Data` tab. Each row then becomes a version of your render.
+The `Data` tab is where you will edit the versions of your template. Each property in your Essential Graphics template becomes a column in the `Data` tab. Each row then becomes a variation of your render.
 
 ## The Basics
 
@@ -8,7 +8,7 @@ Each property in your Essential Graphics template becomes a column in the `Data`
 Each row is a version of your template. You can add, remove, and edit rows as needed. You can also import rows from an Excel or CSV file. EasyBatch supports the same property types as Essential Graphics. In the simplest render setup, each row becomes a separate render.
 
 ### Top Bar Menus (Yellow)
-!!! info "Use Shortcuts"
+!!! tip "Use Shortcuts"
     All menu actions display their equivalent shortcut on the right. Shortcuts work only while the extension is focused.
 
 #### File
@@ -100,7 +100,7 @@ To add a field, open the `Add Field` dropdown and select one. Fields in bold rep
     You can also go backwards manually with `..` in a relative path. For example, if your project is at `D:/ClientWork/Promo/projects/promo.aep` and the images are stored in `D:/ClientWork/Promo/assets/products`, the pattern `../assets/products/{Product Name}.png` will resolve to `D:/ClientWork/Promo/assets/products/Headphones.png`.
 
 
-#### Importing CSV Data
+## Importing CSV Data
 **Comma-Separated Values** is a file format that stores data in a table, similar to a spreadsheet. To import a CSV file into the extension, make sure the name of each column matches the name of a property in your template. If the columns in the imported file do not match, the extension ignores that data. Values must also be formatted correctly, depending on the type:
 
 - **Text:** Write the text directly in the cells. Line breaks (multiline text) may cause unexpected behavior in the extension.
@@ -109,3 +109,4 @@ To add a field, open the `Add Field` dropdown and select one. Fields in bold rep
 - **Scale:** Represent the scale as an array of three numbers in percentages. For example, a layer at its default scale is `100,100,100`.
 - **Values:** Write any other one-dimensional value directly in the cell.
 - **Images or videos:** The extension currently does not allow file paths to be entered for *replaceables*. To work with these files, see the replaceables section above.
+

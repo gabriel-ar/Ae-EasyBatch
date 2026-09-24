@@ -1,55 +1,137 @@
-In this page you'll find all the configurations to render the  template.
+The `Output` tab is where you configure how your renders are generated and where they are saved. You can choose between rendering files and generating compositions, define dynamic file name patterns, and select the render settings and output module for the generated files.
 
-![Screenshot of the output tab](assets/ss_output.png)
 
-#### Mode
-The output can work in two modes:
+## Render Modes
+Render modes define what the extension does with each row.
 
-- Render: This mode will output files to your drive.
-- Generate Comps: This mode will generate one composition for each row, with the properties replaced with your data. This could be useful is a user had to modify the resulting compositions with no access to EasyBatch.
+## Render Mode: One Per Row
+This is the simplest mode. Each row is applied to the template and then exported in the format you define below.
 
-#### File Name Pattern
-This feature allows you to give dynamic names and paths to your renders. This pattern will be interpreted for each render you do to generate the final path for that file.
+![Screenshot of the output tab](assets/export.png)
 
-In the screenshot above, the pattern `{base_path}/INT_Matchup_{Tricode Home}vs{Tricode Away}` will be replaced as `Renders/INT_Matchup_PALvsPOR`, where the file named `INT_Matchup_PALvsPOR` will be placed inside the folder `Renders`.
+Internally, EasyBatch performs these actions:
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> IncludeComposition
+    IncludeComposition: Include Template Composition (Team vs Team) as a layer inside an empty composition
+    IncludeComposition --> ReplaceProperties
+    ReplaceProperties: Replace essential properties
+    ReplaceProperties --> RenderComposition
+    RenderComposition: Render Composition
+    RenderComposition --> NextRow
+    NextRow: Move to next row of data
+    NextRow --> IncludeComposition
+```
 
-If you include `/` in the pattern, this will interpreted as a subfolder, the pattern is capable of dynamically creating these subfolders.
 
-The pattern is made up of fields, in the case above `{base_path}`, `{Tricode Home}` and `{Tricode Away}` are fields.
+### File Name Pattern
+This feature allows you to give your renders dynamic names and paths. The pattern is interpreted for each render to generate the final file path.
 
-![Screenshot of the available patterns](assets/ss_output_pattern.png)
+![Screenshot of the available patterns](assets/export-pattern.png)
 
-##### Field: Base Path
-Most of the times the patterns will include a base path, this is the folder that all the renders have in common. If you select a folder in the same drive, you'll see that the path will be relative (doesn't include the drive letter), and this will greatly help to keep the project portable. The path is relative to the project.
+In the screenshot above, the pattern `{base_path}/PROMO MATCH {Tricode L}vs{Tricode R}` will be replaced as `Renders/Promos/PROMO MATCH MEXvsRSA`.
 
-To select a base path, click on the `Pick Base Path` button. The add it to the pattern: Click on the dropdown at the left of `Add Field`, and select `Base Path`, then click on `Add Field`. This is the same as if you typed `{base_path}` inside the pattern.
+If you include `/` in the pattern, it is interpreted as a subfolder. The pattern can therefore create subfolders dynamically.
 
-In the screenshot above, we selected the folder `Render`, which is located inside the same folder where the project is saved. Since our path is relative to the location of the project, it is saved as `Render/`.
+The pattern is made up of fields. In the example above, `{base_path}`, `{Tricode L}`, and `{Tricode R}` are fields. The available fields are:
 
-##### Field: Template Name
-It will replace `{template_name}` with the name of the template (surprise!!!), in this case will result in `Team Matchup Interstitial`.
+- **Base Folder**:
+A `Base Folder` allows you to select a folder instead of typing its path into the pattern. Typically, this is the folder that all your renders have in common. If you select a folder on the same drive as the project, the path will be relative and will not include the drive letter. This helps keep the project portable.
 
-##### Field: Row Number
-It will replace `{row_number}` with the current row index. If you have 20 renders, the first one will be `0` and the last one `19`.
+    To select a base path, click the `Pick Base Folder` button. To add it to the pattern, click `Add Field` and select `Base Path`. This is equivalent to typing `{base_path}` in the pattern.
 
-##### Field: Increment
-It will generate an increment. `{increment:0000}` will  be replaced with `0000` for the first row, and with `0001` for the following row. The increment keeps as many leading 0s as you determine. Also, you can set the starting number: `{increment:050}` will be replaced with `050` and in the next render will become `051`.
+    In the screenshot above, we selected the folder `Renders/Promos`, where `Renders` is located in the same folder as the project. Because the path is relative to the project location, it is saved as `Renders/`.
 
-##### Field: *Custom*
-You can also add the values of any template property as part of the pattern. In the case of the screenshot above `{Tricode Home}` will be replaced with `PAL` as this is the value of the column Tricode Home for the first row. For every consecutive row (and therefore render), this will be updated to match the value of Tricode Home for that row.
+- **Template Name**:
+Replaces `{template_name}` with the name of the template (surprise!). In this case, it produces `Team vs Team`.
+
+- **Row Number**:
+Replaces `{row_number}` with the current row index. If you have 20 renders, the first one is `0` and the last one is `19`.
+
+- **Increment**:
+A configurable increment. `{increment:0001}` produces `0001` for the first row and `0002` for the second row. `{increment:050}` produces `050` for the first row and `051` for the second row.
+
+- **Custom**:
+You can also add the value of any template property to the pattern. In the screenshot above, `{Tricode L}` is replaced with the value in the `Tricode L` column for the current row. For every subsequent row and render, this value is updated to match that row.
 
 !!! note "Backslashes in Windows"
+    In both Windows and macOS, use forward slashes to separate directories.
 
-    Beware, in both Windows and Mac, you should be using forward slashes to separate directories.
+### Render Settings
+
+To define the render configuration for all files generated from this template, select a preset for both Render Settings and the Output Module.
+
+- **Render Settings:** Equivalent to selecting a render settings template in the Render Queue. It affects quality, resolution, proxy settings, and more.
+- **Output Module:** Equivalent to selecting an output module in the Render Queue. It affects the codec, compression, audio, and more.
+
+To edit these templates, click `Edit` > `Templates` in the After Effects menu bar, then select the templates you want to modify.
+
+### Render
+When you are ready, click `Start Batch Render`.
+
+## Render Mode: Multi Output
+This is the most complex mode. Instead of creating a reference of your template composition and changing its Essential Properties, the extension modifies the properties of your original composition.
+
+This is useful if you want to export more than one composition per row. For example, several compositions could have properties linked to your main template. Because this mode changes the properties in the template itself, you can export compositions that reference the main template with those properties applied.
+
+![Screenshot of the available patterns](assets/export-multi.png){width="500"}
+
+For the previous example, the extension performs these actions:
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> ReplaceProperties
+    ReplaceProperties: Replace properties directly in "Goal Takeover"
+    ReplaceProperties --> Comp1
+    ReplaceProperties --> Comp2
+    Comp1: GoalTakeover_Broadcast
+    Comp1: Linked properties updated
+    Comp2: GoalTakeover_Scorebug_L
+    Comp2: Linked properties updated
+    Comp1 --> RenderComposition
+    Comp2 --> RenderComposition
+    RenderComposition: Render Compositions
+    RenderComposition --> NextRow
+    NextRow: Move to next row of data
+    NextRow --> ReplaceProperties
+```
+
+### Render Compositions (Purple)
+These are the compositions that the extension renders in this mode. You can add any composition in the project, including the Template Composition.
+
+To add a composition, click the dropdown (orange) below `Add Compositions to Renders`, then select a composition. You can type to search. After selecting a composition, click `Add`. Alternatively, select one or more compositions in the Project panel, then click `Add Selected` and they will be added to the list of compositions to be rendered.
+
+#### Disable Render
+At some point, you may not need to render all the compositions you added. Use the checkboxes to prevent them from rendering.
+
+#### Delete Comp
+Click on the trash icon to remove the composition from the list.
+
+#### Pattern
+Each composition uses a pattern as well. This pattern works the same way as the pattern in `One Per Row` mode. The main difference is that all render compositions share the same base folder for convenience.
+
+In the example pictured, the compositions have the same pattern. This works because the pattern uses the composition name and the country code to save each file, so every file has a unique name.
+
+!!! tip "Pro Tip"
+    Whenever you add a composition to the renders, its configuration is copied from the previous composition, including the pattern. If you have several compositions that use the same pattern, setting up the first one carefully can save time.
+
+Each Render Composition will have a pattern preview.
 
 #### Render Settings
 
-In order to define the render configuration for all the files generated using this template, you need to select a preset for both Render Settings and the Output Module.
+The render settings work the same way as in `One Per Row` mode. Each export can have a different configuration.
 
-- Render Settings: Same as selecting a render settings template in the render queue. It affects the Quality, Resolution, Proxy, etc.
-- Output Module: Same as selecting an output module in the render queue. It affects the codec, compression, audio, etc.
+##### Output Module: Single Frame as PNG
+This is a special mode provided by the extension that lets you save the composition as a single-frame PNG. Compared with using a preset, the main advantage is that this mode does not attach sequence numbers to the exported file, which is otherwise unavoidable.
 
-To make a template, add any composition to the render queue, click on the down facing arrow to the left of `Output Module` and click on `Make Template...`
+In this mode, the render is not queued. Therefore, if all your compositions are being exported as Single Frame PNG, After Effects may appear to be idle even though the frames are being exported.
 
-![Screenshot of the render queue](assets/ss_om.png)
+!!! warning "32 bit projects"
+    This mode may not work properly in 32-bit projects.
 
+### Render
+When you are ready, click `Batch One to Many`.
+    
+## Render Mode: Generate Comps
+This mode generates one composition per row and replaces its properties with the corresponding row data. Use it when you need to modify the resulting compositions without access to EasyBatch.
