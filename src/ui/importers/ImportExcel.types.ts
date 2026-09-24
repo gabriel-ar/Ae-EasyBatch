@@ -18,3 +18,22 @@ export type ExcelImportFailureResult = {
 };
 
 export type ExcelImportResult = ExcelImportSuccessResult | ExcelImportFailureResult;
+
+export type ExcelSaveStats = {
+  written_cells: number;
+  formula_cells_skipped: number;
+  missing_columns: string[];
+};
+
+export type ExcelSaveSuccessResult = {
+  success: true;
+  title: string;
+  stats: ExcelSaveStats;
+};
+
+export type ExcelSaveFailureResult = {
+  success: false;
+  error: string;
+};
+
+export type ExcelSaveResult = ExcelSaveSuccessResult | ExcelSaveFailureResult;

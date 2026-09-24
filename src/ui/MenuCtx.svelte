@@ -104,36 +104,42 @@
           class="c_item"
           onclick={() => Selected("add_after")}
           data-tooltip="Add a row after this one"
+          data-tt-pos="right"
           ><AddAfter />Add Row After
           <span class="c_shortcut">N</span></button>
         <button
           class="c_item"
           onclick={() => Selected("add_before")}
           data-tooltip="Add a row before this one"
+          data-tt-pos="right"
           ><AddBefore />Add Row Before
           <span class="c_shortcut">Shift + N</span></button>
         <button
           class="c_item"
           onclick={() => Selected("delete")}
           data-tooltip="Deletes this row"
+          data-tt-pos="right"
           ><Trash />Delete<span class="c_shortcut">Delete</span></button>
         <div class="c_divider"></div>
         <button
           class="c_item"
           onclick={() => Selected("preview")}
           data-tooltip="Previews this row"
+          data-tt-pos="right"
           ><EyeOpen />Preview
           <span class="c_shortcut">P</span></button>
         <button
           class="c_item"
           onclick={() => Selected("copy_from_preview")}
           data-tooltip="Copies data from properties panel"
+          data-tt-pos="right"
           ><Crosshair2 />Copy from Preview<span class="c_shortcut">S</span
           ></button>
         <button
           class="c_item"
           onclick={() => Selected("render_row")}
           data-tooltip="Renders this row"
+          data-tt-pos="right"
           ><Camera />Render Row<span class="c_shortcut">R</span></button>
       {:else if mode === "file"}
       <div class="c_divider">Excel</div>
@@ -141,36 +147,55 @@
           class="c_item"
           onclick={() => Selected("import_excel")}
           data-tooltip="Import data from Excel file"
+          data-tt-pos="right"
           ><Enter />Import Excel Data<span class="c_shortcut"></span></button>
         {#if excel_last_file_label !== ""}
+        <div class="c_file_acctions">
+
+        <span class="c_subtitle">{excel_last_file_label}</span>
           <button
             class="c_item c_subitem"
             onclick={() => Selected("reimport_excel")}
-            data-tooltip="Re-import the last Excel file"
-            ><div><Reload />Re-import Last File</div>
-            <span class="c_subtitle">{excel_last_file_label}</span></button>
+            data-tooltip="Re-import values from the currently opened Excel file."
+            data-tt-pos="right"
+            data-tt-width="x-large"
+            ><div><Reload />Re-import</div>
+            </button>
+          <button
+            class="c_item c_subitem"
+            onclick={() => Selected("save_excel")}
+            data-tooltip="Save values to the currently opened Excel file."
+            data-tt-pos="right"
+            data-tt-width="x-large"
+            ><div><Enter />Save Updates</div>
+            </button>
+            </div>
         {/if}
         <div class="c_divider">CSV</div>
           <button
           class="c_item"
           onclick={() => Selected("import_csv")}
           data-tooltip="Import data from CSV file"
+          data-tt-pos="right"
           ><Enter />Import CSV Data<span class="c_shortcut"></span></button>
         <button
           class="c_item"
           onclick={() => Selected("export_csv")}
           data-tooltip="Export data to CSV file"
+          data-tt-pos="right"
           ><Exit />Export CSV Data<span class="c_shortcut"></span></button>
       {:else if mode === "view"}
         <button
           class="c_item"
           onclick={() => Selected("view_table")}
           data-tooltip="Show data as table"
+          data-tt-pos="right"
           ><Table />Show as Table<span class="c_shortcut">T</span></button>
         <button
           class="c_item"
           onclick={() => Selected("view_detail")}
           data-tooltip="Shows data in detail view"
+          data-tt-pos="right"
           ><ActivityLog />Show in Detail<span class="c_shortcut">D</span
           ></button>
         <div class="c_divider"></div>
@@ -178,36 +203,41 @@
           class="c_item"
           onclick={() => Selected("previous_row")}
           data-tooltip="Move to the previous row in the table"
+          data-tt-pos="right"
           ><ArrowUp />Previous Row<span class="c_shortcut">Opt + ↑</span
           ></button>
         <button
           class="c_item"
           onclick={() => Selected("next_row")}
           data-tooltip="Move to the next row in the table"
+          data-tt-pos="right"
           ><ArrowDown />Next Row<span class="c_shortcut">Opt + ↓</span></button>
         <div class="c_divider"></div>
         <button
           class="c_item"
           onclick={() => Selected("edit_view")}
           data-tooltip="Edits the properties visible in the table and detail views"
-          data-tt-pos="middle-right"
+          data-tt-pos="right"
           ><Columns />Edit View...<span class="c_shortcut"></span></button>
       {:else if mode === "help"}
         <button
           class="c_item"
           onclick={() => Selected("open_help")}
           data-tooltip="Open the documentation in your browser"
+          data-tt-pos="right"
           ><FileText />Open Documentation</button>
         <button
           class="c_item"
           onclick={() => Selected("report_issue")}
           data-tooltip="Report an issue on GitHub"
+          data-tt-pos="right"
           ><GithubLogo />Report Issue</button>
         <div class="c_divider"></div>
         <button
           class="c_item"
           onclick={() => Selected("surprise")}
           data-tooltip="IDK, just click it"
+          data-tt-pos="right"
           ><Face />?</button>
       {/if}
     </div>
@@ -264,6 +294,21 @@
   .c_subtitle {
     color: var(--color-text-disabled);
     font-size: 11px;
+    margin: 2px 8px;
+    border-bottom: solid 1px var(--color-border-p1);
+  }
+
+  .c_file_acctions{
+    display: flex;
+    flex-direction: column;
+    margin: 2px 0px 6px 0;
+  }
+
+  .c_file_acctions > button {
+    padding-left: 22px;
+  }
+
+  .c_file_acctions .c_subtitle {
     margin-left: 22px;
   }
 
@@ -283,6 +328,13 @@
     margin: 2px 8px;
     color: var(--color-text-sec);
     font-size: 0.9em;
+  }
+
+  [data-tt-pos="right"]::after{
+    text-align: left;
+    transform: translateX(6px) translateY(-22px);
+    width: fit-content;
+    max-width: 180px;
   }
 
   :global(.c_item svg) {

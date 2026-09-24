@@ -2,8 +2,9 @@
   import * as XLSX from "xlsx";
   import { l, csa } from "../States.svelte.ts";
   import { TemplateHelper, type TemplateData, type ExcelImportState } from "../../lib/Settings.svelte.ts";
+  import { SaveMappedTemplateValuesToSheet } from "../../lib/ExcelWorkbookWriter.ts";
   import Dropdown from "../Dropdown.svelte";
-  import type { ExcelImportResult } from "./ImportExcel.types.ts";
+  import type { ExcelImportResult, ExcelSaveResult } from "./ImportExcel.types.ts";
 
   type MatchState = "auto" | "manual" | "unmapped";
 
@@ -104,7 +105,34 @@
 
     const file_buffer = fs.readFileSync(path);
     const bytes = new Uint8Array(file_buffer);
-    return XLSX.read(bytes, { type: "array" });
+    return XLSX.read(bytes, { type: "array", bookVBA: true });
+  }
+
+  function ExcelBookType(path: string): XLSX.BookType {
+    const extension = cep_node.require("path").extname(path).toLowerCase();
+    if (extension === ".xls" || extension === ".xlsm") return extension.slice(1) as XLSX.BookType;
+    return "xlsx";
+  }
+
+  function WriteWorkbookToPath(workbook_to_write: XLSX.WorkBook, path: string) {
+    const fs = cep_node.require("fs");
+    const path_util = cep_node.require("path");
+    const temporary_path = path_util.join(
+      path_util.dirname(path),
+      `.${path_util.basename(path)}.easybatch-${Date.now()}.tmp`,
+    );
+
+    try {
+      const output = XLSX.write(workbook_to_write, {
+        type: "buffer",
+        bookType: ExcelBookType(path),
+        bookVBA: ExcelBookType(path) === "xlsm",
+      });
+      fs.writeFileSync(temporary_path, output);
+      fs.renameSync(temporary_path, path);
+    } finally {
+      if (fs.existsSync(temporary_path)) fs.unlinkSync(temporary_path);
+    }
   }
 
   function BuildSheetData(sheet_name: string) {
@@ -328,6 +356,40 @@
     } catch (e) {
       l.error("[ImportExcel] Re-import failed", e);
       FinalizeImport({
+        success: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  export async function SaveToOpenedFile(
+    tmpl: TemplateData,
+    saved_callback: ((result: ExcelSaveResult) => void) | undefined = undefined,
+  ) {
+    try {
+      const saved = tmpl.import_file_lasts?.excel;
+      if (!saved || !saved.path || !saved.sheet) {
+        throw new Error("No Excel import has been saved for this template yet.");
+      }
+
+      const absolute_path = await ResolveAbsolutePath(saved.path);
+      const workbook_to_save = LoadWorkbookFromPath(absolute_path);
+      const stats = SaveMappedTemplateValuesToSheet(
+        workbook_to_save,
+        saved.sheet,
+        saved.mapping ?? {},
+        tmpl.columns,
+      );
+      WriteWorkbookToPath(workbook_to_save, absolute_path);
+
+      saved_callback?.({
+        success: true,
+        title: "Saved to Opened File",
+        stats,
+      });
+    } catch (e) {
+      l.error("[ImportExcel] Save to opened file failed", e);
+      saved_callback?.({
         success: false,
         error: e instanceof Error ? e.message : String(e),
       });
