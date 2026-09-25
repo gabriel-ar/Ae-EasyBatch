@@ -1,0 +1,1216 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../tab-data/">
+      
+      
+        <link rel="next" href="../known-issues/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Output Tab - EasyBatch Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#render-modes" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="EasyBatch Documentation" class="md-header__button md-logo" aria-label="EasyBatch Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo-round.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EasyBatch Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Output Tab
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="EasyBatch Documentation" class="md-nav__button md-logo" aria-label="EasyBatch Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo-round.png" alt="logo">
+
+    </a>
+    EasyBatch Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tab-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Tab
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#render-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#render-mode-one-per-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Mode: One Per Row
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Mode: One Per Row">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file-name-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Name Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render-results-and-queue-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Results and Queue Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#render-mode-multi-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Mode: Multi-Output
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Mode: Multi-Output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#render-compositions-purple" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Compositions (Purple)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Compositions (Purple)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disable-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disable Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-comp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete Comp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render-settings_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output-module-single-frame-as-png" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Module: Single Frame as PNG
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#render-mode-generate-comps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Mode: Generate Comps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Mode: Generate Comps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#composition-name-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composition Name Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generated-compositions-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated Compositions Folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../known-issues/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#render-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#render-mode-one-per-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Mode: One Per Row
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Mode: One Per Row">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file-name-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Name Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render-results-and-queue-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Results and Queue Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#render-mode-multi-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Mode: Multi-Output
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Mode: Multi-Output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#render-compositions-purple" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Compositions (Purple)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Compositions (Purple)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disable-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disable Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-comp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete Comp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render-settings_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output-module-single-frame-as-png" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Module: Single Frame as PNG
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#render_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#render-mode-generate-comps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Render Mode: Generate Comps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Render Mode: Generate Comps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#composition-name-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composition Name Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generated-compositions-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated Compositions Folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href=".." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Welcome
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    User Guide
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>Output Tab</h1>
+
+<p>The <code>Output</code> tab is where you configure how your renders are generated and where they are saved. You can choose between rendering files and generating compositions, define dynamic file name patterns, and select the render settings and output module for the generated files.</p>
+<h2 id="render-modes">Render Modes</h2>
+<p>Render modes define what the extension does with each row.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Creates</th>
+<th>Renders files</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One Per Row</td>
+<td>Temporary render compositions</td>
+<td>Yes</td>
+<td>One output per data row</td>
+</tr>
+<tr>
+<td>Multi-Output</td>
+<td>Uses selected project compositions</td>
+<td>Yes</td>
+<td>Several outputs per data row</td>
+</tr>
+<tr>
+<td>Generate Comps</td>
+<td>Editable project compositions</td>
+<td>No</td>
+<td>Hand-off or post-processing</td>
+</tr>
+</tbody>
+</table>
+<h2 id="render-mode-one-per-row">Render Mode: One Per Row</h2>
+<p>This is the simplest mode. Each row is applied to the template and then exported in the format you define below.</p>
+<p><img alt="Screenshot of the output tab" src="../assets/export.png" /></p>
+<p>Internally, EasyBatch performs these actions:
+<pre class="mermaid"><code>stateDiagram-v2
+    direction LR
+    [*] --&gt; IncludeComposition
+    IncludeComposition: Include Template Composition (Team vs Team) as a layer inside an empty composition
+    IncludeComposition --&gt; ReplaceProperties
+    ReplaceProperties: Replace essential properties
+    ReplaceProperties --&gt; RenderComposition
+    RenderComposition: Render Composition
+    RenderComposition --&gt; NextRow
+    NextRow: Move to next row of data
+    NextRow --&gt; IncludeComposition</code></pre></p>
+<h3 id="file-name-pattern">File Name Pattern</h3>
+<p>This feature allows you to give your renders dynamic names and paths. The pattern is interpreted for each render to generate the final file path. You do not need to include a file extension: the selected Output Module supplies the format and extension.</p>
+<p><img alt="Screenshot of the available patterns" src="../assets/export-pattern.png" /></p>
+<p>In the screenshot above, the pattern <code>{base_folder}/PROMO MATCH {Tricode L}vs{Tricode R}</code> will be replaced as <code>Renders/Promos/PROMO MATCH MEXvsRSA</code>.</p>
+<p>If you include <code>/</code> in the pattern, it is interpreted as a subfolder. The pattern can therefore create subfolders dynamically.</p>
+<p>The pattern is made up of fields. In the example above, <code>{base_folder}</code>, <code>{Tricode L}</code>, and <code>{Tricode R}</code> are fields. The available fields are:</p>
+<ul>
+<li>
+<p><strong>Base Folder</strong>:
+A <code>Base Folder</code> allows you to select a folder instead of typing its path into the pattern. Typically, this is the folder that all your renders have in common. If you select a folder on the same drive as the project, the path will be relative and will not include the drive letter. This helps keep the project portable.</p>
+<p>To select a base folder, click the <code>Pick Base Folder</code> button. To add it to the pattern, click <code>Add Field</code> and select <code>Base Folder</code>. This is equivalent to typing <code>{base_folder}</code> in the pattern.</p>
+<p>In the screenshot above, we selected the folder <code>Renders/Promos</code>, where <code>Renders</code> is located in the same folder as the project. Because the path is relative to the project location, it is saved as <code>Renders/</code>.</p>
+</li>
+<li>
+<p><strong>Template Name</strong>:
+Replaces <code>{template_name}</code> with the name of the template (surprise!). In this case, it produces <code>Team vs Team</code>.</p>
+</li>
+<li>
+<p><strong>Composition</strong>:
+In Multi-Output mode, replaces <code>{comp_name}</code> with the name of the composition being rendered. This field is available in each composition's render pattern.</p>
+</li>
+<li>
+<p><strong>Row Number</strong>:
+Replaces <code>{row_number}</code> with the current row index. If you have 20 renders, the first one is <code>0</code> and the last one is <code>19</code>.</p>
+</li>
+<li>
+<p><strong>Increment</strong>:
+A configurable increment. <code>{increment:0001}</code> produces <code>0001</code> for the first row and <code>0002</code> for the second row. <code>{increment:050}</code> produces <code>050</code> for the first row and <code>051</code> for the second row.</p>
+</li>
+<li>
+<p><strong>Custom</strong>:
+You can also add the value of any template property to the pattern. In the screenshot above, <code>{Tricode L}</code> is replaced with the value in the <code>Tricode L</code> column for the current row. For every subsequent row and render, this value is updated to match that row.</p>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Backslashes in Windows</p>
+<p>In both Windows and macOS, use forward slashes to separate directories.</p>
+</div>
+<h3 id="render-settings">Render Settings</h3>
+<p>To define the render configuration for all files generated from this template, select a preset for both Render Settings and the Output Module.</p>
+<ul>
+<li><strong>Render Settings:</strong> Equivalent to selecting a render settings template in the Render Queue. It affects quality, resolution, proxy settings, and more.</li>
+<li><strong>Output Module:</strong> Equivalent to selecting an output module in the Render Queue. It affects the codec, compression, audio, and more.</li>
+</ul>
+<p>To edit these templates, click <code>Edit</code> &gt; <code>Templates</code> in the After Effects menu bar, then select the templates you want to modify.</p>
+<h3 id="render">Render</h3>
+<p>When you are ready, click <code>Start Batch Render</code>. EasyBatch resolves the pattern for every row before queueing. It checks for duplicate paths in One Per Row mode and will not queue the batch until duplicate paths are fixed.</p>
+<h3 id="render-results-and-queue-behavior">Render Results and Queue Behavior</h3>
+<p>After queueing, the Output tab displays a result for each row. The result shows whether the row was queued, the resolved output path, and any warning or error returned while applying the row's properties.</p>
+<p>EasyBatch clears the existing After Effects render queue before adding the batch, then starts the queue asynchronously. Queueing results can appear before encoding finishes. On Windows, After Effects may block the extension while the render queue is running; see <a href="../known-issues/">Known Issues</a> for details.</p>
+<h2 id="render-mode-multi-output">Render Mode: Multi-Output</h2>
+<p>This is the most complex mode. Instead of creating a reference of your template composition and changing its Essential Properties, the extension modifies the properties of your original composition.</p>
+<p>This is useful if you want to export more than one composition per row. For example, several compositions could have properties linked to your main template. Because this mode changes the properties in the template itself, you can export compositions that reference the main template with those properties applied.</p>
+<p><img alt="Screenshot of the available patterns" src="../assets/export-multi.png" width="500" /></p>
+<p>For the previous example, the extension performs these actions:
+<pre class="mermaid"><code>stateDiagram-v2
+    direction LR
+    [*] --&gt; ReplaceProperties
+    ReplaceProperties: Replace properties directly in "Goal Takeover"
+    ReplaceProperties --&gt; Comp1
+    ReplaceProperties --&gt; Comp2
+    Comp1: GoalTakeover_Broadcast
+    Comp1: Linked properties updated
+    Comp2: GoalTakeover_Scorebug_L
+    Comp2: Linked properties updated
+    Comp1 --&gt; RenderComposition
+    Comp2 --&gt; RenderComposition
+    RenderComposition: Render Compositions
+    RenderComposition --&gt; NextRow
+    NextRow: Move to next row of data
+    NextRow --&gt; ReplaceProperties</code></pre></p>
+<h3 id="render-compositions-purple">Render Compositions (Purple)</h3>
+<p>These are the compositions that the extension renders in this mode. You can add any composition in the project, including the Template Composition.</p>
+<p>To add a composition, click the dropdown (orange) below <code>Add Compositions to Renders</code>, then select a composition. You can type to search. After selecting a composition, click <code>Add</code>. Alternatively, select one or more compositions in the Project panel, then click <code>Add Selected</code> and they will be added to the list of compositions to be rendered.</p>
+<h4 id="disable-render">Disable Render</h4>
+<p>At some point, you may not need to render all the compositions you added. Use the checkboxes to prevent them from rendering.</p>
+<h4 id="delete-comp">Delete Comp</h4>
+<p>Click on the trash icon to remove the composition from the list.</p>
+<h4 id="pattern">Pattern</h4>
+<p>Each composition uses a pattern as well. This pattern works the same way as the pattern in <code>One Per Row</code> mode. The main difference is that all render compositions share the same base folder for convenience.</p>
+<p>In the example pictured, the compositions have the same pattern. This works because the pattern uses the composition name and the country code to save each file, so every file has a unique name.</p>
+<div class="admonition tip">
+<p class="admonition-title">Pro Tip</p>
+<p>Whenever you add a composition to the renders, its configuration is copied from the previous composition, including the pattern. If you have several compositions that use the same pattern, setting up the first one carefully can save time.</p>
+</div>
+<p>Each Render Composition will have a pattern preview. The available fields are <code>{base_folder}</code>, <code>{template_name}</code>, <code>{comp_name}</code>, <code>{row_number}</code>, <code>{increment:0000}</code>, and template properties. Duplicate paths are reported because they can cause files to be overwritten.</p>
+<h4 id="render-settings_1">Render Settings</h4>
+<p>The render settings work the same way as in <code>One Per Row</code> mode. Each export can have a different configuration.</p>
+<h5 id="output-module-single-frame-as-png">Output Module: Single Frame as PNG</h5>
+<p>This is a special mode provided by the extension that lets you save the composition as a single-frame PNG. Compared with using a preset, the main advantage is that this mode does not attach sequence numbers to the exported file, which is otherwise unavoidable.</p>
+<p>In this mode, the render is not queued. Therefore, if all your compositions are being exported as Single Frame PNG, After Effects may appear to be idle even though the frames are being exported.</p>
+<div class="admonition warning">
+<p class="admonition-title">32 bit projects</p>
+<p>This mode may not work properly in 32-bit projects.</p>
+</div>
+<h3 id="render_1">Render</h3>
+<p>When you are ready, click <code>Batch One to Many</code>.</p>
+<h2 id="render-mode-generate-comps">Render Mode: Generate Comps</h2>
+<p>This mode generates one composition per row and replaces its properties with the corresponding row data. Use it when you need to modify the resulting compositions without access to EasyBatch.</p>
+<h3 id="composition-name-pattern">Composition Name Pattern</h3>
+<p>The composition name pattern uses <code>{template_name}</code>, <code>{row_number}</code>, <code>{increment:0000}</code>, and template property fields. The pattern is resolved once for each row, and characters that are invalid in composition names are removed. Generated composition names should be unique so that the rows can be distinguished easily.</p>
+<h3 id="generated-compositions-folder">Generated Compositions Folder</h3>
+<p>Use <code>Generated Comps Folder Name</code> to choose the project folder where EasyBatch creates the compositions. The default folder is <code>~Generated by EasyBatch</code>. This mode creates compositions only; it does not add them to the render queue or render files.</p>
+<p>When you are ready, click <code>Generate Compositions</code>. EasyBatch creates one composition for each row, adds the template composition as a layer, and applies that row's properties. The generated compositions can then be edited or rendered using After Effects.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 25, 2026 03:08:27 UTC">September 25, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.path", "navigation.expand"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

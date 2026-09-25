@@ -1,0 +1,1212 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../setup/">
+      
+      
+        <link rel="next" href="../tab-output/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Data Tab - EasyBatch Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-basics" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="EasyBatch Documentation" class="md-header__button md-logo" aria-label="EasyBatch Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo-round.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EasyBatch Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Data Tab
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="EasyBatch Documentation" class="md-nav__button md-logo" aria-label="EasyBatch Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo-round.png" alt="logo">
+
+    </a>
+    EasyBatch Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Tab
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-basics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Basics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Basics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-row-green" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is a Row? (Green)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-bar-menus-yellow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top Bar Menus (Yellow)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Top Bar Menus (Yellow)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#row-options-in-blue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row Options (in blue)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editing-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Properties
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Editing Properties">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slidernumber" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slider/Number
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pointtwo-dimension-number" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Point/Two Dimension Number
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dropdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dropdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Color
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checkbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#imagereplaceable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image/Replaceable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Image/Replaceable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-preview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic Preview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-csv-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing CSV Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tab-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../known-issues/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-basics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Basics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Basics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-row-green" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is a Row? (Green)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-bar-menus-yellow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top Bar Menus (Yellow)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Top Bar Menus (Yellow)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#row-options-in-blue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row Options (in blue)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editing-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Properties
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Editing Properties">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slidernumber" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slider/Number
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pointtwo-dimension-number" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Point/Two Dimension Number
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dropdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dropdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Color
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checkbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#imagereplaceable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image/Replaceable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Image/Replaceable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-preview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic Preview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-csv-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing CSV Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href=".." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Welcome
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    User Guide
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>Data Tab</h1>
+
+<p>The <code>Data</code> tab is where you will edit the versions of your template. Each property in your Essential Graphics template becomes a column in the <code>Data</code> tab. Each row then becomes a variation of your render.</p>
+<h2 id="the-basics">The Basics</h2>
+<p><img alt="Screenshot of the Data tab menu" src="../assets/data-hl-menu.png" /></p>
+<h3 id="what-is-a-row-green">What Is a Row? (Green)</h3>
+<p>Each row is a version of your template. You can add, remove, and edit rows as needed. You can also import rows from a CSV file. EasyBatch supports the same property types as Essential Graphics. In the simplest render setup, each row becomes a separate render.</p>
+<table>
+<thead>
+<tr>
+<th>Property type</th>
+<th>How it is edited</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Text</td>
+<td>Enter text directly, including multiple lines.</td>
+</tr>
+<tr>
+<td>Number / Slider</td>
+<td>Type a value, use the arrows, or drag horizontally.</td>
+</tr>
+<tr>
+<td>Point / Two Dimension Number</td>
+<td>Edit the <code>X</code> and <code>Y</code> values or drag them horizontally.</td>
+</tr>
+<tr>
+<td>Three Dimension Number</td>
+<td>Edit the <code>X</code>, <code>Y</code>, and <code>Z</code> values.</td>
+</tr>
+<tr>
+<td>Color</td>
+<td>Use the color picker or edit the color value.</td>
+</tr>
+<tr>
+<td>Dropdown</td>
+<td>Select one of the options from the Dropdown Menu Control.</td>
+</tr>
+<tr>
+<td>Checkbox</td>
+<td>Set the value using the checkbox control.</td>
+</tr>
+<tr>
+<td>Image / Replaceable</td>
+<td>Choose a file for the row or configure a file path pattern.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="top-bar-menus-yellow">Top Bar Menus (Yellow)</h3>
+<div class="admonition tip">
+<p class="admonition-title">Use Shortcuts</p>
+<p>All menu actions display their equivalent shortcut on the right. Shortcuts work only while the extension is focused.</p>
+</div>
+<h4 id="file">File</h4>
+<p><img alt="Screenshot of the File menu" src="../assets/data-hl-menu-file.png" /></p>
+<p>Import or export data in CSV format. This is helpful if you want to edit the data outside After Effects or if you have an external data source. Because the data must be provided in a specific format, we recommend that you export at least one row of your template as a CSV file and then modify that file. For instructions on CSV formatting, see <em>Importing CSV Data</em> below.</p>
+<h4 id="edit">Edit</h4>
+<p><img alt="Screenshot of the Edit menu" src="../assets/data-hl-menu-edit.png" /></p>
+<p>These are the editing options for the selected row.</p>
+<ul>
+<li><strong>Add Row After/Before:</strong> Adds a row before or after the current row by duplicating its data. This is useful when you want to modify only a few properties.</li>
+<li><strong>Delete:</strong> Deletes the currently selected row. The extension does not have an undo function yet.</li>
+<li><strong>Preview:</strong> Previews the selected row's data in the selected template. This operation loads a composition called <code>TemplatePreview</code>, which contains a layer that references your template. The extension then replaces the Essential Properties to match the row.</li>
+<li><strong>Copy from Preview:</strong> If you are editing the template in After Effects' Properties panel while the <code>TemplatePreview</code> composition is open, this copies the properties from the preview to the row. This is useful when you are editing properties that require precision, since the extension preview does not update as frequently.</li>
+<li><strong>Render Row:</strong> Renders the current row. Configure the render before using this option; see <a href="../tab-output/">Tab: Output</a>.</li>
+</ul>
+<h4 id="view">View</h4>
+<p><img alt="Screenshot of the View menu" src="../assets/data-hl-menu-view.png" /></p>
+<ul>
+<li><strong>Show as Table:</strong> Displays the default view.</li>
+<li><strong>Show in Detail:</strong> Displays only the current row and makes it easier to edit templates with many properties.</li>
+<li><strong>Previous/Next Row:</strong> Changes the currently selected row. This is useful in Detail View mode.</li>
+<li><strong>Edit View...:</strong> Opens a dialog that allows you to hide or reorder columns and properties in the table and detail views.</li>
+</ul>
+<p><code>Edit View...</code> controls which properties are visible and the order in which they appear. These choices apply to both the table and detail views; they do not remove properties from the template or delete their data.</p>
+<h3 id="row-options-in-blue">Row Options (in blue)</h3>
+<p><img alt="Screenshot of the row options" src="../assets/data-hl-row-opts.png" /></p>
+<ul>
+<li><strong>Row number:</strong> Displays the row number. You can use this number to name your renders.</li>
+<li><strong>Row menu:</strong> Click to open the Edit menu, the same menu that opens from the top bar or when you right-click the row.</li>
+<li><strong>Preview button:</strong> Previews your template with the row's data.</li>
+</ul>
+<h2 id="editing-properties">Editing Properties</h2>
+<p><img alt="Essential Graphics panel" src="../assets/essential-graphics-sm.png" width="500" /></p>
+<p>All the properties that you see on EasyBatch start in the Essential Graphics panel. EasyBatch supports all types of properties that can be added to an Essential Graphics template.</p>
+<p><img alt="Screenshot of editable row properties" src="../assets/data-hl-row-props.png" /></p>
+<h3 id="text">Text</h3>
+<p>This property is created when you drag the <code>Source Text</code> property of a text layer into the Essential Graphics panel. It supports multiple lines and special characters. You can expand the text-editing box by dragging its corner.</p>
+<h3 id="slidernumber">Slider/Number</h3>
+<p>Created by dragging any numeric property or the <code>Slider</code> Expression Control into Essential Graphics. You can type the number or use the arrows to move up and down.</p>
+<p>You can also drag horizontally on the value to change the number.</p>
+<h3 id="pointtwo-dimension-number">Point/Two Dimension Number</h3>
+<p>Created by dragging any two-dimensional property into the Essential Graphics panel. Like the slider property, the values can be typed directly, or you can drag the <code>X</code> and <code>Y</code> values to change them quickly.</p>
+<h3 id="dropdown">Dropdown</h3>
+<p>Created by dragging a <code>Dropdown Menu Control</code> Expression Control into the Essential Graphics panel.</p>
+<h3 id="color">Color</h3>
+<p>Created by dragging a color property into the Essential Graphics panel. Use the color control to choose a color or edit its value directly when precision is important.</p>
+<h3 id="checkbox">Checkbox</h3>
+<p>Created by dragging a Checkbox Expression Control into the Essential Graphics panel. Each row can enable or disable the property independently.</p>
+<h3 id="imagereplaceable">Image/Replaceable</h3>
+<p>This is the most complex type of property. It is created by dragging an image or movie layer into the Essential Graphics panel. You can load the image for each layer manually by clicking the file icon in each cell of the column.</p>
+<p>The extension also provides a way to load images that follow a pattern. EasyBatch allows you to use a pattern to load these files.</p>
+<h4 id="patterns">Patterns</h4>
+<p><img alt="Screenshot of the replaceable file path pattern" src="../assets/data-replaceable.png" width="500" /></p>
+<p>The <code>File Path Pattern</code> allows you to use other properties to find a file. The preview includes an indicator showing whether the resolved path currently points to an existing file. A warning indicator means the file was not found at the previewed path.</p>
+<p>The pattern is made up of <code>Fields</code>. A field can be another property of your template, the row number, or a custom increment. Fields are represented by braces in the pattern. Everything inside braces is replaced if it is a valid property. The pattern is evaluated for each row, using that row's property values to resolve the file path.</p>
+<p>To add a field, open the <code>Add Field</code> dropdown and select one. Fields in bold represent special options:</p>
+<ul>
+<li><strong>Base Folder:</strong> If your files are in a complex path, use a <code>Base Folder</code> field. When included in the pattern, it represents the path to the folder you select. The pattern and the base folder are relative to the project location.</li>
+<li><strong>Row Number:</strong> The row number, starting at 0.</li>
+<li><strong>Increment:</strong> A configurable increment. <code>{increment:0001}</code> produces <code>0001</code> for the first row and <code>0002</code> for the second row. <code>{increment:050}</code> produces <code>050</code> for the first row and <code>051</code> for the second row.</li>
+<li><strong><em>Properties from your Template:</em></strong> The remaining options in the list are properties from your template.</li>
+</ul>
+<div class="admonition abstract">
+<p class="admonition-title">Basic Use Case Example</p>
+<p>You have a template that requires a render for each country in the world. The template includes the country's flag. You already have a folder containing all the flags, and each flag is named with <code>FLAG</code> and the country name. You are already using the country name as a property in your template. You need a way to build a file path for the extension to import these files. To simplify your pattern, add a <code>Base Folder</code> field and select its value first.</p>
+<p>Your pattern could look like this: <code>{base_folder}/Flags/FLAG {Country Name}.jpg</code>.
+If the base folder is <code>(Footage)</code> and the <code>Country Name</code> property is <code>United States</code>, the extension resolves the path to <code>(Footage)/Flags/FLAG United States.jpg</code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Paths are Relative to the Project</p>
+<p>The path for this pattern should be relative to your <code>.aep</code> file. This is useful if you work on a shared drive or Dropbox and collaborate with other people.</p>
+<p>For example, if your project is saved at <code>C:/Projects/WorldMap/world-map.aep</code> and your flags are in <code>C:/Projects/WorldMap/Footage/Flags</code>, a pattern such as <code>Footage/Flags/FLAG {Country Name}.jpg</code> can resolve to <code>C:/Projects/WorldMap/Footage/Flags/FLAG United States.jpg</code>.</p>
+<p>You can also go backwards manually with <code>..</code> in a relative path. For example, if your project is at <code>D:/ClientWork/Promo/projects/promo.aep</code> and the images are stored in <code>D:/ClientWork/Promo/assets/products</code>, the pattern <code>../assets/products/{Product Name}.png</code> will resolve to <code>D:/ClientWork/Promo/assets/products/Headphones.png</code>.</p>
+</div>
+<h2 id="automatic-preview">Automatic Preview</h2>
+<p>When automatic preview is enabled, changing a property updates the selected row's preview composition. This is useful for checking text, colors, dropdowns, and other values as you edit them. Preview updates can take a moment because EasyBatch must send the changed values to After Effects. You can also use the row Preview action to update the preview manually.</p>
+<h2 id="importing-csv-data">Importing CSV Data</h2>
+<p><strong>Comma-Separated Values</strong> is a file format that stores data in a table, similar to a spreadsheet. To import a CSV file into the extension, select a CSV file and map its columns to properties in your template. Values must also be formatted correctly, depending on the type:</p>
+<p>The import dialog maps CSV columns to template properties automatically when their names match. Matching is case-insensitive and also tolerates common differences such as spaces, underscores, hyphens, and periods. You can change a mapping manually or choose <code>Do not import</code>. Unmapped properties keep their existing values.</p>
+<ul>
+<li><strong>Text:</strong> Write the text directly in the cells. Line breaks (multiline text) may cause unexpected behavior in the extension.</li>
+<li><strong>Color:</strong> Format colors as an RGBA array of four numbers between 0 and 1. In a CSV file, quote values containing commas. For example, pure red is <code>"1,0,0,1"</code>, white is <code>"1,1,1,1"</code>, and gray is <code>"0.5,0.5,0.5,1"</code>.</li>
+<li><strong>Position:</strong> Represent the position of 2D and 3D layers with an array of three numbers. For example, a layer in the middle of a full HD frame is <code>"960,540,0"</code>.</li>
+<li><strong>Scale:</strong> Represent the scale as an array of three numbers in percentages. For example, a layer at its default scale is <code>"100,100,100"</code>.</li>
+<li><strong>Values:</strong> Write any other one-dimensional value directly in the cell.</li>
+<li><strong>Images or videos:</strong> The extension currently does not allow file paths to be entered for <em>replaceables</em>. To work with these files, see the replaceables section above.</li>
+</ul>
+<p>Export one or more rows from EasyBatch first when creating a CSV template. This preserves the expected column order and value formatting. The current importer is CSV-only; workbook and sheet importing are not yet live.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 25, 2026 03:08:27 UTC">September 25, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.path", "navigation.expand"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
