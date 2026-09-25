@@ -4,6 +4,12 @@ The `Output` tab is where you configure how your renders are generated and where
 ## Render Modes
 Render modes define what the extension does with each row.
 
+| Mode | Creates | Renders files | Best for |
+| --- | --- | --- | --- |
+| One Per Row | Temporary render compositions | Yes | One output per data row |
+| Multi-Output | Uses selected project compositions | Yes | Several outputs per data row |
+| Generate Comps | Editable project compositions | No | Hand-off or post-processing |
+
 ## Render Mode: One Per Row
 This is the simplest mode. Each row is applied to the template and then exported in the format you define below.
 
@@ -26,25 +32,28 @@ stateDiagram-v2
 
 
 ### File Name Pattern
-This feature allows you to give your renders dynamic names and paths. The pattern is interpreted for each render to generate the final file path.
+This feature allows you to give your renders dynamic names and paths. The pattern is interpreted for each render to generate the final file path. You do not need to include a file extension: the selected Output Module supplies the format and extension.
 
 ![Screenshot of the available patterns](assets/export-pattern.png)
 
-In the screenshot above, the pattern `{base_path}/PROMO MATCH {Tricode L}vs{Tricode R}` will be replaced as `Renders/Promos/PROMO MATCH MEXvsRSA`.
+In the screenshot above, the pattern `{base_folder}/PROMO MATCH {Tricode L}vs{Tricode R}` will be replaced as `Renders/Promos/PROMO MATCH MEXvsRSA`.
 
 If you include `/` in the pattern, it is interpreted as a subfolder. The pattern can therefore create subfolders dynamically.
 
-The pattern is made up of fields. In the example above, `{base_path}`, `{Tricode L}`, and `{Tricode R}` are fields. The available fields are:
+The pattern is made up of fields. In the example above, `{base_folder}`, `{Tricode L}`, and `{Tricode R}` are fields. The available fields are:
 
 - **Base Folder**:
 A `Base Folder` allows you to select a folder instead of typing its path into the pattern. Typically, this is the folder that all your renders have in common. If you select a folder on the same drive as the project, the path will be relative and will not include the drive letter. This helps keep the project portable.
 
-    To select a base path, click the `Pick Base Folder` button. To add it to the pattern, click `Add Field` and select `Base Path`. This is equivalent to typing `{base_path}` in the pattern.
+    To select a base folder, click the `Pick Base Folder` button. To add it to the pattern, click `Add Field` and select `Base Folder`. This is equivalent to typing `{base_folder}` in the pattern.
 
     In the screenshot above, we selected the folder `Renders/Promos`, where `Renders` is located in the same folder as the project. Because the path is relative to the project location, it is saved as `Renders/`.
 
 - **Template Name**:
 Replaces `{template_name}` with the name of the template (surprise!). In this case, it produces `Team vs Team`.
+
+- **Composition**:
+In Multi-Output mode, replaces `{comp_name}` with the name of the composition being rendered. This field is available in each composition's render pattern.
 
 - **Row Number**:
 Replaces `{row_number}` with the current row index. If you have 20 renders, the first one is `0` and the last one is `19`.
@@ -68,9 +77,15 @@ To define the render configuration for all files generated from this template, s
 To edit these templates, click `Edit` > `Templates` in the After Effects menu bar, then select the templates you want to modify.
 
 ### Render
-When you are ready, click `Start Batch Render`.
+When you are ready, click `Start Batch Render`. EasyBatch resolves the pattern for every row before queueing. It checks for duplicate paths in One Per Row mode and will not queue the batch until duplicate paths are fixed.
 
-## Render Mode: Multi Output
+### Render Results and Queue Behavior
+
+After queueing, the Output tab displays a result for each row. The result shows whether the row was queued, the resolved output path, and any warning or error returned while applying the row's properties.
+
+EasyBatch clears the existing After Effects render queue before adding the batch, then starts the queue asynchronously. Queueing results can appear before encoding finishes. On Windows, After Effects may block the extension while the render queue is running; see [Known Issues](known-issues.md) for details.
+
+## Render Mode: Multi-Output
 This is the most complex mode. Instead of creating a reference of your template composition and changing its Essential Properties, the extension modifies the properties of your original composition.
 
 This is useful if you want to export more than one composition per row. For example, several compositions could have properties linked to your main template. Because this mode changes the properties in the template itself, you can export compositions that reference the main template with those properties applied.
@@ -116,7 +131,7 @@ In the example pictured, the compositions have the same pattern. This works beca
 !!! tip "Pro Tip"
     Whenever you add a composition to the renders, its configuration is copied from the previous composition, including the pattern. If you have several compositions that use the same pattern, setting up the first one carefully can save time.
 
-Each Render Composition will have a pattern preview.
+Each Render Composition will have a pattern preview. The available fields are `{base_folder}`, `{template_name}`, `{comp_name}`, `{row_number}`, `{increment:0000}`, and template properties. Duplicate paths are reported because they can cause files to be overwritten.
 
 #### Render Settings
 
@@ -135,3 +150,13 @@ When you are ready, click `Batch One to Many`.
     
 ## Render Mode: Generate Comps
 This mode generates one composition per row and replaces its properties with the corresponding row data. Use it when you need to modify the resulting compositions without access to EasyBatch.
+
+### Composition Name Pattern
+
+The composition name pattern uses `{template_name}`, `{row_number}`, `{increment:0000}`, and template property fields. The pattern is resolved once for each row, and characters that are invalid in composition names are removed. Generated composition names should be unique so that the rows can be distinguished easily.
+
+### Generated Compositions Folder
+
+Use `Generated Comps Folder Name` to choose the project folder where EasyBatch creates the compositions. The default folder is `~Generated by EasyBatch`. This mode creates compositions only; it does not add them to the render queue or render files.
+
+When you are ready, click `Generate Compositions`. EasyBatch creates one composition for each row, adds the template composition as a layer, and applies that row's properties. The generated compositions can then be edited or rendered using After Effects.

@@ -13,6 +13,7 @@ nav:
   - Welcome: index.md
   - Getting Started: getting-started.md
   - User Guide:
+    - Setup: setup.md
     - Data Tab: tab-data.md
     - Output Tab: tab-output.md
   - Known Issues: known-issues.md
