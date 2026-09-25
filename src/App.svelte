@@ -68,6 +68,9 @@
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import { l, s, csa } from "./ui/States.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
+  import ImportCSVModal from "./ui/importers/ImportCSV.svelte";
+  import ImportExcelModal from "./ui/importers/ImportExcel.svelte";
+  import type { ExcelImportResult, ExcelSaveResult } from "./ui/importers/ImportExcel.types.ts";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
@@ -77,6 +80,8 @@
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
   let m_proceed = $state<ModalProceed>();
+  let m_import_csv = $state<any>();
+  let m_import_excel = $state<any>();
   let proceed = $state(true);
 
   let menu = $state<Menu>();
@@ -522,9 +527,33 @@
     ac.AddListener(
       "import_csv",
       () => {
-        ImportCSV();
+        OpenCSVImporter();
       },
       "i",
+    );
+
+    ac.AddListener(
+      "import_excel",
+      () => {
+        OpenExcelImporter();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "reimport_excel",
+      () => {
+        ReImportExcelLast();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "save_excel",
+      () => {
+        SaveToOpenedExcelFile();
+      },
+      "",
     );
 
     ac.AddListener(
@@ -899,19 +928,98 @@
     }
   }
 
-  function ImportCSV() {
-    l.debug("ImportCSV called");
-    csa
-      .Eval("ImportFile", "CSV Files: *.csv, All Files: *.*")
-      .then((result) => {
-        if (result === "null") return;
+  function OpenCSVImporter() {
+    if (sel_tmpl === undefined) return;
 
-        let decoded = decodeURIComponent(result);
+    m_import_csv?.Open(sel_tmpl, (stats: { rows: number; mapped: number; total: number }) => {
 
-        TemplateHelper.LoadFromCSV(sel_tmpl, decoded);
+      const details =
+        `Rows imported: ${stats.rows}<br>` +
+        `Mapped properties: ${stats.mapped}/${stats.total}`;
+      UpdateStatusFooter("CSV imported", details);
+    });
+  }
 
-        s.proj = s.proj;
-      });
+  function OpenExcelImporter() {
+    if (sel_tmpl === undefined) return;
+
+    m_import_excel?.Open(
+      sel_tmpl,
+      (result: ExcelImportResult) => {
+        HandleExcelImportResult(result);
+      },
+    );
+  }
+
+  function ReImportExcelLast() {
+    if (sel_tmpl === undefined) return;
+
+    m_import_excel?.ReImportLast(
+      sel_tmpl,
+      (result: ExcelImportResult) => {
+        HandleExcelImportResult(result);
+      },
+    );
+  }
+
+  function SaveToOpenedExcelFile() {
+    if (sel_tmpl === undefined) return;
+
+    m_import_excel?.SaveToOpenedFile(
+      sel_tmpl,
+      (result: ExcelSaveResult) => {
+        HandleExcelSaveResult(result);
+      },
+    );
+  }
+
+  function HandleExcelImportResult(result: ExcelImportResult) {
+    if (!result.success) {
+      m_message?.Open(result.error, "Excel Import Error");
+      return;
+    }
+
+    s.proj = s.proj;
+
+    const details =
+      `Sheet: ${result.stats.sheet}<br>` +
+      `Rows imported: ${result.stats.rows}<br>` +
+      `Mapped properties: ${result.stats.mapped}/${result.stats.total}`;
+    UpdateStatusFooter(result.title, details);
+
+    if (result.warnings.length > 0) {
+      m_message?.Open(result.warnings.join("<br>"), "Excel Import Warnings");
+    }
+  }
+
+  function HandleExcelSaveResult(result: ExcelSaveResult) {
+    if (!result.success) {
+      m_message?.Open(result.error, "Excel Save Error");
+      return;
+    }
+
+    const details =
+      `Updated cells: ${result.stats.written_cells}<br>` +
+      `Formula cells protected: ${result.stats.formula_cells_skipped}`;
+    UpdateStatusFooter(result.title, details);
+
+    const warnings: string[] = [];
+    if (result.stats.formula_cells_skipped > 0) {
+      warnings.push(`${result.stats.formula_cells_skipped} formula cells were not overwritten.`);
+    }
+    if (result.stats.missing_columns.length > 0) {
+      warnings.push(`Missing mapped columns: ${result.stats.missing_columns.join(", ")}.`);
+    }
+    if (warnings.length > 0) {
+      m_message?.Open(warnings.join("<br>"), "Excel Save Warnings");
+    }
+  }
+
+  function GetExcelLastImportLabel(): string {
+    const rel_path = sel_tmpl?.import_file_lasts?.excel?.path;
+    if (!rel_path) return "";
+
+    return rel_path.split(/[\\/]/).pop() ?? rel_path;
   }
 
   function ExportCSV() {
@@ -1400,7 +1508,7 @@
                     <button
                       class="delete_col"
                       data-tooltip="Setup alternate source"
-                      data-tt-pos="bottom-right"
+                      data-tt-pos="middle-right"
                       onclick={() => {
                         SetupAlternateSource(col_i);
                       }}><Gear /></button>
@@ -1424,13 +1532,13 @@
                   <button
                     class="delete_row"
                     data-tooltip="Row menu"
-                    data-tt-pos="top-right"
+                    data-tt-pos="middle-right"
                     onclick={(e) => OpenRowMenu(e, row_i)}
                     ><HamburgerMenu /></button>
                   <button
                     class="delete_row"
                     data-tooltip="Preview Row"
-                    data-tt-pos="top-right"
+                    data-tt-pos="middle-right"
                     onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
                 </td>
                 {#each sel_tmpl.view_cols as td_col_i}
@@ -1460,7 +1568,7 @@
             <button
               onclick={() => (s.setts.data_mode = "table")}
               data-tooltip="Switch to Table View"
-              data-tt-pos="bottom"><Table />Table View</button>
+              data-tt-pos="middle-right"><Table />Table View</button>
           </div>
 
           <div class="dets_header_nav">
@@ -1468,12 +1576,12 @@
               data-variant="discrete"
               onclick={() => ac.Fire("add_before")}
               data-tooltip="Add Row Before"
-              data-tt-pos="bottom"><AddBefore /></button>
+              data-tt-pos="middle-right"><AddBefore /></button>
             <button
               data-variant="discrete"
               onclick={PrevRow}
               data-tooltip="Previous Row"
-              data-tt-pos="bottom"><ArrowLeft /></button>
+              data-tt-pos="middle-right"><ArrowLeft /></button>
             <input
               type="number"
               min="1"
@@ -1485,13 +1593,13 @@
             <button
               onclick={NextRow}
               data-tooltip="Next Row"
-              data-tt-pos="bottom"
+              data-tt-pos="middle-right"
               data-variant="discrete"><ArrowRight /></button>
             <button
               data-variant="discrete"
               onclick={() => ac.Fire("add_after")}
               data-tooltip="Add Row After"
-              data-tt-pos="bottom"><AddAfter /></button>
+              data-tt-pos="middle-right"><AddAfter /></button>
           </div>
         </div>
 
@@ -1505,7 +1613,7 @@
                   <button
                     class="delete_col"
                     data-tooltip="Setup alternate source"
-                    data-tt-pos="bottom-right"
+                    data-tt-pos="middle-right"
                     onclick={() => {
                       SetupAlternateSource(td_col_i);
                     }}><Gear /></button>
@@ -1561,7 +1669,7 @@
         File Name Pattern
         <button
           class="info"
-          data-tt-pos="bottom-right"
+          data-tt-pos="middle-right"
           data-tt-width="large"
           data-tooltip="Generates the file name of every export using this pattern."
           >?</button>
@@ -1605,7 +1713,7 @@
         Render Settings
         <button
           class="info"
-          data-tt-pos="bottom-right"
+          data-tt-pos="middle-right"
           data-tt-width="x-large"
           data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
           >?</button>
@@ -1723,7 +1831,7 @@
         Common Base Folder
         <button
           class="info"
-          data-tt-pos="bottom-right"
+          data-tt-pos="middle-right"
           data-tt-width="x-large"
           data-tooltip="All renders will be saved relative to this folder. Use the 'Edit File Pattern' button to set the full save path for each composition."
           >?</button>
@@ -1738,7 +1846,7 @@
         Add Composition to Renders
         <button
           class="info"
-          data-tt-pos="bottom-right"
+          data-tt-pos="middle-right"
           data-tt-width="x-large"
           data-tooltip="The compositions you select will be rendered for every row of data. You can select any composition in the project, even if is not directly related to the template composition."
           >?</button>
@@ -1767,7 +1875,7 @@
 
       <!-- Dependant Compositions -->
       {#each sel_tmpl.dep_comps as dc, dc_i}
-        <details class="out_sub_render" open>
+        <details class="out_sub_render">
           <summary>
             <input
               type="checkbox"
@@ -1777,7 +1885,7 @@
             <button
               class="delete_col"
               data-tooltip="Remove composition from renders"
-              data-tt-pos="bottom-right"
+              data-tt-pos="middle-right"
               onclick={() => DeleteDependentComp(dc_i)}><Trash /></button>
           </summary>
 
@@ -1786,7 +1894,7 @@
               Render Save Pattern
               <button
                 class="info"
-                data-tt-pos="bottom-right"
+                data-tt-pos="middle-right"
                 data-tt-width="x-large"
                 data-tooltip="This pattern determines where the renders are saved and their file names."
                 >?</button>
@@ -1797,7 +1905,7 @@
                 <button
                   style="vertical-align: middle; margin-left: 8px;"
                   data-tooltip="Edit the pattern that will determine the save path for this render."
-                  data-tt-pos="top-right"
+                  data-tt-pos="middle-right"
                   data-tt-width="large"
                   onclick={() => DepFilePatternModalOpen(dc_i)}>
                   <Pencil1 /> Edit</button>
@@ -1815,7 +1923,7 @@
               Render
               <button
                 class="info"
-                data-tt-pos="bottom-right"
+                data-tt-pos="middle-right"
                 data-tt-width="x-large"
                 data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
                 >?</button>
@@ -1909,9 +2017,11 @@
     onclose={AlertSrcModalClosed} />
 {/if}
 
-<Menu bind:this={menu} onselect={MenuItemSelected}></Menu>
+  <Menu bind:this={menu} onselect={MenuItemSelected} excel_last_file_label={GetExcelLastImportLabel()}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 <ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
+<ImportCSVModal bind:this={m_import_csv}></ImportCSVModal>
+<ImportExcelModal bind:this={m_import_excel}></ImportExcelModal>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">
