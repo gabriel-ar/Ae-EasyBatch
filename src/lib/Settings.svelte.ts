@@ -97,7 +97,7 @@ export class SettingsHelper {
   }
 
   static LoadProjectData(json: any): ProjData {
-    let proj: ProjData = { ...this.DefaultProjectData, ...json};
+    let proj: ProjData = { ...this.DefaultProjectData, ...json };
 
     proj.tmpls = [];
     if (json.tmpls !== undefined) {
@@ -253,7 +253,7 @@ export class TemplateHelper {
 
     same_cols.forEach((old_col) => {
       let new_col = n_tmpl.columns.find((new_col) => new_col.cont_name === old_col.cont_name);
-      if(new_col) ColumnHelper.Update(old_col, new_col);
+      if (new_col) ColumnHelper.Update(old_col, new_col);
     });
 
     // Remove deleted columns
@@ -279,10 +279,10 @@ export class TemplateHelper {
     }
 
     tmpl.dep_comps.push(comp);
-    
+
     if (last_dep_comp_setts !== null) {
       tmpl.dep_config.push({
-        ...({...last_dep_comp_setts}),// clone the last settings to use as base for the new comp
+        ...({ ...last_dep_comp_setts }),// clone the last settings to use as base for the new comp
         id: comp.id,
         name: comp.name,
         enabled: true,
@@ -333,9 +333,9 @@ export class TemplateHelper {
     for (let i_col in tmpl.columns) {
       pattern = pattern.replaceAll(
         `{${tmpl.columns[i_col].cont_name}}`,
-        typeof tmpl.columns[i_col].values[index] === "string" 
-        ? tmpl.columns[i_col].values[index].trim() 
-        : tmpl.columns[i_col].values[index]
+        typeof tmpl.columns[i_col].values[index] === "string"
+          ? tmpl.columns[i_col].values[index].trim()
+          : tmpl.columns[i_col].values[index]
       );
     }
 
@@ -492,7 +492,7 @@ export class TemplateHelper {
     }
 
     for (let col in tmpl.columns) {
-      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+      const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
       tmpl.columns[col].values.splice(
         index + 1,
@@ -512,7 +512,7 @@ export class TemplateHelper {
     }
 
     for (let col in tmpl.columns) {
-      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+      const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
       tmpl.columns[col].values.splice(
         index,
@@ -535,7 +535,7 @@ export class TemplateHelper {
     tmpl.columns.forEach((col) => {
       col.values.splice(index, 1);
     });
-  
+
     this.ResolveAltSrcPaths(tmpl);
   }
 
@@ -762,7 +762,9 @@ export class ColumnHelper {
   static ValidateValue(value: any, type: number) {
     switch (type) {
       case this.PropertyValueType.TEXT_DOCUMENT:
-        if (value === undefined || typeof value !== "string") {
+        if (typeof value === "number") {
+          value = value.toString();
+        } else if (typeof value !== "string") {
           value = "";
         }
         break;
@@ -846,7 +848,7 @@ export class ColumnHelper {
       } else {
         value = new Array(length).fill(0);
       }
-    }else if (value.length !== length) {
+    } else if (value.length !== length) {
       let new_val = new Array(length).fill(0);
       for (let i = 0; i < Math.min(value.length, length); i++) {
         new_val[i] = value[i];
