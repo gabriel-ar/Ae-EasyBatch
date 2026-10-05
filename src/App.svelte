@@ -921,6 +921,34 @@
     }
   }
 
+  /**
+   * Fixed width in px for non-text columns, or null for flexible (text) columns.
+   * @param {{type: number, display?: string}} col
+   */
+  function ColWidth(col) {
+    const T = ColumnHelper.PropertyValueType;
+    if (col.display === "checkbox") return 56;
+    if (col.display === "menu") return 140;
+    switch (col.type) {
+      case T.TEXT_DOCUMENT:
+        return null;
+      case T.OneD:
+        return 90;
+      case T.TwoD:
+      case T.TwoD_SPATIAL:
+        return 150;
+      case T.ThreeD:
+      case T.ThreeD_SPATIAL:
+        return 220;
+      case T.COLOR:
+        return 160;
+      case T.SRC_ALTERNATE:
+        return 260;
+      default:
+        return 120;
+    }
+  }
+
   function PrevRow() {
     if (curr_row_i > 0) {
       curr_row_i--;
@@ -1554,6 +1582,13 @@
     {#if s.proj.sel_tmpl >= 0 && sel_tmpl !== undefined && s.proj.tmpls.length > 0}
       {#if s.setts.data_mode === "table"}
         <table class="dat_table">
+          <colgroup>
+            <col style="width: 64px;" />
+            {#each sel_tmpl.view_cols as col_i}
+              {@const w = ColWidth(sel_tmpl.columns[col_i])}
+              <col style={w ? `width: ${w}px;` : "min-width: 200px;"} />
+            {/each}
+          </colgroup>
           <thead>
             <tr>
               <th></th>
@@ -2204,6 +2239,10 @@
     /* background-color: var(--color-m1); */
   }
 
+  #main_data{
+    padding: 0;
+  }
+
   /* ////// DATA //////// */
 
   .dat_bar {
@@ -2226,7 +2265,57 @@
   }
 
   tr {
-    height: 20px;
+    height: 28px;
+  }
+
+  .dat_table {
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .dat_table,
+  .dat_table th:first-child,
+  .dat_table td:first-child {
+    border-left: none;
+  }
+
+
+  .dat_table td:first-child {
+    border-right: none;
+  }
+  .dat_table td:nth-child(2) {
+    border-left: none;
+  }
+
+  .dat_table,
+  .dat_table th:last-child,
+  .dat_table td:last-child {
+    border-right: none;
+  }
+
+  .dat_table,
+  .dat_table thead th {
+    border-top: none;
+  }
+
+  .dat_table,
+  .dat_table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .dat_table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: #131313;
+  }
+
+  .dat_table td {
+    height: 28px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
   }
 
   tr:hover {
@@ -2237,8 +2326,30 @@
     background-color: rgba(255, 255, 255, 0.07) !important;
   }
 
-  :global(.dat_table td:first-child) {
+  .dat_table td:first-child {
     text-align: center;
+  }
+
+  .dat_table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color:rgb(30 30 30);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
+
+  }
+
+  .dat_table th:first-child {
+    z-index: 3;
+  }
+
+  /* The row tint is semi-transparent, so overlay it on the opaque sticky cell */
+  .dat_table tr:hover td:first-child {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02));
+  }
+
+  .dat_table tr[data-selected="true"] td:first-child {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   }
 
   td {
@@ -2337,7 +2448,7 @@
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(0, 0, 0, 0.15);
 
     margin: 10px -10px;  
     padding: 10px 10px;
