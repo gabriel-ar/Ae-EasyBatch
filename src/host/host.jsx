@@ -973,7 +973,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
  * @param {string} folder Name of the project folder to store the generated render compositions
  * @returns {string}
  */
-function BatchRender(str_template, folder) {
+function BatchRender(str_template, folder, start_queue) {
   _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
@@ -1050,7 +1050,9 @@ function BatchRender(str_template, folder) {
     } //loop template rows
 
     //Start the render queue
-    app.project.renderQueue.renderAsync();
+    if (start_queue) {
+      app.project.renderQueue.renderAsync();
+    }
 
     result.success = true;
     return JSON.stringify(result);
@@ -1186,6 +1188,7 @@ function GetRenderTemplates() {
     var rq_item = app.project.renderQueue.items.add(render_comp);
     result.render_templs = rq_item.templates;
     result.output_modules_templs = rq_item.outputModule(1).templates;
+    result.output_modules_templs.push("EB_Single_Frame_PNG");
 
     //Delete the render queue item
     rq_item.remove();
@@ -1372,7 +1375,7 @@ var queued_items;
  * @param {string} str_template - Stringified JSON of `TemplateData` object
  * @returns {string} Stringified JSON of `BatchRenderResult` object
  */
-function BatchRenderDepComps(str_template) {
+function BatchRenderDepComps(str_template, send_to_ame) {
   _EscapeArgs(arguments);
 
   dep_result = { success: false, row_results: [] };
@@ -1403,7 +1406,7 @@ function BatchRenderDepComps(str_template) {
     }
 
     // Start rendering the dependent compositions
-    RenderDeps(tmpl, props_layer);
+    RenderDeps(tmpl, props_layer, send_to_ame);
 
     dep_result.success = true;
     return JSON.stringify(dep_result);
@@ -1420,7 +1423,7 @@ function BatchRenderDepComps(str_template) {
  * Renders the dependent compositions
  * @param {TemplateData} tmpl
  */
-function RenderDeps(tmpl, props_layer) {
+function RenderDeps(tmpl, props_layer, send_to_ame) {
 
   //Loop through the rows and set the values of the template
   for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
@@ -1443,7 +1446,7 @@ function RenderDeps(tmpl, props_layer) {
       //Add the dependent compositions to the render queue
       for (var i = 0; i < tmpl.dep_comps.length; i++) {
 
-        if (ShouldCancelRenderDeps()) {
+        if (!send_to_ame && ShouldCancelRenderDeps()) {
           dep_result.user_stopped = true;
           return;
         }
@@ -1518,9 +1521,21 @@ function RenderDeps(tmpl, props_layer) {
       }
     }
 
-    if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
+    if (app.project.renderQueue.numItems > 0){
+      if(send_to_ame) {
+      app.project.renderQueue.queueInAME(false);
+
+      //delete all items in the render queue since the render won't start in Ae
+      for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
+        app.project.renderQueue.item(i).remove();
+      }
+
+      }else{
+      app.project.renderQueue.render();
+      }
+    }
   } //loop template rows
-}
+} 
 
 /**
  * Checks if any of the queued render items has been stopped by the user,
@@ -1529,7 +1544,8 @@ function RenderDeps(tmpl, props_layer) {
  */
 function ShouldCancelRenderDeps() {
   for (var i = 0; i < queued_items.length; i++) {
-    if (queued_items[i].rqi !== undefined
+    if (queued_items[i] !== undefined 
+      && queued_items[i].rqi !== undefined
       && queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
       queued_items[i].row_result.status = 'stopped';
       queued_items[i].row_result.error = 'Render stopped by user';
@@ -1813,5 +1829,3 @@ function Test_CheckRenderResult(render_path) {
 
   return JSON.stringify(response);
 }
-
-

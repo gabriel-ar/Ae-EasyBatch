@@ -1,6 +1,6 @@
 <script lang="ts">
   import CSAdapter from "./lib/CSAdapter.ts";
-  import { onMount, setContext} from "svelte";
+  import { onMount, setContext } from "svelte";
 
   import {
     Camera,
@@ -20,6 +20,8 @@
     ArrowLeft,
     ArrowRight,
     Table,
+    Play,
+    ActivityLog,
   } from "radix-icons-svelte";
 
   import {
@@ -70,12 +72,16 @@
   import ModalProceed from "./ui/ModalProceed.svelte";
   import ImportCSVModal from "./ui/importers/ImportCSV.svelte";
   import ImportExcelModal from "./ui/importers/ImportExcel.svelte";
-  import type { ExcelImportResult, ExcelSaveResult } from "./ui/importers/ImportExcel.types.ts";
+  import type {
+    ExcelImportResult,
+    ExcelSaveResult,
+  } from "./ui/importers/ImportExcel.types.ts";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
   let not_ready = $state(true);
 
+  //Modals
   let m_file_pattern = $state<ModalFilePattern>();
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
@@ -355,7 +361,6 @@
   async function SaveSettings(
     what: "reset" | "proj" | "setts" | "all" = "all",
   ): Promise<boolean> {
-
     console.debug("SaveSettings called with type:", what);
 
     last_type = "";
@@ -383,7 +388,7 @@
       request.proj_settings = s.setts; // Sending settings data
     }
 
-    if(what === "reset") {
+    if (what === "reset") {
       request.proj_settings = SettingsHelper.DefaultProjSettings;
       request.proj_data = SettingsHelper.DefaultProjectData;
     }
@@ -459,6 +464,12 @@
   let visible_output_module_templates = $derived(
     (render_setts_templs.output_modules_templs ?? []).filter(
       (templ) => !templ.startsWith("_HIDDEN"),
+    ),
+  );
+
+  let visible_output_module_labels = $derived(
+    visible_output_module_templates.map((templ) =>
+      templ === "EB_Single_Frame_PNG" ? "<b>Single Frame PNG</b>" : templ,
     ),
   );
 
@@ -931,46 +942,39 @@
   function OpenCSVImporter() {
     if (sel_tmpl === undefined) return;
 
-    m_import_csv?.Open(sel_tmpl, (stats: { rows: number; mapped: number; total: number }) => {
-
-      const details =
-        `Rows imported: ${stats.rows}<br>` +
-        `Mapped properties: ${stats.mapped}/${stats.total}`;
-      UpdateStatusFooter("CSV imported", details);
-    });
+    m_import_csv?.Open(
+      sel_tmpl,
+      (stats: { rows: number; mapped: number; total: number }) => {
+        const details =
+          `Rows imported: ${stats.rows}<br>` +
+          `Mapped properties: ${stats.mapped}/${stats.total}`;
+        UpdateStatusFooter("CSV imported", details);
+      },
+    );
   }
 
   function OpenExcelImporter() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.Open(
-      sel_tmpl,
-      (result: ExcelImportResult) => {
-        HandleExcelImportResult(result);
-      },
-    );
+    m_import_excel?.Open(sel_tmpl, (result: ExcelImportResult) => {
+      HandleExcelImportResult(result);
+    });
   }
 
   function ReImportExcelLast() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.ReImportLast(
-      sel_tmpl,
-      (result: ExcelImportResult) => {
-        HandleExcelImportResult(result);
-      },
-    );
+    m_import_excel?.ReImportLast(sel_tmpl, (result: ExcelImportResult) => {
+      HandleExcelImportResult(result);
+    });
   }
 
   function SaveToOpenedExcelFile() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.SaveToOpenedFile(
-      sel_tmpl,
-      (result: ExcelSaveResult) => {
-        HandleExcelSaveResult(result);
-      },
-    );
+    m_import_excel?.SaveToOpenedFile(sel_tmpl, (result: ExcelSaveResult) => {
+      HandleExcelSaveResult(result);
+    });
   }
 
   function HandleExcelImportResult(result: ExcelImportResult) {
@@ -1005,10 +1009,14 @@
 
     const warnings: string[] = [];
     if (result.stats.formula_cells_skipped > 0) {
-      warnings.push(`${result.stats.formula_cells_skipped} formula cells were not overwritten.`);
+      warnings.push(
+        `${result.stats.formula_cells_skipped} formula cells were not overwritten.`,
+      );
     }
     if (result.stats.missing_columns.length > 0) {
-      warnings.push(`Missing mapped columns: ${result.stats.missing_columns.join(", ")}.`);
+      warnings.push(
+        `Missing mapped columns: ${result.stats.missing_columns.join(", ")}.`,
+      );
     }
     if (warnings.length > 0) {
       m_message?.Open(warnings.join("<br>"), "Excel Save Warnings");
@@ -1243,11 +1251,26 @@
 
   //User facing render results
   let render_results = $state<RowRenderResult[]>([]);
-  function BatchRender(row_i: number = -1) {
+  function BatchRender(row_i: number = -1, start_queue: boolean = true) {
     l.log("BatchRender called");
 
     //check if we should 'proceed'
     if (!proceed) {
+      return;
+    }
+
+    if (
+      !render_setts_templs.render_templs?.includes(
+        sel_tmpl.render_setts_templ,
+      ) ||
+      !render_setts_templs.output_modules_templs?.includes(
+        sel_tmpl.render_out_module_templ,
+      )
+    ) {
+      m_message?.Open(
+        "Select valid Render Settings and Output Module templates in the Output tab before rendering.",
+        "Render Settings Missing",
+      );
       return;
     }
 
@@ -1268,10 +1291,16 @@
     TemplateHelper.ResolveAltSrcPaths(send_templ);
 
     //checks for dupliate save paths
-    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "render");
+    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
+      send_templ,
+      "render",
+    );
     if (path_conflicts.length > 0) {
       const details = path_conflicts
-        .map((c) => `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`)
+        .map(
+          (c) =>
+            `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`,
+        )
         .join("<br>");
 
       m_message?.Open(
@@ -1291,6 +1320,7 @@
         "BatchRender",
         string_templt,
         s.setts.render_comps_folder,
+        start_queue,
       )
       .then((result) => {
         if (!result.success) {
@@ -1356,10 +1386,33 @@
 
   let dep_row_results = $state<RowRenderResult[]>([]);
   let user_stopped_deps = $state(false);
-  function BatchOneToMany(row_i: number = -1) {
+  function BatchOneToMany(row_i: number = -1, queue_ame: boolean = false) {
     l.log("BatchOneToMany called");
 
     if (!proceed) {
+      return;
+    }
+
+    const conf_issues = sel_tmpl.dep_config.filter((dc) => {
+      return (
+        dc.enabled &&
+        (!render_setts_templs.render_templs?.includes(dc.render_setts_templ) ||
+          !render_setts_templs.output_modules_templs?.includes(
+            dc.render_out_module_templ,
+          ))
+      );
+    });
+    if (conf_issues.length > 0) {
+      l.warn("Configuration issues detected:", conf_issues);
+      let issues_s = "";
+      for (let issue of conf_issues) {
+        issues_s += `<li>${issue.name ?? "Unknown"}</li>`;
+      }
+
+      m_message?.Open(
+        `Select a Render Settings template and an Output Module template for every enabled composition before rendering. Issues detected in:<br><ul>${issues_s}</ul>`,
+        "Render Settings Missing",
+      );
       return;
     }
 
@@ -1383,7 +1436,10 @@
     TemplateHelper.ResolveSavePathDeps(send_templ);
 
     //checks for dupliate save paths
-    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "dependant");
+    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
+      send_templ,
+      "dependant",
+    );
     if (dep_path_conflicts.length > 0) {
       const details = dep_path_conflicts
         .map((c) => {
@@ -1406,7 +1462,7 @@
     }
 
     csa
-      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt)
+      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt, queue_ame)
       .then((result) => {
         l.debug(`OtM Render Results`, result);
 
@@ -1731,20 +1787,26 @@
       <div class="setting">
         <label for="sel_render_out_module">Output Module Template</label>
         <Dropdown
-          labels={[
-            "<b>Single Frame PNG</b>",
-            ...visible_output_module_templates,
-          ]}
-          options={["EB_Single_Frame_PNG", ...visible_output_module_templates]}
+          labels={visible_output_module_labels}
+          options={visible_output_module_templates}
           bind:value={sel_tmpl.render_out_module_templ} />
       </div>
 
-      <button class="setting" onclick={() => BatchRender()}
-        >Start Batch Render</button>
+      <div class="out_actions_cont">
+      <div class="out_actions">
+        <button class="setting" onclick={() => BatchRender()}
+          ><Play size={18} />Start Batch Render</button>
+
+        <button class="setting" onclick={() => BatchRender(-1, false)}
+          data-tooltip="Useful if you want to send the queue to Media Encoder."
+          data-tt-width="x-large"
+          ><ActivityLog size={18}/>Queue Renders</button>
+      </div>
+      </div>
 
       <!--Results-->
       {#if render_results.length > 0}
-        <h4>Render Results</h4>
+        <h4>Results</h4>
         <table class="render_results">
           <thead>
             <tr>
@@ -1810,15 +1872,19 @@
       </div>
 
       <div class="setting">
-        <label for="in_imported_folder">Generated Comps Folder Name </label>
+        <label for="in_imported_folder">Generated Comps Folder Name</label>
         <input
           id="in_gen_folder"
           type="text"
           bind:value={sel_tmpl.gen_comps_folder} />
       </div>
 
-      <button class="setting" onclick={BatchGenerate}
-        >Generate Compositions</button>
+      <div class="out_actions_cont">
+        <div class="out_actions">
+          <button class="setting" onclick={() => BatchGenerate()}
+            ><Play size={18} />Generate Compositions</button>
+        </div>
+      </div>
     {:else if sel_tmpl.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
@@ -1941,14 +2007,8 @@
               <label for="sel_render_out_module">Output Module</label>
 
               <Dropdown
-                labels={[
-                  "<b>Single Frame PNG</b>",
-                  ...visible_output_module_templates,
-                ]}
-                options={[
-                  "EB_Single_Frame_PNG",
-                  ...visible_output_module_templates,
-                ]}
+                labels={visible_output_module_labels}
+                options={visible_output_module_templates}
                 bind:value={
                   sel_tmpl.dep_config[dc_i].render_out_module_templ
                 } />
@@ -1957,15 +2017,24 @@
         </details>
       {/each}
 
-      <div class="OtM_ui_warn">
-        <ExclamationTriangle color="white" size={15} />
-        This render mode will block the user interface, press Esc to cancel all renders.
+      <div class="out_actions_cont">
+        <div class="out_actions">
+          <button class="setting" onclick={() => BatchOneToMany()}
+            ><Play size={18} />Start Batch Render</button>
+
+          <!-- <button class="setting" onclick={() => BatchOneToMany(-1, true)}
+            ><ActivityLog size={18} />Queue in Media Encoder</button> -->
+        </div>
+        <div class="OtM_ui_warn">
+          <ExclamationTriangle color="white" size={15} />
+          Using this render mode and rendering in After Effects will block the user
+          interface, press Esc to cancel all renders.
+        </div>
       </div>
-      <button onclick={() => BatchOneToMany()}>Batch One to Many</button>
 
       <!--Results-->
       {#if dep_row_results.length > 0}
-        <h4>Render Results</h4>
+        <h4>Results</h4>
         {#if user_stopped_deps}
           <div class="OtM_stopped_warn">
             <ExclamationTriangle color="yellow" size={14} />
@@ -2017,7 +2086,10 @@
     onclose={AlertSrcModalClosed} />
 {/if}
 
-  <Menu bind:this={menu} onselect={MenuItemSelected} excel_last_file_label={GetExcelLastImportLabel()}></Menu>
+<Menu
+  bind:this={menu}
+  onselect={MenuItemSelected}
+  excel_last_file_label={GetExcelLastImportLabel()}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 <ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
 <ImportCSVModal bind:this={m_import_csv}></ImportCSVModal>
@@ -2257,6 +2329,39 @@
     text-align: center;
   }*/
 
+  .out_actions_cont {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+    background-color: rgba(0, 0, 0, 0.1);
+
+    margin: 10px -10px;  
+    padding: 10px 10px;
+  }
+
+  .out_actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .out_actions button {
+    font-weight: bold;
+    font-size: 1.05rem;
+
+    padding: 5px 8px;
+    margin: 0 !important;
+  }
+
+  :global(.out_actions svg) {
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+
   .out_prev {
     word-break: break-all;
     display: flex;
@@ -2297,7 +2402,7 @@
 
   .OtM_ui_warn {
     text-align: center;
-    margin: 10px 0;
+    margin: 0 0;
   }
 
   :global(.OtM_ui_warn svg) {
