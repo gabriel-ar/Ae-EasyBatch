@@ -2264,10 +2264,6 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  tr {
-    height: 28px;
-  }
-
   .dat_table {
     table-layout: fixed;
     width: max-content;
@@ -2281,10 +2277,12 @@
   }
 
 
-  .dat_table td:first-child {
+  .dat_table td:first-child,
+  .dat_table th:first-child {
     border-right: none;
   }
-  .dat_table td:nth-child(2) {
+  .dat_table td:nth-child(2),
+  .dat_table th:nth-child(2) {
     border-left: none;
   }
 
@@ -2297,6 +2295,11 @@
   .dat_table,
   .dat_table thead th {
     border-top: none;
+    z-index: 200;
+  }
+
+.dat_table thead th:first-child {
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
   }
 
   .dat_table,
@@ -2307,13 +2310,11 @@
   .dat_table th {
     position: sticky;
     top: 0;
-    z-index: 2;
     background-color: #131313;
   }
 
   .dat_table td {
-    height: 28px;
-    overflow: hidden;
+    height: 28px; 
     text-overflow: ellipsis;
     vertical-align: middle;
   }
@@ -2333,15 +2334,11 @@
   .dat_table td:first-child {
     position: sticky;
     left: 0;
-    z-index: 1;
     background-color:rgb(30 30 30);
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
 
   }
 
-  .dat_table th:first-child {
-    z-index: 3;
-  }
 
   /* The row tint is semi-transparent, so overlay it on the opaque sticky cell */
   .dat_table tr:hover td:first-child {
