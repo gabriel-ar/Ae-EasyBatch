@@ -2294,6 +2294,7 @@
   }
 
   .dat_table thead th {
+    border-top: none;
     z-index: 100;
   }
 
