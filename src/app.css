@@ -130,7 +130,7 @@ select option:focus {
   border-radius: 5px;
   pointer-events: none;
   padding: 4px 4px;
-  z-index: 99;
+  z-index: 1500;
 
   border: 1px solid;
   border-color: var(--color-border-p1);

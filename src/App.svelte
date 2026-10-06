@@ -2268,6 +2268,7 @@
     table-layout: fixed;
     width: max-content;
     min-width: 100%;
+    border-top: none;
   }
 
   .dat_table,
@@ -2292,10 +2293,8 @@
     border-right: none;
   }
 
-  .dat_table,
   .dat_table thead th {
-    border-top: none;
-    z-index: 200;
+    z-index: 100;
   }
 
 .dat_table thead th:first-child {
@@ -2544,7 +2543,9 @@
 
     background-color: rgba(0, 0, 0, 0.597);
     backdrop-filter: blur(5px);
-  }
+
+    z-index: 1000;
+  } 
 
   .fs_no_tmpls span {
     font-size: 16px;
