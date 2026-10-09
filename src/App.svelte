@@ -92,6 +92,67 @@
 
   let menu = $state<Menu>();
   let curr_row_i = $state(0);
+  /**Rows highlighted for batch actions (delete, checkbox sync). Independent of the render checkboxes.*/
+  let sel_rows = $state<Set<number>>(new Set([0]));
+  let sel_anchor = 0;
+
+  $effect(() => {
+    if (!sel_rows.has(curr_row_i) && sel_rows.size === 0) {
+      sel_rows = new Set([curr_row_i]);
+    }
+  });
+
+  function ResetRowSelection() {
+    sel_rows = new Set([curr_row_i]);
+    sel_anchor = curr_row_i;
+  }
+
+  function RowClicked(e: MouseEvent, row_i: number) {
+    if (e.shiftKey) {
+      const [a, b] = [Math.min(sel_anchor, row_i), Math.max(sel_anchor, row_i)];
+      const range = new Set<number>();
+      for (let i = a; i <= b; i++) range.add(i);
+      sel_rows = range;
+      curr_row_i = row_i;
+    } else if (e.ctrlKey || e.metaKey) {
+      const next = new Set(sel_rows);
+      if (next.has(row_i)) {
+        next.delete(row_i);
+      } else {
+        next.add(row_i);
+        curr_row_i = row_i;
+      }
+      sel_rows = next;
+      sel_anchor = row_i;
+    } else {
+      curr_row_i = row_i;
+      if (!sel_rows.has(row_i) || sel_rows.size > 1) {
+        sel_rows = new Set([row_i]);
+      }
+      sel_anchor = row_i;
+    }
+  }
+
+  /**A checkbox on a selected row applies its new state to every selected row.*/
+  function RowCheckChanged(row_i: number, checked: boolean) {
+    TemplateHelper.EnsureRowFlags(sel_tmpl);
+    const targets = sel_rows.has(row_i) ? sel_rows : new Set([row_i]);
+    targets.forEach((i) => {
+      sel_tmpl.row_enabled[i] = checked;
+    });
+  }
+
+  function AllRowsChecked(): boolean {
+    return (
+      row_count > 0 &&
+      TemplateHelper.EnabledRows(sel_tmpl).length === row_count
+    );
+  }
+
+  function SetAllRowsChecked(checked: boolean) {
+    TemplateHelper.EnsureRowFlags(sel_tmpl);
+    sel_tmpl.row_enabled = sel_tmpl.row_enabled.map(() => checked);
+  }
 
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
@@ -155,10 +216,10 @@
 
       //for templates that where changed with the extension closed
       SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
-      GetAllComps();
 
       s.proj = l_proj;
       s.setts = l_setts;
+      await GetAllComps();
 
       if (s.proj.sel_tmpl == -1) {
         s.proj.sel_tmpl = 0;
@@ -500,10 +561,10 @@
       no_tmpls = false;
     }
 
-    GetAllComps();
     render_setts_templs = await GetRenderSettsTempls();
 
     SettingsHelper.UpdateTemplates(s.proj, n_tmpls);
+    await GetAllComps();
     l.debug("F_Reload called with templates:", n_tmpls);
   }
 
@@ -605,18 +666,21 @@
     ac.AddListener(
       "delete",
       () => {
+        const to_delete = sel_rows.size > 0 ? [...sel_rows] : [curr_row_i];
+
         //prevent deleting the row if only one row is left
-        if (row_count <= 1) {
-          footer_txt = "⚠️ Cannot delete the last row";
+        if (row_count - to_delete.length < 1) {
+          footer_txt = "⚠️ Cannot delete all rows";
           return;
         }
 
-        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
+        TemplateHelper.DeleteRows(sel_tmpl, to_delete);
 
         //move the selected row up if the last row was deleted
         if (curr_row_i >= row_count) {
           curr_row_i = row_count - 1;
         }
+        ResetRowSelection();
       },
       "Backspace",
     );
@@ -627,6 +691,7 @@
         TemplateHelper.AddRowAfter(sel_tmpl, curr_row_i);
         s.proj = s.proj;
         NextRow();
+        ResetRowSelection();
       },
       "N",
       false,
@@ -638,6 +703,7 @@
       () => {
         TemplateHelper.AddRowBefore(sel_tmpl, curr_row_i);
         s.proj = s.proj;
+        ResetRowSelection();
       },
       "N",
       false,
@@ -918,6 +984,7 @@
   function NextRow() {
     if (curr_row_i < row_count - 1) {
       curr_row_i++;
+      ResetRowSelection();
     }
   }
 
@@ -952,6 +1019,7 @@
   function PrevRow() {
     if (curr_row_i > 0) {
       curr_row_i--;
+      ResetRowSelection();
     }
   }
 
@@ -1187,16 +1255,18 @@
   });
 
   let all_comps = $state<Comp[]>([]);
-  function GetAllComps() {
-    csa.Exec<GetAllCompsResult>("GetAllComps").then((result) => {
-      if (!result.success) {
-        l.error("Failed to get all comps", result.error_obj);
-        return;
-      } else {
-        all_comps = result.comps ?? [];
-        l.debug(`Got All Comps`, all_comps);
-      }
-    });
+  async function GetAllComps(): Promise<void> {
+    const result = await csa.Exec<GetAllCompsResult>("GetAllComps");
+    if (!result.success) {
+      l.error("Failed to get all comps", result.error_obj);
+      return;
+    }
+
+    all_comps = result.comps ?? [];
+    s.proj.tmpls.forEach((tmpl) =>
+      TemplateHelper.UpdateDependantCompNames(tmpl, all_comps),
+    );
+    l.debug(`Got All Comps`, all_comps);
   }
 
   let selected_comp = $state<number | "">("");
@@ -1212,30 +1282,28 @@
     }
   }
 
-  function AddSelectedCompsToDependents() {
-    csa.Exec<GetSelectedCompsResult>("GetSelectedComps").then((result) => {
-      l.debug(`Got selected Comps`, result);
+  async function AddSelectedCompsToDependents() {
+    const result = await csa.Exec<GetSelectedCompsResult>("GetSelectedComps");
+    l.debug(`Got selected Comps`, result);
 
-      if (!result.success) {
-        l.error("Failed to get selected comps", result.error_obj);
-        return;
+    if (!result.success) {
+      l.error("Failed to get selected comps", result.error_obj);
+      return;
+    }
+
+    await GetAllComps();
+
+    for (let comp_info of result.comps ?? []) {
+      let comp = all_comps.find((c) => c.id === comp_info.id);
+
+      if (comp) {
+        //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
+        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
       }
+    }
 
-      //Update the comps with the latest data
-      GetAllComps();
-
-      for (let comp_info of result.comps ?? []) {
-        let comp = all_comps.find((c) => c.id === comp_info.id);
-
-        if (comp) {
-          //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
-          TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
-        }
-      }
-
-      TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-      TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-    });
+    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
   }
 
   function DeleteDependentComp(dep_index: number) {
@@ -1275,6 +1343,22 @@
       sel_tmpl.columns[alt_src_modal_col],
       sel_tmpl.columns,
     );
+  }
+
+  /**Returns a copy of the resolved template trimmed to the checked rows, or null (after warning the user) if none are checked.*/
+  function FilterEnabledRows(tmpl: TemplateData): TemplateData | null {
+    const rows = TemplateHelper.EnabledRows(tmpl);
+    if (rows.length === 0) {
+      m_message?.Open(
+        "Check at least one row to render.",
+        "No Rows Selected",
+      );
+      return null;
+    }
+    if (rows.length === TemplateHelper.RowCount(tmpl)) return tmpl;
+    const copy = structuredClone($state.snapshot(tmpl)) as TemplateData;
+    TemplateHelper.KeepRows(copy, rows);
+    return copy;
   }
 
   //User facing render results
@@ -1317,6 +1401,12 @@
     TemplateHelper.ResolveCompsNames(send_templ);
     TemplateHelper.ResolveSavePaths(send_templ);
     TemplateHelper.ResolveAltSrcPaths(send_templ);
+
+    if (row_i === -1) {
+      const filtered = FilterEnabledRows(send_templ);
+      if (!filtered) return;
+      send_templ = filtered;
+    }
 
     //checks for dupliate save paths
     const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
@@ -1396,7 +1486,10 @@
     TemplateHelper.ResolveCompsNames(sel_tmpl);
     TemplateHelper.ResolveAltSrcPaths(sel_tmpl);
 
-    let string_templt = JSON.stringify(sel_tmpl);
+    const send_templ = FilterEnabledRows(sel_tmpl);
+    if (!send_templ) return;
+
+    let string_templt = JSON.stringify(send_templ);
     l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
@@ -1462,6 +1555,12 @@
     TemplateHelper.ResolveCompsNames(send_templ);
     TemplateHelper.ResolveAltSrcPaths(send_templ);
     TemplateHelper.ResolveSavePathDeps(send_templ);
+
+    if (row_i === -1) {
+      const filtered = FilterEnabledRows(send_templ);
+      if (!filtered) return;
+      send_templ = filtered;
+    }
 
     //checks for dupliate save paths
     const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
@@ -1591,7 +1690,17 @@
           </colgroup>
           <thead>
             <tr>
-              <th></th>
+              <th>
+                <input
+                  type="checkbox"
+                  data-tooltip="Render all rows"
+                  data-tt-pos="middle-right"
+                  checked={AllRowsChecked()}
+                  onchange={(e) =>
+                    SetAllRowsChecked(
+                      (e.target as HTMLInputElement).checked,
+                    )} />
+              </th>
               {#each sel_tmpl.view_cols as col_i, view_i}
                 <th class="table_header">
                   {sel_tmpl.columns[col_i].cont_name}
@@ -1614,23 +1723,33 @@
                 oncontextmenu={function (e) {
                   OpenRowMenu(e, row_i);
                 }}
-                onclick={() => {
-                  curr_row_i = row_i;
-                }}
-                data-selected={row_i === curr_row_i}>
+                onclick={(e) => RowClicked(e, row_i)}
+                data-selected={sel_rows.has(row_i)}>
                 <td>
-                  {row_i + 1}
-                  <button
-                    class="delete_row"
-                    data-tooltip="Row menu"
-                    data-tt-pos="middle-right"
-                    onclick={(e) => OpenRowMenu(e, row_i)}
-                    ><HamburgerMenu /></button>
-                  <button
-                    class="delete_row"
-                    data-tooltip="Preview Row"
-                    data-tt-pos="middle-right"
-                    onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
+                  <div class="row_opts">
+                    <input
+                      class="row_opts_check"
+                      type="checkbox"
+                      checked={sel_tmpl.row_enabled?.[row_i] !== false}
+                      onclick={(e) => e.stopPropagation()}
+                      onchange={(e) =>
+                        RowCheckChanged(
+                          row_i,
+                          (e.target as HTMLInputElement).checked,
+                        )} />
+                    <span class="row_opts_num">{row_i + 1}</span>
+                    <button
+                      class="delete_row row_opts_menu"
+                      data-tooltip="Row menu"
+                      data-tt-pos="middle-right"
+                      onclick={(e) => OpenRowMenu(e, row_i)}
+                      ><HamburgerMenu /></button>
+                    <button
+                      class="delete_row row_opts_preview"
+                      data-tooltip="Preview Row"
+                      data-tt-pos="middle-right"
+                      onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
+                  </div>
                 </td>
                 {#each sel_tmpl.view_cols as td_col_i}
                   <td
@@ -2265,10 +2384,18 @@
   }
 
   .dat_table {
+    user-select: none;
+    -webkit-user-select: none;
     table-layout: fixed;
     width: max-content;
     min-width: 100%;
     border-top: none;
+  }
+
+  .dat_table :global(input),
+  .dat_table :global(textarea) {
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   .dat_table,
@@ -2364,6 +2491,28 @@
 
   .render_results thead th {
     padding: 0 5px;
+  }
+
+  .row_opts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .row_opts_check,
+  .row_opts_menu {
+    justify-self: start;
+  }
+
+  .row_opts_num {
+    justify-self: stretch;
+    text-align: center;
+  }
+
+  .row_opts_preview {
+    justify-self: end;
   }
 
   .delete_row,

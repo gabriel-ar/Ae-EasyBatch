@@ -115,6 +115,8 @@ export interface TemplateData {
   comp_id: number;
   active: boolean;
   columns: ColumnData[];
+  /**Per-row flag: only rows set to true are sent to render. Missing entries count as enabled.*/
+  row_enabled: boolean[];
   out_mode: OutMode;
   base_path: string;
   save_pattern: string;
@@ -166,6 +168,7 @@ export class TemplateHelper {
       comp_id: -1,
       active: true,
       columns: columns,
+      row_enabled: [],
       base_path: "",
       out_mode: OutMode.Render,
       save_pattern: "Renders/{template_name}_{row_number}",
@@ -270,6 +273,18 @@ export class TemplateHelper {
         tmpl.dep_config.splice(i, 1);
       }
     }
+  }
+
+  static UpdateDependantCompNames(tmpl: TemplateData, all_comps: Comp[]) {
+    tmpl.dep_comps.forEach((dep_comp) => {
+      const comp = all_comps.find((current_comp) => current_comp.id === dep_comp.id);
+      if (!comp) return;
+
+      dep_comp.name = comp.name;
+
+      const config = tmpl.dep_config.find((dep_config) => dep_config.id === comp.id);
+      if (config) config.name = comp.name;
+    });
   }
 
   static AddDependantComp(tmpl: TemplateData, comp: Comp, render_templs: RenderSettsResults) {
@@ -468,8 +483,55 @@ export class TemplateHelper {
     });
   }
 
+  /**Pads/truncates `row_enabled` so it has exactly one flag per row (new flags default to true).*/
+  static EnsureRowFlags(tmpl: TemplateData) {
+    if (!Array.isArray(tmpl.row_enabled)) tmpl.row_enabled = [];
+    const count = this.RowCount(tmpl);
+    while (tmpl.row_enabled.length < count) tmpl.row_enabled.push(true);
+    if (tmpl.row_enabled.length > count) tmpl.row_enabled.length = count;
+    for (let i = 0; i < count; i++) {
+      if (typeof tmpl.row_enabled[i] !== "boolean") tmpl.row_enabled[i] = true;
+    }
+  }
+
+  static EnabledRows(tmpl: TemplateData): number[] {
+    // Pure read (no mutation) so it is safe to call during render; missing flags count as enabled.
+    const rows: number[] = [];
+    for (let i = 0; i < this.RowCount(tmpl); i++) {
+      if (tmpl.row_enabled?.[i] !== false) rows.push(i);
+    }
+    return rows;
+  }
+
+  /**Trims a (cloned) template down to the given row indices, including the already resolved per-row arrays.*/
+  static KeepRows(tmpl: TemplateData, rows: number[]) {
+    const pick = (arr: any[] | undefined) => (arr ? rows.map((i) => arr[i]) : arr);
+    tmpl.columns.forEach((col) => {
+      col.values = pick(col.values)!;
+    });
+    tmpl.save_paths = pick(tmpl.save_paths)!;
+    tmpl.generate_names = pick(tmpl.generate_names)!;
+    tmpl.dep_config.forEach((dc) => {
+      dc.save_paths = pick(dc.save_paths)!;
+    });
+    tmpl.row_enabled = rows.map(() => true);
+  }
+
+  static DeleteRows(tmpl: TemplateData, indices: number[]) {
+    this.EnsureRowFlags(tmpl);
+    [...new Set(indices)]
+      .sort((a, b) => b - a)
+      .forEach((index) => {
+        tmpl.columns.forEach((col) => col.values.splice(index, 1));
+        tmpl.row_enabled.splice(index, 1);
+      });
+    this.ResolveAltSrcPaths(tmpl);
+  }
+
   static AddRow(tmpl: TemplateData) {
+    this.EnsureRowFlags(tmpl);
     const last_i = this.RowCount(tmpl) - 1;
+    tmpl.row_enabled.push(true);
 
     for (let col in tmpl.columns) {
       const new_val =
@@ -491,6 +553,9 @@ export class TemplateHelper {
       return;
     }
 
+    this.EnsureRowFlags(tmpl);
+    tmpl.row_enabled.splice(index + 1, 0, true);
+
     for (let col in tmpl.columns) {
       const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
@@ -510,6 +575,9 @@ export class TemplateHelper {
       console.warn("AddRowBefore: Invalid row index", index);
       return;
     }
+
+    this.EnsureRowFlags(tmpl);
+    tmpl.row_enabled.splice(index, 0, true);
 
     for (let col in tmpl.columns) {
       const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
@@ -532,11 +600,7 @@ export class TemplateHelper {
   }
 
   static DeleteRow(tmpl: TemplateData, index: number) {
-    tmpl.columns.forEach((col) => {
-      col.values.splice(index, 1);
-    });
-
-    this.ResolveAltSrcPaths(tmpl);
+    this.DeleteRows(tmpl, [index]);
   }
 
   static RowCount(tmpl: TemplateData): number {
@@ -891,4 +955,3 @@ export const enum Tabs {
   Output = "output",
   Settings = "settings",
 }
-
