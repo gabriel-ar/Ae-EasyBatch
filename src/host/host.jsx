@@ -448,6 +448,60 @@ function DeleteSettings() {
   return JSON.stringify(response);
 }
 
+/**
+ * Removes EasyBatch project data created during a demonstration session.
+ * Template compositions and unrelated project items are preserved.
+ * @returns {string} Stringified JSON of a result object
+ */
+function CleanHouse() {
+  /** @type {{ success: boolean, error_obj?: any }} */
+  var response = {
+    success: false
+  };
+  var folders_to_remove = {
+    "~Imported by EasyBatch": true,
+    "Media Replacement Comps": true
+  };
+
+  try {
+    if (ExternalObject.AdobeXMPScript === undefined) {
+      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+    }
+
+    var mdata = new XMPMeta(app.project.xmpPacket);
+    var uri = XMPMeta.getNamespaceURI("easybatch");
+    if (uri !== undefined && uri !== "") {
+      mdata.deleteProperty(uri, "ProjectData");
+      mdata.deleteProperty(uri, "ProjectSettings");
+      app.project.xmpPacket = mdata.serialize();
+    }
+
+    for (var i_items = app.project.numItems; i_items >= 1; i_items--) {
+      var item = app.project.item(i_items);
+
+      if (item instanceof CompItem && item.name === PREV_COMP_N) {
+        item.remove();
+        continue;
+      }
+
+      if (item instanceof FolderItem && folders_to_remove[item.name]) {
+        for (var i_children = item.numItems; i_children >= 1; i_children--) {
+          item.item(i_children).remove();
+        }
+        item.remove();
+      }
+    }
+
+    response.success = true;
+  } catch (e) {
+    response.success = false;
+    response.error_obj = e;
+    response.error_obj.source = "host.jsx @ CleanHouse";
+  }
+
+  return JSON.stringify(response);
+}
+
 function _SetupTemplatePreviewComp(remove_layers) {
   if (remove_layers === undefined) {
     remove_layers = true;
