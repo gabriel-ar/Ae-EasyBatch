@@ -209,17 +209,13 @@
     on_result = undefined;
   }
 
-  function PickExcelPath(): string | null {
-    const res = cep.fs.showOpenDialogEx(
-      false,
+  function PickExcelPath(): Promise<string | null> {
+    return csa.OpenFileDialog(
       false,
       "Select Excel file",
       "",
       ["xlsx", "xls", "xlsm"],
     );
-
-    if (!res || !res.data || res.data.length === 0) return null;
-    return res.data[0] ?? null;
   }
 
   function PersistExcelImportState(tmpl: TemplateData, excel_state: ExcelImportState) {
@@ -283,7 +279,7 @@
     on_result = imported_callback;
 
     try {
-      const picked_path = PickExcelPath();
+      const picked_path = await PickExcelPath();
       if (!picked_path) return;
 
       const rel_path = await ResolveRelativePath(picked_path);

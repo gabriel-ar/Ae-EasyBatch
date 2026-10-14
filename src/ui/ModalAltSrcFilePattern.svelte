@@ -55,7 +55,7 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    csa.OpenFolderDialog(base_path ? base_path : undefined).then((result) => {
+    csa.OpenSelectFolder(base_path ? base_path : undefined).then((result) => {
       if (result === null) return;
 
       base_path = result;

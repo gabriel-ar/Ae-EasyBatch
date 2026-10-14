@@ -162,7 +162,7 @@
     let current_file = value.replace(/<b>|<\/b>/g, "") || "";
 
     csa
-      .OpenFileDialog(current_file)
+      .OpenFileDialog(true, "Select File", current_file)
       .then((file) => {
         if (file !== undefined && file !== null) {
           value = `<b>${file}</b>`;

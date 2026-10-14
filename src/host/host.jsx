@@ -1323,10 +1323,10 @@ function GetRelativeFolderPath(path) {
   return null;
 }
 
-function GetRelativeFilePath(path) {
+function GetRelativeFilePath(path, allow_missing) {
   _EscapeArgs(arguments);
   var file = new File(path);
-  if (file.exists) {
+  if (file.exists || allow_missing === true) {
     if (app.project.file !== null) {
       var base_path = app.project.file.path;
       return file.getRelativeURI(base_path);
@@ -1360,6 +1360,96 @@ function SelectFolder(default_path) {
     }
   }
   return null;
+}
+
+/**
+ * Resolves the folder a file dialog should start in.
+ * @param {string} [initial_path] Absolute, or relative to the project folder. May point to a file or folder.
+ * @returns {Folder}
+ */
+function _ResolveDialogStartFolder(initial_path) {
+  var base = app.project.file !== null ? app.project.file.parent : Folder.desktop;
+  if (!initial_path) return base;
+
+  var candidates = [new File(initial_path), new File(base.fsName + "/" + initial_path)];
+  for (var i = 0; i < candidates.length; i++) {
+    var cand = candidates[i];
+    if (cand.exists) {
+      return (cand instanceof Folder) ? cand : cand.parent;
+    }
+    if (cand.parent && cand.parent.exists) {
+      return cand.parent;
+    }
+  }
+  return base;
+}
+
+/**
+ * Builds a file dialog filter from a comma separated extension list.
+ * A pattern string on Windows, a filter function elsewhere. Undefined when no extensions are given.
+ * @param {string} [file_types] e.g. "png,jpg"
+ */
+function _BuildDialogFilter(file_types) {
+  if (!file_types) return undefined;
+
+  var exts = String(file_types).split(",");
+  var patterns = [];
+  for (var i = 0; i < exts.length; i++) {
+    var ext = exts[i].replace(/^[\s*.]+|\s+$/g, "");
+    if (ext !== "") patterns.push("*." + ext);
+  }
+  if (patterns.length === 0) return undefined;
+
+  if (File.fs === "Windows") {
+    return "Supported files:" + patterns.join(";") + ",All files:*.*";
+  }
+  return function (f) {
+    if (f instanceof Folder) return true;
+    var name = f.name.toLowerCase();
+    for (var k = 0; k < patterns.length; k++) {
+      var p = patterns[k].substring(1).toLowerCase();
+      if (name.substring(name.length - p.length) === p) return true;
+    }
+    return false;
+  };
+}
+
+/**
+ * Opens the native "open file" dialog. Returns the absolute fsName, or null if cancelled.
+ * @param {string} [title]
+ * @param {string} [initial_path] Absolute, or relative to the project folder. May point to a file or folder.
+ * @param {string} [file_types] Comma separated extensions, e.g. "png,jpg". Empty for all files.
+ */
+function OpenFileDialog(title, initial_path, file_types) {
+  _EscapeArgs(arguments);
+  if (!title) title = "Select File";
+
+  Folder.current = _ResolveDialogStartFolder(initial_path);
+  var file = File.openDialog(title, _BuildDialogFilter(file_types), false);
+  return file !== null ? file.fsName : null;
+}
+
+/**
+ * Opens the native "save file" dialog. Returns the absolute fsName, or null if cancelled.
+ * @param {string} [title]
+ * @param {string} [initial_path] Folder to start in (absolute or project-relative), or a file path whose name is used as the default name.
+ * @param {string} [file_types] Comma separated extensions, e.g. "csv". Empty for all files.
+ * @param {string} [default_name] Suggested file name, used when initial_path has none.
+ */
+function SaveFileDialog(title, initial_path, file_types, default_name) {
+  _EscapeArgs(arguments);
+  if (!title) title = "Save File";
+
+  var start = _ResolveDialogStartFolder(initial_path);
+  var name = default_name;
+  if (!name && initial_path) {
+    var as_file = new File(initial_path);
+    if (!as_file.exists) name = as_file.name;
+  }
+
+  var target = new File(start.fsName + "/" + (name || ""));
+  var file = target.saveDlg(title, _BuildDialogFilter(file_types));
+  return file !== null ? file.fsName : null;
 }
 
 /**Generic file import, returns an URI encoded string */

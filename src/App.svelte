@@ -1193,7 +1193,7 @@
     l.debug("SelectBasePath called");
     let initial_folder = sel_tmpl.base_path || "";
 
-    csa.OpenFolderDialog(initial_folder).then((result) => {
+    csa.OpenSelectFolder(initial_folder).then((result) => {
       if (result === null) return;
 
       sel_tmpl.base_path = result;
