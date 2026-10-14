@@ -11,7 +11,9 @@ theme:
 
 nav:
   - Welcome: index.md
-  - Getting Started: getting-started.md
+  - Tutorials:
+    - Getting Started: getting-started.md
+    - Multi-Output Render: multi-output.md
   - User Guide:
     - Setup: setup.md
     - Data Tab: tab-data.md

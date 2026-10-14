@@ -135,5 +135,10 @@ The import dialog maps CSV columns to template properties automatically when the
 - **Values:** Write any other one-dimensional value directly in the cell.
 - **Images or videos:** The extension currently does not allow file paths to be entered for *replaceables*. To work with these files, see the replaceables section above.
 
-Export one or more rows from EasyBatch first when creating a CSV template. This preserves the expected column order and value formatting. The current importer is CSV-only; workbook and sheet importing are not yet live.
+Export one or more rows from EasyBatch first when creating a CSV template. This preserves the expected column order and value formatting.
+
+## Importing Excel Data
+Use `File` > `Import Excel Data` to import `.xlsx`, `.xls`, or `.xlsm` files. Save the After Effects project first, because the file's location is stored relative to the project. Select the sheet, then review the mapping between your template properties and the columns, which are identified by the names in the first row. Matching follows the same rules as the CSV import. After the first import, the `File` menu offers `Re-import`, which reloads the same sheet using the saved mapping, and `Save Updates`, which writes the values back to the mapped columns of the file without overwriting cells that contain formulas. Colors can be written as hex codes, such as `#1E90FF`.
+
+For an example that uses Excel data, see [Multi-Output Render](multi-output.md).
 

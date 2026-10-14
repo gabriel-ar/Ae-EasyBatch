@@ -9,3 +9,6 @@ You have a lower third template, with two customizable fields, *Top Text* and *B
 
 ## First Tutorial
 See [Getting Started](getting-started.md) for a first usage tutorial.
+
+## Advanced Tutorial
+See [Multi-Output Render](multi-output.md) to render several compositions for every row of data.
