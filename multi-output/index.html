@@ -1,0 +1,1073 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../getting-started/">
+      
+      
+        <link rel="next" href="../setup/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Multi-Output Render - EasyBatch Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#multi-output-render" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="EasyBatch Documentation" class="md-header__button md-logo" aria-label="EasyBatch Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo-round.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EasyBatch Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Multi-Output Render
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="EasyBatch Documentation" class="md-nav__button md-logo" aria-label="EasyBatch Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo-round.png" alt="logo">
+
+    </a>
+    EasyBatch Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Output Render
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Output Render
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-the-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting Up the Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-replaceable-files-with-a-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading Replaceable Files with a Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-excel-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing Excel Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-the-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring the Output
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring the Output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#save-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-frame-png" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single Frame PNG
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#during-the-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        During the Render
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="During the Render">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#results-and-duplicate-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results and Duplicate Paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tab-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tab-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Tab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../known-issues/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-the-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting Up the Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-replaceable-files-with-a-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading Replaceable Files with a Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-excel-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing Excel Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-the-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring the Output
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring the Output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#save-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-frame-png" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single Frame PNG
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#during-the-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        During the Render
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="During the Render">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#results-and-duplicate-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results and Duplicate Paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href=".." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Welcome
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../getting-started/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Tutorials
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="multi-output-render">Multi-Output Render</h1>
+<iframe width="auto" style="aspect-ratio:1.77" src="https://www.youtube.com/embed/yUYWKYR3Zh0?si=amDsiVeSxAQdadN5" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+<p>Use <code>Multi-Output</code> when every row of data must produce <strong>several renders</strong>, each from a different composition. This page complements the video with details that are easy to miss. It assumes you have completed <a href="../getting-started/">Getting Started</a>. For every control of the <code>Output</code> tab, see <a href="../tab-output/">Output Tab</a>.</p>
+<h2 id="how-it-works">How It Works</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>One Per Row</th>
+<th>Multi-Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Renders</td>
+<td>The template, once per row</td>
+<td>Any compositions you choose, for every row</td>
+</tr>
+<tr>
+<td>Row values are applied to</td>
+<td>A temporary layer of the template, through its Essential Graphics properties</td>
+<td><strong>The original properties</strong> in the template (master) composition</td>
+</tr>
+<tr>
+<td>Render settings</td>
+<td>One configuration</td>
+<td>One per composition</td>
+</tr>
+</tbody>
+</table>
+<p>Since the values are written to the master composition, every composition <strong>linked to those properties</strong> (with the pick whip or your own expressions) follows along. One Essential Graphics setup can drive many compositions.</p>
+<div class="admonition warning">
+<p class="admonition-title">The master composition is modified</p>
+<p>While the batch runs, EasyBatch changes the values of the master composition, and replaces the source of its replaceable layers. When it finishes, the master keeps the values of the last row. Save your project before starting a large batch, and do not edit it while it runs.</p>
+</div>
+<h2 id="setting-up-the-template">Setting Up the Template</h2>
+<ul>
+<li>Only the properties exposed in the master composition are data. Everything linked to them updates automatically, so the other compositions do not need their own Essential Graphics setup.</li>
+<li>Essential Graphics can expose any layer that is <strong>nested inside the master composition</strong>. In the tutorial, the flag lives in the render compositions, which are layers of the master, so it can be dragged into the panel from there.</li>
+<li>Use <code>View</code> &gt; <code>Edit View...</code> to reorder or hide columns while you work. It only changes what is displayed.</li>
+</ul>
+<h2 id="loading-replaceable-files-with-a-pattern">Loading Replaceable Files with a Pattern</h2>
+<p>A replaceable column (the flag) needs a file for every row. Without one, the row reports <code>No file path provided for '…'</code>. Click the column's pattern button (see <a href="../tab-data/#patterns">Data Tab</a>) and build a pattern such as:</p>
+<div class="highlight"><pre><span></span><code>{base_folder}/flag_{Tricode}.jpg
+</code></pre></div>
+<ul>
+<li>The pattern is resolved for each row with that row's values. The preview shows the first row, with a green check if the file exists and a yellow warning if it does not.</li>
+<li>Folders are stored <strong>relative to the project</strong>, so save the project first. This keeps the project portable on shared drives.</li>
+<li>Files are imported when needed, and placed in the project folder set in <code>Settings</code> &gt; <code>Imported Footage Folder</code> (<code>~Imported by EasyBatch</code> by default). Files already in the project are reused.</li>
+<li>A file chosen manually for a row (shown in bold) is not overwritten by the pattern.</li>
+</ul>
+<h2 id="importing-excel-data">Importing Excel Data</h2>
+<p>Open <code>File</code> &gt; <code>Import Excel Data</code>. Besides what the video shows:</p>
+<ul>
+<li>Supported files are <code>.xlsx</code>, <code>.xls</code>, and <code>.xlsm</code>. Save the After Effects project first, because the file's location is stored relative to it.</li>
+<li>The first row of the sheet holds the column names. Names are matched to template properties exactly, then ignoring case, then ignoring spaces, underscores, hyphens, and periods. Fix any mismatch with the dropdown, or choose <code>Do not import</code> to keep a property as it is.</li>
+<li>The table gets one row for each data row of the sheet. Unmapped properties keep their values, and the last value is repeated if there are more rows.</li>
+<li>Colors can be hex codes, such as <code>#1E90FF</code>.</li>
+<li>After the first import, the <code>File</code> menu lists the file with two actions: <code>Re-import</code> reloads it with the saved sheet and mapping, and <code>Save Updates</code> writes the values from EasyBatch back to the mapped columns without overwriting cells that contain formulas.</li>
+</ul>
+<p>CSV files work as well. See <a href="../tab-data/#importing-csv-data">Importing CSV Data</a>.</p>
+<h2 id="configuring-the-output">Configuring the Output</h2>
+<p><img alt="Screenshot of the Multi-Output mode" src="../assets/export-multi.png" width="500" /></p>
+<ul>
+<li><strong>Common Base Folder:</strong> The folder all renders share. It is relative to the project.</li>
+<li><strong>Adding compositions:</strong> Use the dropdown (searchable) and <code>Add</code>, or select compositions in the Project panel and <code>Add Selected</code>. You can add <strong>any composition in the project</strong>, even if it is not related to the template.</li>
+<li><strong>Per composition:</strong> A checkbox to skip it without removing it, a trash icon to remove it, its own save pattern, and its own Render Settings and Output Module.</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Configure the first composition carefully</p>
+<p>A new composition starts with a copy of the <strong>last</strong> one's settings, including its pattern and templates. If the pattern uses <code>{comp_name}</code>, it works for every composition you add afterward. Only the very first one starts with After Effects' default templates.</p>
+</div>
+<h3 id="save-pattern">Save Pattern</h3>
+<p>Click <code>Edit</code> to change it. The default is <code>Renders/{comp_name}_{row_number}</code>. The fields are <code>{base_folder}</code>, <code>{template_name}</code>, <code>{comp_name}</code>, <code>{row_number}</code>, <code>{increment:0000}</code>, and every property of your template. For example, to create one folder per country:</p>
+<div class="highlight"><pre><span></span><code>{base_folder}/{Tricode}/{comp_name}
+</code></pre></div>
+<ul>
+<li>Use <code>/</code> for folders on Windows and Mac. Folders are created automatically.</li>
+<li>Do not type an extension. The Output Module provides it.</li>
+<li><code>&lt; &gt; " | ? *</code> are removed from paths.</li>
+<li><code>{row_number}</code> starts at 0.</li>
+</ul>
+<h3 id="single-frame-png">Single Frame PNG</h3>
+<p>In the Output Module dropdown, <code>Single Frame PNG</code> saves the frame at time 0 straight to a <code>.png</code> file, without a frame number in the name. These compositions are not queued, so After Effects may look idle while they export. See <a href="../tab-output/#output-module-single-frame-as-png">Output Tab</a>.</p>
+<h2 id="during-the-render">During the Render</h2>
+<p>Click <code>Batch One to Many</code>. For every row, EasyBatch:</p>
+<ol>
+<li>Writes the row's values into the master composition (values that already match are skipped).</li>
+<li>Queues each enabled composition with its own pattern and templates.</li>
+<li>Deletes files that already exist at those paths, so previous renders are replaced.</li>
+<li>Renders the queue, then moves to the next row.</li>
+</ol>
+<p>The render queue is cleared when the batch starts, so queued items you had before are removed. The batch blocks the After Effects interface, and <strong><code>Esc</code> cancels</strong> the remaining renders (see <a href="../known-issues/">Known Issues</a>).</p>
+<p>To render only one row, select it and press <code>r</code> (or <code>Edit</code> &gt; <code>Render Row</code>). The row is then treated as row 0 for <code>{row_number}</code> and <code>{increment}</code>, so name the files with template properties instead.</p>
+<h3 id="results-and-duplicate-paths">Results and Duplicate Paths</h3>
+<p>The <code>Output</code> tab lists every composition rendered for every row (row numbers start at 0):</p>
+<ul>
+<li><strong>Green check:</strong> Queued successfully.</li>
+<li><strong>Yellow warning:</strong> Queued, but a property could not be applied, for example a missing replaceable file. <strong>The composition keeps what it had before, which is the previous row's image.</strong> Also shown when the batch was stopped.</li>
+<li><strong>Red cross:</strong> The row failed.</li>
+</ul>
+<p>Before rendering, each composition's paths are checked across rows. If two rows resolve to the same path, the batch does not start and the conflicts are listed. Compositions are <strong>not</strong> compared with each other, so use <code>{comp_name}</code> or different folders to keep their files apart.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li><strong>A composition does not follow the data:</strong> Check that its property is linked to a property exposed in the master composition.</li>
+<li><strong>Warning on a file:</strong> The pattern points to a file that does not exist. Check the name, extension, and the column used in the pattern.</li>
+<li><strong>Duplicate output paths:</strong> Use a property that is different for each row in the pattern.</li>
+<li><strong>Cannot pick a folder or import Excel:</strong> Save the project first.</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 02:27:45 UTC">October 14, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.path", "navigation.expand"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
