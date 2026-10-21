@@ -123,7 +123,9 @@ export class CEFConnection {
     dropdown = base_node !== null ? await base_node.$(selector) : await this.page.$(selector);
     if (!dropdown) throw new Error(`Dropdown not found after possible reload: ${selector}`);
 
-    await dropdown.tap(); // Open the dropdown
+    // Tap the button itself: wide dropdowns (min-width / width:100%) have empty space around it
+    const trigger = (await dropdown.$('.dropbtn')) ?? dropdown;
+    await trigger.tap(); // Open the dropdown
 
     const opts = await dropdown.$$(`.dropdown-content button`);
     for (const opt of opts) {
