@@ -1039,13 +1039,20 @@ test.describe('OtM Render', async () => {
         const addExpBtn = await page.$('.output .setting button::-p-text(Add)');
         expect(addExpBtn, 'has Add button for exports in Output tab').toBeTruthy();
         await addExpBtn!.tap();
+        
+      //open the summary element
+        const summaryBtn = await page.$('.out_sub_render summary');
+        expect(summaryBtn, 'could find Summary element for export').toBeTruthy();
+        await summaryBtn!.tap();
 
         const patternEditBtn = await page.$('.out_sub_render_cont .setting button');
         expect(patternEditBtn, 'has Edit button for export pattern in Output tab').toBeTruthy();
         await patternEditBtn!.tap();
 
+  
+
         //wait for modal
-        const modal_header = await page.waitForSelector('.modal h4::-p-text(Render Save Path Pattern)');
+        const modal_header = await page.waitForSelector('.modal h4::-p-text(Render Save Path Pattern)', { timeout: 3000 });
         expect(modal_header, 'shows the File Path Pattern modal').toBeTruthy();
 
         const textarea = await page.$('.modal textarea');
@@ -1123,8 +1130,8 @@ test.describe('OtM Render', async () => {
         }
         fs.mkdirSync(rendersFolder, { recursive: true });
 
-        const renderBtn = await page.$('.output button::-p-text(Batch One to Many)');
-        expect(renderBtn, 'has Batch One to Many render button').toBeTruthy();
+        const renderBtn = await page.$('.out_actions_cont .out_actions button');
+        expect(renderBtn, 'has Start Batch Render button').toBeTruthy();
         await renderBtn!.tap();
 
         // 1. Wait for BatchRender to return — the results table appears as soon as
@@ -1148,7 +1155,6 @@ test.describe('OtM Render', async () => {
     test('verify that the renders exist', async () => {
 
         let all_found = true;
-
         // 4. Verify each output file was actually written to disk
         for (const p of renderedPaths) {
             const fullPath = path.join(await GetProjectFilePath(page), p + ".mov");
