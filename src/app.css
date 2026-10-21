@@ -50,7 +50,6 @@ h4 {
   margin: 0.5rem 0 0;
 }
 
-
 body {
   margin: 0;
   padding: 0;
@@ -322,22 +321,4 @@ select option:focus {
   line-height: 0.8em;
   font-size: 0.8em;
   color: var(--color-text-disabled);
-}
-
-
-
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-
-  a:hover {
-    color: #747bff;
-  }
-
-  button {
-    background-color: #f9f9f9;
-  }
 }
