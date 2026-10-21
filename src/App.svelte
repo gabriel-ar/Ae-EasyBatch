@@ -2422,12 +2422,12 @@
 
   .dat_table thead th:first-child {
     left: 0;
-    z-index: 101;
+    z-index: 91;
   }
 
   .dat_table thead th {
     border-top: none;
-    z-index: 100;
+    z-index: 90;
   }
 
 .dat_table thead th:first-child {
