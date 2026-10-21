@@ -992,7 +992,7 @@
    * Fixed width in px for non-text columns, or null for flexible (text) columns.
    * @param {{type: number, display?: string}} col
    */
-  function ColWidth(col) {
+  function ColWidth(col: {type: number, display?: string}) {
     const T = ColumnHelper.PropertyValueType;
     if (col.display === "checkbox") return 56;
     if (col.display === "menu") return 140;
@@ -2420,6 +2420,11 @@
     border-right: none;
   }
 
+  .dat_table thead th:first-child {
+    left: 0;
+    z-index: 101;
+  }
+
   .dat_table thead th {
     border-top: none;
     z-index: 100;
@@ -2427,11 +2432,6 @@
 
 .dat_table thead th:first-child {
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
-  }
-
-  .dat_table,
-  .dat_table tbody tr:last-child td {
-    border-bottom: none;
   }
 
   .dat_table th {
