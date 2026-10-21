@@ -2659,7 +2659,7 @@
 
   .OtM_ui_warn {
     text-align: center;
-    margin: 0 0;
+    margin: 5px 0 0 0;
   }
 
   :global(.OtM_ui_warn svg) {
