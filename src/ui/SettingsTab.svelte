@@ -62,6 +62,7 @@
     </label>
   </div>
 
+  {#if s.proj.sel_tmpl !== -1}
   <h4>Template Settings ({s.proj.tmpls[s.proj.sel_tmpl].name})</h4>
   <div class="setting">
     <label for="in_imported_folder">Imported Footage Folder</label>
@@ -70,6 +71,7 @@
       type="text"
   bind:value={s.proj.tmpls[s.proj.sel_tmpl].imported_footage_folder} />
   </div>
+  {/if}
 
   <h4>Logging</h4>
   <div class="row">
