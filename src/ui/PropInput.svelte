@@ -276,15 +276,13 @@
     style="background-color: #{hex_color};"
     onclick={PromptColor}
     aria-label="Select Color"></button>
-  <button style="width: 22px; vertical-align: top;" data-variant="discrete" onclick={DropperPicker}>
+  <button style="width: 22px; vertical-align: middle;" data-variant="discrete" onclick={DropperPicker}>
     <EyeDropper />
   </button>
-  <div>
     #<input
       value={hex_color}
       style="width: 60px;"
       onchange={(e) => UpdateColor4D(e)} />
-  </div>
 {:else if type === ColumnHelper.PropertyValueType.SRC_ALTERNATE}
   <div style="display: inline;">
     {@html src_alt_val}
@@ -338,6 +336,7 @@
   input,
   textarea {
     background-color: transparent;
+    padding: 3px 5px;
   }
 
   input:hover,
@@ -379,8 +378,11 @@
   }
 
   .color_show {
-    width: 50px;
-    height: 20px;
+    vertical-align: middle;
+    width: 21px;
+    height: 21px;
+    
+    cursor: pointer;
   }
 
   .drag_btn {

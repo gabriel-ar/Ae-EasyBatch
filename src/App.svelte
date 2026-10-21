@@ -1003,10 +1003,10 @@
         return 90;
       case T.TwoD:
       case T.TwoD_SPATIAL:
-        return 150;
+        return 100;
       case T.ThreeD:
       case T.ThreeD_SPATIAL:
-        return 220;
+        return 180;
       case T.COLOR:
         return 160;
       case T.SRC_ALTERNATE:
@@ -2425,16 +2425,14 @@
     z-index: 91;
   }
 
-  .dat_table thead th {
-    border-top: none;
-    z-index: 90;
-  }
 
 .dat_table thead th:first-child {
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
   }
 
   .dat_table th {
+    border-top: none;
+    z-index: 90;
     position: sticky;
     top: 0;
     background-color: #131313;
@@ -2444,6 +2442,8 @@
     height: 28px; 
     text-overflow: ellipsis;
     vertical-align: middle;
+
+    padding: 4px 6px;
   }
 
   tr:hover {
