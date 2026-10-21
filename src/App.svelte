@@ -1708,7 +1708,7 @@
                     <button
                       class="delete_col"
                       data-tooltip="Setup alternate source"
-                      data-tt-pos="middle-right"
+                      data-tt-pos="bottom"
                       onclick={() => {
                         SetupAlternateSource(col_i);
                       }}><Gear /></button>
@@ -2711,13 +2711,16 @@
     justify-content: center;
     gap: 7px;
 
-    margin-bottom: 15px;
+    padding: 10px 10px 0 10px;
   }
 
   .dets_field_cont {
     display: flex;
     flex-direction: column;
     gap: 13px;
+
+    margin-top: 5px;
+    padding: 10px;
   }
 
   .dets_field {

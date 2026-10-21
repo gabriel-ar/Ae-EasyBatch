@@ -311,7 +311,7 @@ export class TemplateHelper {
         render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
         //@ts-ignore
         render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
-        save_pattern: "Renders/{comp_name}_{row_number}",
+        save_pattern: "{base_folder}/{comp_name}_{row_number}",
         save_path: "",
         save_paths: [],
       });

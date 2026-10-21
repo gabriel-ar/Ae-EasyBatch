@@ -293,6 +293,7 @@
       style="width: 22px;"
       data-variant="discrete"
       data-tooltip="Override Pattern"
+      data-tt-pos="bottom"
       onclick={PickFile}>
       <File />
     </button>
