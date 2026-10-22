@@ -1182,7 +1182,7 @@
         if (r.status === 200) {
           let data = await r.json();
           m_message?.Open(
-            `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
+            `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a onclick="window.cep.util.openURLInDefaultBrowser('https://dog.ceo/dog-api/')" href='#' target="_blank">dog.ceo</a>`,
             "🐶 Take a Break",
           );
         }
