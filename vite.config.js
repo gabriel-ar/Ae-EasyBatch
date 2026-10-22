@@ -16,6 +16,13 @@ export default defineConfig(({ command, mode }) => {
   console.log(`VITE - Command: ${command}, Mode: ${mode}`);
 
   return {
+    // CEP's forced downleveling so syntax is transpiled for both dev and production.
+    esbuild: {
+      target: 'es2018'
+    },
+    build: {
+      target: 'es2018'
+    },
     define: {
       '_VERSION_': JSON.stringify(version)
     },

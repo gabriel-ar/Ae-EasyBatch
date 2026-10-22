@@ -128,7 +128,7 @@
     border: 1px solid var(--color-border-p1);
     border-radius: var(--radius-form);
 
-    z-index: 1000;
+    z-index: 1400;
   }
 
   .dropdown-content button {

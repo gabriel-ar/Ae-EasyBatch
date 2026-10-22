@@ -110,7 +110,7 @@ class CSAdapter {
    * @param {string} starting_folder 
    * @returns {Promise<string|null>} The selected folder path or null if the user cancels the dialog.
    */
-  async OpenFolderDialog(starting_folder = ""): Promise<string | null> {
+  async OpenSelectFolder(starting_folder = ""): Promise<string | null> {
 
       const proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`) as string;
 
@@ -156,30 +156,44 @@ class CSAdapter {
   }
 
   /**
-   Uses the CEP API to open a file selection dialog. Returns a path relative to the project folder.
-   * @param {string} initial_folder 
-   * @returns {Promise<string|null>} The selected file path or null if the user cancels the dialog.
+   * Opens the native After Effects "open file" dialog (via host `OpenFileDialog`).
+   * @param relative If true, returns a path relative to the project folder (when possible).
+   * @param initial_path Absolute or project-relative folder/file to start from.
+   * @param fileTypes Allowed extensions without dots, e.g. ["png", "jpg"].
+   * @returns The selected path, or null if the user cancels.
    */
-  async OpenFileDialog(initial_folder) {
+  async OpenFileDialog(relative = true, title = "Select File", initial_path = "", fileTypes?: string[]): Promise<string | null> {
+    const abs_path = await this.Eval("OpenFileDialog", title, initial_path || "", (fileTypes || []).join(","));
+    return this.ResolveDialogResult(abs_path, relative);
+  }
 
-    console.log("OpenFileDialog called with initial_folder: " + initial_folder);
+  /**
+   * Opens the native After Effects "save file" dialog (via host `SaveFileDialog`).
+   * @param relative If true, returns a path relative to the project folder (when possible).
+   * @param initial_path Absolute or project-relative folder (or file path whose name is the default name).
+   * @param fileTypes Allowed extensions without dots, e.g. ["csv"].
+   * @param default_name Suggested file name.
+   * @returns The chosen path, or null if the user cancels.
+   */
+  async SaveFileDialog(relative = false, title = "Save File", initial_path = "", fileTypes?: string[], default_name = ""): Promise<string | null> {
+    const abs_path = await this.Eval("SaveFileDialog", title, initial_path || "", (fileTypes || []).join(","), default_name || "");
+    return this.ResolveDialogResult(abs_path, relative);
+  }
 
-    let i_folder = initial_folder || "";
+  private async ResolveDialogResult(abs_path: string, relative: boolean): Promise<string | null> {
+    if (!abs_path || abs_path === "null" || abs_path === "undefined" || abs_path.startsWith("EvalScript error")) {
+      return null;
+    }
 
-    return new Promise((resolve, reject) => {
-      let res = cep.fs.showOpenDialogEx(false, false, "Select File", i_folder);
+    if (!relative) {
+      return abs_path;
+    }
 
-      if (res.data[0] !== undefined && res.data[0] !== null) {
-        this.EvalDirect(
-          `GetRelativeFilePath("${encodeURIComponent(res.data[0])}")`,
-          (res) => {
-            resolve(decodeURIComponent(res));
-          }
-        );
-      } else {
-        resolve(null);
-      }
-    });
+    const rel_path = await this.Eval("GetRelativeFilePath", abs_path, true);
+    if (!rel_path || rel_path === "null" || rel_path === "undefined") {
+      return abs_path;
+    }
+    return decodeURIComponent(rel_path);
   }
 
   /**

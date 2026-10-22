@@ -10,6 +10,10 @@ import { defineConfig, devices } from '@playwright/test';
  * 3. Test project should be loaded (tests/fixtures/test-project.aep)
  */
 export default defineConfig({
+  // Limit discovery/UI-mode file watching to the specs; the default is the whole
+  // repo, which includes AE render outputs that are locked while rendering (EBUSY)
+  testDir: 'tests/e2e',
+
   // Specify test files in logical order (instead of alphabetical)
   testMatch: [
     '**/startup.spec.ts',

@@ -55,7 +55,7 @@
    * Selects a folder to save the files to and adds it to the save pattern
    */
   function SelectBasePath() {
-    csa.OpenFolderDialog(base_path ? base_path : undefined).then((result) => {
+    csa.OpenSelectFolder(base_path ? base_path : undefined).then((result) => {
       if (result === null) return;
 
       base_path = result;
@@ -170,7 +170,7 @@
       <div style="margin-bottom: 10px;">
         <span>Preview:</span>
         <span class="out_prev">{preview}</span>
-        <span style="margin-left: 10px; vertical-align: -webkit-baseline-middle;" data-tooltip={file_exists === "yes" ? "File exists" : "File not found"}>
+        <span style="margin-left: 10px; vertical-align: -webkit-baseline-middle;" data-tooltip={file_exists === "yes" ? "File exists" : "File not found"} data-tt-pos="middle-right">
           {#if file_exists === "yes"}
             <CheckCircled color="green" size={17} />
           {:else if file_exists === "no"}

@@ -18,6 +18,18 @@ export interface ProjData {
   version?: string;
 }
 
+export interface ExcelImportState {
+  path: string | null;
+  sheet: string | null;
+  mapping: Record<string, string | null>;
+}
+
+export interface ImportFileLasts {
+  csv_folder: string | null;
+  config_folder: string | null;
+  excel: ExcelImportState;
+}
+
 export class SettingsHelper {
   static get DefaultProjSettings(): ProjSettings {
     return {
@@ -85,7 +97,7 @@ export class SettingsHelper {
   }
 
   static LoadProjectData(json: any): ProjData {
-    let proj: ProjData = { ...this.DefaultProjectData, ...json};
+    let proj: ProjData = { ...this.DefaultProjectData, ...json };
 
     proj.tmpls = [];
     if (json.tmpls !== undefined) {
@@ -103,6 +115,8 @@ export interface TemplateData {
   comp_id: number;
   active: boolean;
   columns: ColumnData[];
+  /**Per-row flag: only rows set to true are sent to render. Missing entries count as enabled.*/
+  row_enabled: boolean[];
   out_mode: OutMode;
   base_path: string;
   save_pattern: string;
@@ -116,10 +130,7 @@ export interface TemplateData {
   view_cols: number[];
   dep_comps: Comp[];
   dep_config: DepCompSetts[];
-  import_file_lasts: {
-    csv_folder: string | null;
-    config_folder: string | null;
-  };
+  import_file_lasts: ImportFileLasts;
   save_file_lasts: {
     csv_folder: string | null;
     config_folder: string | null;
@@ -138,6 +149,18 @@ export interface ColumnData {
 }
 
 export class TemplateHelper {
+  static get DefaultImportFileLasts(): ImportFileLasts {
+    return {
+      csv_folder: null,
+      config_folder: null,
+      excel: {
+        path: null,
+        sheet: null,
+        mapping: {},
+      },
+    };
+  }
+
   static DefaultTemplate(eg_name = "", comp_name = "", columns: ColumnData[] = []): TemplateData {
     let tmpl: TemplateData = {
       name: eg_name,
@@ -145,6 +168,7 @@ export class TemplateHelper {
       comp_id: -1,
       active: true,
       columns: columns,
+      row_enabled: [],
       base_path: "",
       out_mode: OutMode.Render,
       save_pattern: "Renders/{template_name}_{row_number}",
@@ -158,10 +182,7 @@ export class TemplateHelper {
       view_cols: [0],
       dep_comps: [],
       dep_config: [],
-      import_file_lasts: {
-        csv_folder: null,
-        config_folder: null,
-      },
+      import_file_lasts: this.DefaultImportFileLasts,
       save_file_lasts: {
         csv_folder: null,
         config_folder: null,
@@ -173,6 +194,14 @@ export class TemplateHelper {
   static FromJson(json: any): TemplateData {
     let templ = Object.assign({}, this.DefaultTemplate(), json);
     templ.columns = [];
+    templ.import_file_lasts = {
+      ...this.DefaultImportFileLasts,
+      ...(json.import_file_lasts ?? {}),
+      excel: {
+        ...this.DefaultImportFileLasts.excel,
+        ...((json.import_file_lasts ?? {}).excel ?? {}),
+      },
+    };
 
     if (json.columns !== undefined) {
       json.columns.forEach((col: any) => {
@@ -227,7 +256,7 @@ export class TemplateHelper {
 
     same_cols.forEach((old_col) => {
       let new_col = n_tmpl.columns.find((new_col) => new_col.cont_name === old_col.cont_name);
-      if(new_col) ColumnHelper.Update(old_col, new_col);
+      if (new_col) ColumnHelper.Update(old_col, new_col);
     });
 
     // Remove deleted columns
@@ -246,6 +275,18 @@ export class TemplateHelper {
     }
   }
 
+  static UpdateDependantCompNames(tmpl: TemplateData, all_comps: Comp[]) {
+    tmpl.dep_comps.forEach((dep_comp) => {
+      const comp = all_comps.find((current_comp) => current_comp.id === dep_comp.id);
+      if (!comp) return;
+
+      dep_comp.name = comp.name;
+
+      const config = tmpl.dep_config.find((dep_config) => dep_config.id === comp.id);
+      if (config) config.name = comp.name;
+    });
+  }
+
   static AddDependantComp(tmpl: TemplateData, comp: Comp, render_templs: RenderSettsResults) {
     let last_dep_comp_setts: DepCompSetts | null = null;
     if (tmpl.dep_config.length > 0) {
@@ -253,10 +294,10 @@ export class TemplateHelper {
     }
 
     tmpl.dep_comps.push(comp);
-    
+
     if (last_dep_comp_setts !== null) {
       tmpl.dep_config.push({
-        ...({...last_dep_comp_setts}),// clone the last settings to use as base for the new comp
+        ...({ ...last_dep_comp_setts }),// clone the last settings to use as base for the new comp
         id: comp.id,
         name: comp.name,
         enabled: true,
@@ -270,7 +311,7 @@ export class TemplateHelper {
         render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
         //@ts-ignore
         render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
-        save_pattern: "Renders/{comp_name}_{row_number}",
+        save_pattern: "{base_folder}/{comp_name}_{row_number}",
         save_path: "",
         save_paths: [],
       });
@@ -307,9 +348,9 @@ export class TemplateHelper {
     for (let i_col in tmpl.columns) {
       pattern = pattern.replaceAll(
         `{${tmpl.columns[i_col].cont_name}}`,
-        typeof tmpl.columns[i_col].values[index] === "string" 
-        ? tmpl.columns[i_col].values[index].trim() 
-        : tmpl.columns[i_col].values[index]
+        typeof tmpl.columns[i_col].values[index] === "string"
+          ? tmpl.columns[i_col].values[index].trim()
+          : tmpl.columns[i_col].values[index]
       );
     }
 
@@ -442,8 +483,55 @@ export class TemplateHelper {
     });
   }
 
+  /**Pads/truncates `row_enabled` so it has exactly one flag per row (new flags default to true).*/
+  static EnsureRowFlags(tmpl: TemplateData) {
+    if (!Array.isArray(tmpl.row_enabled)) tmpl.row_enabled = [];
+    const count = this.RowCount(tmpl);
+    while (tmpl.row_enabled.length < count) tmpl.row_enabled.push(true);
+    if (tmpl.row_enabled.length > count) tmpl.row_enabled.length = count;
+    for (let i = 0; i < count; i++) {
+      if (typeof tmpl.row_enabled[i] !== "boolean") tmpl.row_enabled[i] = true;
+    }
+  }
+
+  static EnabledRows(tmpl: TemplateData): number[] {
+    // Pure read (no mutation) so it is safe to call during render; missing flags count as enabled.
+    const rows: number[] = [];
+    for (let i = 0; i < this.RowCount(tmpl); i++) {
+      if (tmpl.row_enabled?.[i] !== false) rows.push(i);
+    }
+    return rows;
+  }
+
+  /**Trims a (cloned) template down to the given row indices, including the already resolved per-row arrays.*/
+  static KeepRows(tmpl: TemplateData, rows: number[]) {
+    const pick = (arr: any[] | undefined) => (arr ? rows.map((i) => arr[i]) : arr);
+    tmpl.columns.forEach((col) => {
+      col.values = pick(col.values)!;
+    });
+    tmpl.save_paths = pick(tmpl.save_paths)!;
+    tmpl.generate_names = pick(tmpl.generate_names)!;
+    tmpl.dep_config.forEach((dc) => {
+      dc.save_paths = pick(dc.save_paths)!;
+    });
+    tmpl.row_enabled = rows.map(() => true);
+  }
+
+  static DeleteRows(tmpl: TemplateData, indices: number[]) {
+    this.EnsureRowFlags(tmpl);
+    [...new Set(indices)]
+      .sort((a, b) => b - a)
+      .forEach((index) => {
+        tmpl.columns.forEach((col) => col.values.splice(index, 1));
+        tmpl.row_enabled.splice(index, 1);
+      });
+    this.ResolveAltSrcPaths(tmpl);
+  }
+
   static AddRow(tmpl: TemplateData) {
+    this.EnsureRowFlags(tmpl);
     const last_i = this.RowCount(tmpl) - 1;
+    tmpl.row_enabled.push(true);
 
     for (let col in tmpl.columns) {
       const new_val =
@@ -465,8 +553,11 @@ export class TemplateHelper {
       return;
     }
 
+    this.EnsureRowFlags(tmpl);
+    tmpl.row_enabled.splice(index + 1, 0, true);
+
     for (let col in tmpl.columns) {
-      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+      const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
       tmpl.columns[col].values.splice(
         index + 1,
@@ -485,8 +576,11 @@ export class TemplateHelper {
       return;
     }
 
+    this.EnsureRowFlags(tmpl);
+    tmpl.row_enabled.splice(index, 0, true);
+
     for (let col in tmpl.columns) {
-      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+      const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
       tmpl.columns[col].values.splice(
         index,
@@ -506,11 +600,7 @@ export class TemplateHelper {
   }
 
   static DeleteRow(tmpl: TemplateData, index: number) {
-    tmpl.columns.forEach((col) => {
-      col.values.splice(index, 1);
-    });
-  
-    this.ResolveAltSrcPaths(tmpl);
+    this.DeleteRows(tmpl, [index]);
   }
 
   static RowCount(tmpl: TemplateData): number {
@@ -553,32 +643,60 @@ export class TemplateHelper {
     // no-op: rows is now always computed on demand via AsRows()
   }
 
-  static LoadFromCSV(tmpl: TemplateData, csv: string) {
-    if (!csv || csv.trim() === "") return;
+  static #ResolveMappedHeaderIndex(
+    header: any[],
+    tmpl_col_name: string,
+    column_mapping?: Record<string, string | null>,
+  ): number {
+    if (
+      column_mapping !== undefined &&
+      Object.prototype.hasOwnProperty.call(column_mapping, tmpl_col_name)
+    ) {
+      const mapped_col = column_mapping[tmpl_col_name];
+      if (mapped_col === null || mapped_col === "") return -1;
+      return header.indexOf(mapped_col);
+    }
 
-    let csv_rows = papa.parse(csv, { skipEmptyLines: true }).data as any[][];
+    return header.indexOf(tmpl_col_name);
+  }
 
-    if (csv_rows.length === 0) return;
-
-    let header: any[] = csv_rows.shift() as any[];
-
+  static ApplyImportedRows(
+    tmpl: TemplateData,
+    header: any[],
+    data_rows: any[][],
+    column_mapping?: Record<string, string | null>,
+  ) {
     tmpl.columns.forEach((tmpl_col) => {
-      let col_i = header.indexOf(tmpl_col.cont_name);
+      const col_i = this.#ResolveMappedHeaderIndex(
+        header,
+        tmpl_col.cont_name,
+        column_mapping,
+      );
 
-      if (col_i < 0){
-        //Fill with pre existing values if column not found in CSV
-        //Use all values avaiable and fill the rest with the last one
+      if (col_i < 0) {
+        // Fill with existing values if column was not mapped/found.
+        // Reuse available values and pad the rest with the last value.
         let last_val = tmpl_col.values[tmpl_col.values.length - 1];
 
-        if(last_val === undefined){last_val = ColumnHelper.ValidateValue("", tmpl_col.type);}
-        tmpl_col.values = [...tmpl_col.values,  ...new Array(csv_rows.length - tmpl_col.values.length).fill(last_val)];
-        
+        if (last_val === undefined) {
+          last_val = ColumnHelper.ValidateValue("", tmpl_col.type);
+        }
+
+        if (tmpl_col.values.length > data_rows.length) {
+          tmpl_col.values = tmpl_col.values.slice(0, data_rows.length);
+          return;
+        }
+
+        tmpl_col.values = [
+          ...tmpl_col.values,
+          ...new Array(data_rows.length - tmpl_col.values.length).fill(last_val),
+        ];
         return;
       }
 
-      tmpl_col.values = csv_rows.map((csv_row) => {
-        if (csv_row[col_i] === undefined) return null;
-        return ColumnHelper.ValidateValue(csv_row[col_i], tmpl_col.type);
+      tmpl_col.values = data_rows.map((data_row) => {
+        if (data_row[col_i] === undefined) return null;
+        return ColumnHelper.ValidateValue(data_row[col_i], tmpl_col.type);
       });
     });
 
@@ -599,7 +717,8 @@ export class TemplateHelper {
       header: false,
     });
 
-    return headers + "\r\n" + csv;
+    // Prepend UTF-8 BOM so apps like Excel detect the encoding correctly
+    return "\uFEFF" + headers + "\r\n" + csv;
   }
 
   static CopyValuesFromPreview(tmpl: TemplateData, data: any, row_i: number) {
@@ -707,7 +826,9 @@ export class ColumnHelper {
   static ValidateValue(value: any, type: number) {
     switch (type) {
       case this.PropertyValueType.TEXT_DOCUMENT:
-        if (value === undefined || typeof value !== "string") {
+        if (typeof value === "number") {
+          value = value.toString();
+        } else if (typeof value !== "string") {
           value = "";
         }
         break;
@@ -791,7 +912,7 @@ export class ColumnHelper {
       } else {
         value = new Array(length).fill(0);
       }
-    }else if (value.length !== length) {
+    } else if (value.length !== length) {
       let new_val = new Array(length).fill(0);
       for (let i = 0; i < Math.min(value.length, length); i++) {
         new_val[i] = value[i];
@@ -834,4 +955,3 @@ export const enum Tabs {
   Output = "output",
   Settings = "settings",
 }
-
