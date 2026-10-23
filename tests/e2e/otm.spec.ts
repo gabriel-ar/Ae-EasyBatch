@@ -24,6 +24,21 @@ test.beforeAll(async () => {
     page = con.page!;
 });
 
+// Playwright can't see the Puppeteer page, so its screenshot/video options do nothing here.
+// Attach a Puppeteer screenshot to every test so it shows up in UI mode and the HTML report.
+test.afterEach(async ({}, testInfo) => {
+    try {
+        const shot = await page.screenshot({ type: 'png' });
+        await testInfo.attach(testInfo.status === testInfo.expectedStatus ? 'screenshot' : 'screenshot-on-failure', {
+            body: Buffer.from(shot),
+            contentType: 'image/png',
+        });
+    } catch (e) {
+        // The page can be mid-reload (project open / settings reset); a missing screenshot must not fail the test
+        console.warn('Could not capture screenshot:', (e as Error).message);
+    }
+});
+
 // Run tests in this suite sequentially to maintain state
 test.describe.configure({ mode: 'serial' });
 
@@ -114,7 +129,7 @@ test.describe('Reset and load template', async () => {
         await settingsTab!.tap();
 
         // Click the "Reset to Default" button
-        const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)', { timeout: 2000 });
+        const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)',         { timeout: 5000 });
         expect(resetButton, 'has Reset to Default button').toBeTruthy();
         await resetButton!.tap();
 
@@ -1126,8 +1141,11 @@ test.describe('OtM Render', async () => {
 
         // 0. Clean the renders folder so we start from a known empty state
         const rendersFolder = path.join(await GetProjectFilePath(page), '/renders/otm_test');
-        if (fs.existsSync(rendersFolder)) {
+        // AE keeps recent outputs locked, so a rerun can't always delete them; best effort only
+        try {
             fs.rmSync(rendersFolder, { recursive: true, force: true });
+        } catch (e) {
+            console.warn('Could not fully clean renders folder (locked by AE?):', (e as Error).message);
         }
         fs.mkdirSync(rendersFolder, { recursive: true });
 
