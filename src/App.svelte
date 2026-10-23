@@ -22,6 +22,7 @@
     Table,
     Play,
     ActivityLog,
+    ExternalLink,
   } from "radix-icons-svelte";
 
   import {
@@ -144,8 +145,7 @@
 
   function AllRowsChecked(): boolean {
     return (
-      row_count > 0 &&
-      TemplateHelper.EnabledRows(sel_tmpl).length === row_count
+      row_count > 0 && TemplateHelper.EnabledRows(sel_tmpl).length === row_count
     );
   }
 
@@ -776,7 +776,7 @@
       "",
     );
 
-        ac.AddListener(
+    ac.AddListener(
       "contact",
       () => {
         Contact();
@@ -1000,7 +1000,7 @@
    * Fixed width in px for non-text columns, or null for flexible (text) columns.
    * @param {{type: number, display?: string}} col
    */
-  function ColWidth(col: {type: number, display?: string}) {
+  function ColWidth(col: { type: number; display?: string }) {
     const T = ColumnHelper.PropertyValueType;
     if (col.display === "checkbox") return 56;
     if (col.display === "menu") return 140;
@@ -1170,10 +1170,13 @@
   }
 
   function Contact() {
-    m_message?.Open(`
+    m_message?.Open(
+      `
     Contact us at info@easybatch.net <button onclick="window.cep.util.openURLInDefaultBrowser('mailto:info@easybatch.net')">Open</button><br>
     Suggest improvements on our <a onclick="window.cep.util.openURLInDefaultBrowser('https://github.com/gabriel-ar/Ae-EasyBatch/discussions')" href="#" target="_blank">GitHub discussions page</a>.
-    `, "Contact");
+    `,
+      "Contact",
+    );
   }
 
   function Surprise() {
@@ -1182,7 +1185,7 @@
         if (r.status === 200) {
           let data = await r.json();
           m_message?.Open(
-            `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a onclick="window.cep.util.openURLInDefaultBrowser('https://dog.ceo/dog-api/')" href='#' target="_blank">dog.ceo</a>`,
+            `<image src='${data.message}' style='max-height: 75vh; max-width: 100%;' /><br> <a href='https://dog.ceo/dog-api/'>dog.ceo</a>`,
             "🐶 Take a Break",
           );
         }
@@ -1200,6 +1203,16 @@
 
   /////RENDER TAB/////
   ////////////////////
+
+  function OpenRenderedPath(path: string) {
+    if (!path) return;
+    csa
+      .OpenPath(path)
+      .then((ok) => {
+        if (!ok) UpdateStatusFooter("Could not open: " + path);
+      })
+      .catch((e) => l.error("Failed to open rendered path", e));
+  }
 
   /**
    * Selects a folder to save the files to and adds it to the save pattern
@@ -1364,10 +1377,7 @@
   function FilterEnabledRows(tmpl: TemplateData): TemplateData | null {
     const rows = TemplateHelper.EnabledRows(tmpl);
     if (rows.length === 0) {
-      m_message?.Open(
-        "Check at least one row to render.",
-        "No Rows Selected",
-      );
+      m_message?.Open("Check at least one row to render.", "No Rows Selected");
       return null;
     }
     if (rows.length === TemplateHelper.RowCount(tmpl)) return tmpl;
@@ -1962,21 +1972,29 @@
       </div>
 
       <div class="out_actions_cont">
-      <div class="out_actions">
-        <button class="setting" onclick={() => BatchRender()}
-          ><Play size={18} />Start Batch Render</button>
+        <div class="out_actions">
+          <button class="setting" onclick={() => BatchRender()}
+            ><Play size={18} />Start Batch Render</button>
 
-        <button class="setting" onclick={() => BatchRender(-1, false)}
-          data-tooltip="Useful if you want to send the queue to Media Encoder."
-          data-tt-width="x-large"
-          ><ActivityLog size={18}/>Queue Renders</button>
-      </div>
+          <button
+            class="setting"
+            onclick={() => BatchRender(-1, false)}
+            data-tooltip="Useful if you want to send the queue to Media Encoder."
+            data-tt-width="x-large"
+            ><ActivityLog size={18} />Queue Renders</button>
+        </div>
       </div>
 
       <!--Results-->
       {#if render_results.length > 0}
         <h4>Results</h4>
         <table class="render_results">
+          <colgroup>
+            <col style="width: 45px;" />
+            <col style="width: 70px;" />
+            <col />
+            <col />
+          </colgroup>
           <thead>
             <tr>
               <th>Row</th>
@@ -1996,7 +2014,15 @@
                     <CrossCircled color="red" size={23} />
                   {/if}
                 </td>
-                <td>{row.rendered_path}</td>
+                <td
+                  >{row.rendered_path}
+                  <button
+                    onclick={() => OpenRenderedPath(row.rendered_path)}
+                    data-variant="discrete"
+                    style="margin-left: 4px;">
+                    <ExternalLink color="white" size={15} />
+                  </button>
+                </td>
                 <td>{row.error}</td>
               </tr>
             {/each}
@@ -2211,6 +2237,12 @@
           </div>
         {/if}
         <table class="render_results">
+          <colgroup>
+            <col style="width: 45px;" />
+            <col style="width: 70px;" />
+            <col />
+            <col />
+          </colgroup>
           <thead>
             <tr>
               <th>Row</th>
@@ -2232,7 +2264,15 @@
                     <CrossCircled color="red" size={23} />
                   {/if}
                 </td>
-                <td>{row.rendered_path}</td>
+                <td
+                  >{row.rendered_path}
+                  <button
+                    onclick={() => OpenRenderedPath(row.rendered_path)}
+                    data-variant="discrete"
+                    style="margin-left: 4px;">
+                    <ExternalLink color="white" size={15} />
+                  </button>
+                </td>
                 <td>{row.error}</td>
               </tr>
             {/each}
@@ -2373,7 +2413,7 @@
     /* background-color: var(--color-m1); */
   }
 
-  #main_data{
+  #main_data {
     padding: 0;
   }
 
@@ -2419,7 +2459,6 @@
     border-left: none;
   }
 
-
   .dat_table td:first-child,
   .dat_table th:first-child {
     border-right: none;
@@ -2440,8 +2479,7 @@
     z-index: 91;
   }
 
-
-.dat_table thead th:first-child {
+  .dat_table thead th:first-child {
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
   }
 
@@ -2454,7 +2492,7 @@
   }
 
   .dat_table td {
-    height: 28px; 
+    height: 28px;
     text-overflow: ellipsis;
     vertical-align: middle;
 
@@ -2476,19 +2514,23 @@
   .dat_table td:first-child {
     position: sticky;
     left: 0;
-    background-color:rgb(30 30 30);
+    background-color: rgb(30 30 30);
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
-
   }
-
 
   /* The row tint is semi-transparent, so overlay it on the opaque sticky cell */
   .dat_table tr:hover td:first-child {
-    background-image: linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02));
+    background-image: linear-gradient(
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0.02)
+    );
   }
 
   .dat_table tr[data-selected="true"] td:first-child {
-    background-image: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
+    background-image: linear-gradient(
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.07)
+    );
   }
 
   td {
@@ -2506,6 +2548,10 @@
 
   .render_results thead th {
     padding: 0 5px;
+  }
+
+  .render_results td:nth-of-type(n + 1):nth-of-type(-n + 2) {
+    text-align: center;
   }
 
   .row_opts {
@@ -2605,13 +2651,13 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    
+
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 
     background-color: rgba(0, 0, 0, 0.15);
 
-    margin: 10px -10px;  
+    margin: 10px -10px;
     padding: 10px 10px;
   }
 
@@ -2710,7 +2756,7 @@
     backdrop-filter: blur(5px);
 
     z-index: 1000;
-  } 
+  }
 
   .fs_no_tmpls span {
     font-size: 16px;
