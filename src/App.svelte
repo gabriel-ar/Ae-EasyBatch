@@ -1178,9 +1178,7 @@
 
   function Contact() {
     m_message?.Open(`
-    Contact us at info@easybatch.net <button onclick="window.cep.util.openURLInDefaultBrowser('mailto:info@easybatch.net')">Open</button><br>
-    Suggest improvements on our <a onclick="window.cep.util.openURLInDefaultBrowser('https://github.com/gabriel-ar/Ae-EasyBatch/discussions')" href="#" target="_blank">GitHub discussions page</a>.
-    `, "Contact");
+    Contact us for support or suggestions at info@easybatch.net <button onclick="window.cep.util.openURLInDefaultBrowser('mailto:info@easybatch.net')">Open</button>`, "Contact");
   }
 
   function Surprise() {

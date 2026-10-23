@@ -236,6 +236,12 @@
           ><ExclamationTriangle />Report Issue</button>
         <button
           class="c_item"
+          onclick={() => Selected("contact")}
+          data-tooltip="Contact us"
+          data-tt-pos="right"
+          ><EnvelopeClosed />Contact</button>
+        <button
+          class="c_item"
           onclick={() => Selected("license")}
           data-tooltip="AeScripts.com Licensing"
           ><LockOpen1 />Licensing</button>
