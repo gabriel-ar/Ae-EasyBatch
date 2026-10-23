@@ -183,6 +183,36 @@ test.describe('Reset and load template', async () => {
         expect(await GetCell(page, CellType.Menu, 1, 9), 'menu input cell has default data').toBe('1');
     });
 
+    test('should pre-fill the file path pattern from the current image of the replaceable', async () => {
+        // The template's own image must already resolve, without any manual setup
+        const cell_value = await GetCell(page, CellType.Image, 1, 6) as string;
+        expect(cell_value, 'image cell is not empty before any setup').not.toBe('');
+        expect(cell_value, 'image cell path is relative to the project').not.toMatch(/^([\/~]|[a-zA-Z]:)/);
+
+        const setup_btn = await page.$('.dat_table thead th button');
+        expect(setup_btn, 'has setup button for image replaceable').toBeTruthy();
+        await setup_btn!.tap();
+
+        await page.waitForSelector('#alternate_modal h4::-p-text(File Path Pattern)');
+
+        const pattern = await page.$eval('#alternate_modal #alt_src_pattern_ta', el => (el as HTMLTextAreaElement).value);
+        expect(pattern, 'pattern is the base folder plus the static file name').toMatch(/^\{base_path\}\/[^\/\\{}]+$/);
+
+        const preview = await page.$eval('#alternate_modal .out_prev', el => el.textContent);
+        expect(preview, 'preview matches the value shown in the table').toBe(cell_value);
+
+        // The file must exist, resolved from the project folder
+        await page.waitForSelector('#alternate_modal [data-tooltip="File exists"]', { timeout: 5000 });
+
+        const proj_folder = await GetProjectFilePath(page);
+        const exists = await CsaEval(`new File(${JSON.stringify(proj_folder + '/' + preview)}).exists`, page);
+        expect(exists, 'pre-filled pattern points to an existing file').toBe('true');
+
+        const done_btn = await page.$('#alternate_modal .modal-actions button::-p-text(Done)');
+        await done_btn!.tap();
+        await page.waitForSelector('#alternate_modal', { hidden: true });
+    });
+
     test('should allow for file path setup for the image replaceable', async () => {
         const setup_btn = await page.$('.dat_table thead th button');
         expect(setup_btn, 'has setup button for image replaceable').toBeTruthy();

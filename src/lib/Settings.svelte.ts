@@ -66,6 +66,11 @@ export class SettingsHelper {
     new_templs.forEach((new_templ) => {
       project.tmpls.push(new_templ);
       TemplateHelper.InitTableColumns(new_templ);
+      new_templ.columns.forEach((col) => {
+        if (col.type === ColumnHelper.PropertyValueType.SRC_ALTERNATE && col.alt_src_pattern) {
+          ColumnHelper.ResolveColumnAltSrcPaths(col, [col]);
+        }
+      });
     });
 
     //Find the templates that don't exist in the scanned array
@@ -240,6 +245,10 @@ export class TemplateHelper {
 
       let new_col_i = tmpl.columns.push(new_col) - 1;
       tmpl.view_cols.push(new_col_i);
+
+      if (new_col.type === ColumnHelper.PropertyValueType.SRC_ALTERNATE && new_col.alt_src_pattern) {
+        ColumnHelper.ResolveColumnAltSrcPaths(new_col, [new_col]);
+      }
     });
 
     let deleted_cols = tmpl.columns.filter((old_col) => {
@@ -821,6 +830,17 @@ export class ColumnHelper {
     // Always refresh display hint and menu options from the latest scan
     col.display = new_col.display;
     col.menu_params = new_col.menu_params;
+
+    // Pre-fill the file pattern from the template's current file, never overriding the user's own
+    if (
+      col.type === this.PropertyValueType.SRC_ALTERNATE &&
+      !col.alt_src_pattern && !col.alt_src_base &&
+      new_col.alt_src_pattern && new_col.alt_src_base
+    ) {
+      col.alt_src_base = new_col.alt_src_base;
+      col.alt_src_pattern = new_col.alt_src_pattern;
+      this.ResolveColumnAltSrcPaths(col, [col]);
+    }
   }
 
   static ValidateValue(value: any, type: number) {

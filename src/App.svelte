@@ -1,6 +1,6 @@
 <script lang="ts">
   import CSAdapter from "./lib/CSAdapter.ts";
-  import { onMount, setContext } from "svelte";
+  import {onMount, setContext} from "svelte";
 
   import {
     Camera,
@@ -69,7 +69,7 @@
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
-  import { l, s, csa } from "./ui/States.svelte.ts";
+  import {l, s, csa} from "./ui/States.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
   import ImportCSVModal from "./ui/importers/ImportCSV.svelte";
   import ImportExcelModal from "./ui/importers/ImportExcel.svelte";
@@ -208,7 +208,7 @@
       no_tmpls = n_tmpls.length == 0;
       if (no_tmpls) return;
 
-      let { l_proj, l_setts } = await GetSettings();
+      let {l_proj, l_setts} = await GetSettings();
 
       loaded_project_path = await GetProjectPath();
 
@@ -253,7 +253,7 @@
     });
   }
 
-  function GetSettings(): Promise<{ l_proj: ProjData; l_setts: ProjSettings }> {
+  function GetSettings(): Promise<{l_proj: ProjData; l_setts: ProjSettings}> {
     return new Promise((resolve, reject) => {
       csa.Exec<GetSettsResult>("LoadSettings").then((result) => {
         l.debug("GetSettings result:", result);
@@ -324,7 +324,7 @@
                   callback: () => {
                     l.warn(`User ignored version mismatch`);
                     l_proj.version = _VERSION_;
-                    resolve({ l_proj, l_setts });
+                    resolve({l_proj, l_setts});
                   },
                 },
                 {
@@ -357,7 +357,7 @@
             l.log(`Parsed Settings`, result);
             //update project version
             l_proj.version = _VERSION_;
-            resolve({ l_proj, l_setts });
+            resolve({l_proj, l_setts});
           }
         }
       });
@@ -576,23 +576,23 @@
     ac.Init();
     csa.RegisterKeyEventsInterest([
       //MAC
-      { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
-      { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
+      {keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true}, // Arrow Down
+      {keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true}, // Arrow Up
 
-      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down Opt
-      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up Opt
+      {keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false}, // Arrow Down Opt
+      {keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false}, // Arrow Up Opt
 
-      { keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
-      { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
+      {keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false}, // Delete
+      {keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false}, // Delete
 
-      { keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false }, // S
-      { keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false }, // R
-      { keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false }, // P
-      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false }, // N
-      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
+      {keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false}, // S
+      {keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false}, // R
+      {keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false}, // P
+      {keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false}, // N
+      {keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true}, // Shift+N
 
-      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false }, // T
-      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false }, // D
+      {keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false}, // T
+      {keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false}, // D
     ]);
 
     //File Actions
@@ -1000,7 +1000,7 @@
    * Fixed width in px for non-text columns, or null for flexible (text) columns.
    * @param {{type: number, display?: string}} col
    */
-  function ColWidth(col: { type: number; display?: string }) {
+  function ColWidth(col: {type: number; display?: string}) {
     const T = ColumnHelper.PropertyValueType;
     if (col.display === "checkbox") return 56;
     if (col.display === "menu") return 140;
@@ -1048,7 +1048,7 @@
 
     m_import_csv?.Open(
       sel_tmpl,
-      (stats: { rows: number; mapped: number; total: number }) => {
+      (stats: {rows: number; mapped: number; total: number}) => {
         const details =
           `Rows imported: ${stats.rows}<br>` +
           `Mapped properties: ${stats.mapped}/${stats.total}`;
@@ -1204,7 +1204,7 @@
   /////RENDER TAB/////
   ////////////////////
 
-  function OpenRenderedPath(path: string) {
+  function OpenRenderedPath(path?: string) {
     if (!path) return;
     csa
       .OpenPath(path)
@@ -1743,7 +1743,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each { length: row_count } as _, row_i}
+            {#each {length: row_count} as _, row_i}
               <tr
                 oncontextmenu={function (e) {
                   OpenRowMenu(e, row_i);
