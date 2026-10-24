@@ -66,6 +66,11 @@ export class SettingsHelper {
     new_templs.forEach((new_templ) => {
       project.tmpls.push(new_templ);
       TemplateHelper.InitTableColumns(new_templ);
+      new_templ.columns.forEach((col) => {
+        if (col.type === ColumnHelper.PropertyValueType.SRC_ALTERNATE && col.alt_src_pattern) {
+          ColumnHelper.ResolveColumnAltSrcPaths(col, [col]);
+        }
+      });
     });
 
     //Find the templates that don't exist in the scanned array
@@ -97,7 +102,7 @@ export class SettingsHelper {
   }
 
   static LoadProjectData(json: any): ProjData {
-    let proj: ProjData = { ...this.DefaultProjectData, ...json};
+    let proj: ProjData = { ...this.DefaultProjectData, ...json };
 
     proj.tmpls = [];
     if (json.tmpls !== undefined) {
@@ -115,6 +120,8 @@ export interface TemplateData {
   comp_id: number;
   active: boolean;
   columns: ColumnData[];
+  /**Per-row flag: only rows set to true are sent to render. Missing entries count as enabled.*/
+  row_enabled: boolean[];
   out_mode: OutMode;
   base_path: string;
   save_pattern: string;
@@ -166,6 +173,7 @@ export class TemplateHelper {
       comp_id: -1,
       active: true,
       columns: columns,
+      row_enabled: [],
       base_path: "",
       out_mode: OutMode.Render,
       save_pattern: "Renders/{template_name}_{row_number}",
@@ -237,6 +245,10 @@ export class TemplateHelper {
 
       let new_col_i = tmpl.columns.push(new_col) - 1;
       tmpl.view_cols.push(new_col_i);
+
+      if (new_col.type === ColumnHelper.PropertyValueType.SRC_ALTERNATE && new_col.alt_src_pattern) {
+        ColumnHelper.ResolveColumnAltSrcPaths(new_col, [new_col]);
+      }
     });
 
     let deleted_cols = tmpl.columns.filter((old_col) => {
@@ -253,7 +265,7 @@ export class TemplateHelper {
 
     same_cols.forEach((old_col) => {
       let new_col = n_tmpl.columns.find((new_col) => new_col.cont_name === old_col.cont_name);
-      if(new_col) ColumnHelper.Update(old_col, new_col);
+      if (new_col) ColumnHelper.Update(old_col, new_col);
     });
 
     // Remove deleted columns
@@ -272,6 +284,18 @@ export class TemplateHelper {
     }
   }
 
+  static UpdateDependantCompNames(tmpl: TemplateData, all_comps: Comp[]) {
+    tmpl.dep_comps.forEach((dep_comp) => {
+      const comp = all_comps.find((current_comp) => current_comp.id === dep_comp.id);
+      if (!comp) return;
+
+      dep_comp.name = comp.name;
+
+      const config = tmpl.dep_config.find((dep_config) => dep_config.id === comp.id);
+      if (config) config.name = comp.name;
+    });
+  }
+
   static AddDependantComp(tmpl: TemplateData, comp: Comp, render_templs: RenderSettsResults) {
     let last_dep_comp_setts: DepCompSetts | null = null;
     if (tmpl.dep_config.length > 0) {
@@ -279,10 +303,10 @@ export class TemplateHelper {
     }
 
     tmpl.dep_comps.push(comp);
-    
+
     if (last_dep_comp_setts !== null) {
       tmpl.dep_config.push({
-        ...({...last_dep_comp_setts}),// clone the last settings to use as base for the new comp
+        ...({ ...last_dep_comp_setts }),// clone the last settings to use as base for the new comp
         id: comp.id,
         name: comp.name,
         enabled: true,
@@ -296,7 +320,7 @@ export class TemplateHelper {
         render_setts_templ: render_templs.render_templs[render_templs.default_render_templ] || "",
         //@ts-ignore
         render_out_module_templ: render_templs.output_modules_templs[render_templs.default_output_module_templ] || "",
-        save_pattern: "Renders/{comp_name}_{row_number}",
+        save_pattern: "{base_folder}/{comp_name}_{row_number}",
         save_path: "",
         save_paths: [],
       });
@@ -333,9 +357,9 @@ export class TemplateHelper {
     for (let i_col in tmpl.columns) {
       pattern = pattern.replaceAll(
         `{${tmpl.columns[i_col].cont_name}}`,
-        typeof tmpl.columns[i_col].values[index] === "string" 
-        ? tmpl.columns[i_col].values[index].trim() 
-        : tmpl.columns[i_col].values[index]
+        typeof tmpl.columns[i_col].values[index] === "string"
+          ? tmpl.columns[i_col].values[index].trim()
+          : tmpl.columns[i_col].values[index]
       );
     }
 
@@ -468,8 +492,55 @@ export class TemplateHelper {
     });
   }
 
+  /**Pads/truncates `row_enabled` so it has exactly one flag per row (new flags default to true).*/
+  static EnsureRowFlags(tmpl: TemplateData) {
+    if (!Array.isArray(tmpl.row_enabled)) tmpl.row_enabled = [];
+    const count = this.RowCount(tmpl);
+    while (tmpl.row_enabled.length < count) tmpl.row_enabled.push(true);
+    if (tmpl.row_enabled.length > count) tmpl.row_enabled.length = count;
+    for (let i = 0; i < count; i++) {
+      if (typeof tmpl.row_enabled[i] !== "boolean") tmpl.row_enabled[i] = true;
+    }
+  }
+
+  static EnabledRows(tmpl: TemplateData): number[] {
+    // Pure read (no mutation) so it is safe to call during render; missing flags count as enabled.
+    const rows: number[] = [];
+    for (let i = 0; i < this.RowCount(tmpl); i++) {
+      if (tmpl.row_enabled?.[i] !== false) rows.push(i);
+    }
+    return rows;
+  }
+
+  /**Trims a (cloned) template down to the given row indices, including the already resolved per-row arrays.*/
+  static KeepRows(tmpl: TemplateData, rows: number[]) {
+    const pick = (arr: any[] | undefined) => (arr ? rows.map((i) => arr[i]) : arr);
+    tmpl.columns.forEach((col) => {
+      col.values = pick(col.values)!;
+    });
+    tmpl.save_paths = pick(tmpl.save_paths)!;
+    tmpl.generate_names = pick(tmpl.generate_names)!;
+    tmpl.dep_config.forEach((dc) => {
+      dc.save_paths = pick(dc.save_paths)!;
+    });
+    tmpl.row_enabled = rows.map(() => true);
+  }
+
+  static DeleteRows(tmpl: TemplateData, indices: number[]) {
+    this.EnsureRowFlags(tmpl);
+    [...new Set(indices)]
+      .sort((a, b) => b - a)
+      .forEach((index) => {
+        tmpl.columns.forEach((col) => col.values.splice(index, 1));
+        tmpl.row_enabled.splice(index, 1);
+      });
+    this.ResolveAltSrcPaths(tmpl);
+  }
+
   static AddRow(tmpl: TemplateData) {
+    this.EnsureRowFlags(tmpl);
     const last_i = this.RowCount(tmpl) - 1;
+    tmpl.row_enabled.push(true);
 
     for (let col in tmpl.columns) {
       const new_val =
@@ -491,8 +562,11 @@ export class TemplateHelper {
       return;
     }
 
+    this.EnsureRowFlags(tmpl);
+    tmpl.row_enabled.splice(index + 1, 0, true);
+
     for (let col in tmpl.columns) {
-      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+      const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
       tmpl.columns[col].values.splice(
         index + 1,
@@ -511,8 +585,11 @@ export class TemplateHelper {
       return;
     }
 
+    this.EnsureRowFlags(tmpl);
+    tmpl.row_enabled.splice(index, 0, true);
+
     for (let col in tmpl.columns) {
-      const prev_val =  structuredClone($state.snapshot(tmpl.columns[col].values[index]));
+      const prev_val = structuredClone($state.snapshot(tmpl.columns[col].values[index]));
 
       tmpl.columns[col].values.splice(
         index,
@@ -532,11 +609,7 @@ export class TemplateHelper {
   }
 
   static DeleteRow(tmpl: TemplateData, index: number) {
-    tmpl.columns.forEach((col) => {
-      col.values.splice(index, 1);
-    });
-  
-    this.ResolveAltSrcPaths(tmpl);
+    this.DeleteRows(tmpl, [index]);
   }
 
   static RowCount(tmpl: TemplateData): number {
@@ -757,12 +830,25 @@ export class ColumnHelper {
     // Always refresh display hint and menu options from the latest scan
     col.display = new_col.display;
     col.menu_params = new_col.menu_params;
+
+    // Pre-fill the file pattern from the template's current file, never overriding the user's own
+    if (
+      col.type === this.PropertyValueType.SRC_ALTERNATE &&
+      !col.alt_src_pattern && !col.alt_src_base &&
+      new_col.alt_src_pattern && new_col.alt_src_base
+    ) {
+      col.alt_src_base = new_col.alt_src_base;
+      col.alt_src_pattern = new_col.alt_src_pattern;
+      this.ResolveColumnAltSrcPaths(col, [col]);
+    }
   }
 
   static ValidateValue(value: any, type: number) {
     switch (type) {
       case this.PropertyValueType.TEXT_DOCUMENT:
-        if (value === undefined || typeof value !== "string") {
+        if (typeof value === "number") {
+          value = value.toString();
+        } else if (typeof value !== "string") {
           value = "";
         }
         break;
@@ -846,7 +932,7 @@ export class ColumnHelper {
       } else {
         value = new Array(length).fill(0);
       }
-    }else if (value.length !== length) {
+    } else if (value.length !== length) {
       let new_val = new Array(length).fill(0);
       for (let i = 0; i < Math.min(value.length, length); i++) {
         new_val[i] = value[i];
@@ -889,4 +975,3 @@ export const enum Tabs {
   Output = "output",
   Settings = "settings",
 }
-

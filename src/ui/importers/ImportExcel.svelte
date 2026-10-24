@@ -33,6 +33,9 @@
 
   let on_result = $state<((result: ExcelImportResult) => void) | undefined>(undefined);
 
+  let saved_import = $state<ExcelImportState | undefined>(undefined);
+  let is_reimport = $state(false);
+
   function Normalize(value: string): string {
     return (value ?? "")
       .toLowerCase()
@@ -54,17 +57,29 @@
     return normalized ?? "";
   }
 
-  function BuildRows(tmpl: TemplateData, headers: string[]) {
+  function BuildRows(tmpl: TemplateData, headers: string[], sheet_name: string) {
     mapping_options = ["", ...headers];
     mapping_labels = ["Do not import", ...headers];
 
     rows = tmpl.columns.map((col) => {
-      const matched = AutoMatchHeader(col.cont_name, headers);
+      const auto = AutoMatchHeader(col.cont_name, headers);
+      let mapped = auto;
+
+      // Prefill from the last import: columns found by name, and explicit "do not import" on the same sheet.
+      if (saved_import) {
+        const saved_col = saved_import.mapping?.[col.cont_name];
+        if (saved_col && headers.includes(saved_col)) {
+          mapped = saved_col;
+        } else if (saved_col === null && sheet_name === saved_import.sheet) {
+          mapped = "";
+        }
+      }
+
       return {
         template_prop: col.cont_name,
-        mapped_col: matched,
-        auto_col: matched,
-        state: matched === "" ? "unmapped" : "auto",
+        mapped_col: mapped,
+        auto_col: auto,
+        state: mapped === "" ? "unmapped" : mapped === auto ? "auto" : "manual",
       };
     });
   }
@@ -164,7 +179,7 @@
     sheet_headers = headers;
     sheet_rows = raw_rows;
 
-    BuildRows(current_tmpl, sheet_headers);
+    BuildRows(current_tmpl, sheet_headers, sheet_name);
   }
 
   function MappedCount(): number {
@@ -207,59 +222,21 @@
     mapping_options = [];
     mapping_labels = [];
     on_result = undefined;
+    saved_import = undefined;
+    is_reimport = false;
   }
 
-  function PickExcelPath(): string | null {
-    const res = cep.fs.showOpenDialogEx(
-      false,
+  function PickExcelPath(): Promise<string | null> {
+    return csa.OpenFileDialog(
       false,
       "Select Excel file",
       "",
       ["xlsx", "xls", "xlsm"],
     );
-
-    if (!res || !res.data || res.data.length === 0) return null;
-    return res.data[0] ?? null;
   }
 
   function PersistExcelImportState(tmpl: TemplateData, excel_state: ExcelImportState) {
     tmpl.import_file_lasts.excel = excel_state;
-  }
-
-  function CollectMissingColumnWarnings(headers: string[], mapping: Record<string, string | null>): string[] {
-    const warnings: string[] = [];
-
-    for (const [template_prop, source_col] of Object.entries(mapping)) {
-      if (!source_col) continue;
-      if (!headers.includes(source_col)) {
-        warnings.push(`Template property "${template_prop}" is mapped to missing Excel column "${source_col}".`);
-      }
-    }
-
-    return warnings;
-  }
-
-  async function LoadSheetData(workbook: XLSX.WorkBook, sheet_name: string, current_tmpl: TemplateData) {
-    const ws = workbook.Sheets[sheet_name];
-    if (!ws) {
-      throw new Error(`The selected sheet could not be found: ${sheet_name}`);
-    }
-
-    const raw_rows = XLSX.utils.sheet_to_json(ws, {
-      header: 1,
-      raw: true,
-      defval: "",
-      blankrows: false,
-    }) as any[][];
-
-    if (raw_rows.length === 0) {
-      throw new Error(`The selected sheet "${sheet_name}" does not contain any tabular data.`);
-    }
-
-    const headers = (raw_rows.shift() ?? []).map((h) => String(h ?? "").trim());
-    const data_rows = raw_rows;
-
-    return { headers, data_rows };
   }
 
   function FinalizeImport(result: ExcelImportResult) {
@@ -283,7 +260,7 @@
     on_result = imported_callback;
 
     try {
-      const picked_path = PickExcelPath();
+      const picked_path = await PickExcelPath();
       if (!picked_path) return;
 
       const rel_path = await ResolveRelativePath(picked_path);
@@ -324,35 +301,23 @@
       }
 
       const absolute_path = await ResolveAbsolutePath(saved.path);
+      excel_relative_path = saved.path;
       excel_name = cep_node.require("path").basename(saved.path);
 
       workbook = LoadWorkbookFromPath(absolute_path);
       sheet_options = workbook.SheetNames ?? [];
-
-      if (!sheet_options.includes(saved.sheet)) {
-        throw new Error(`The saved sheet could not be found: ${saved.sheet}`);
+      if (sheet_options.length === 0) {
+        throw new Error("The Excel file does not contain any sheets.");
       }
 
-      selected_sheet = saved.sheet;
+      saved_import = saved;
+      is_reimport = true;
 
-      const { headers, data_rows } = await LoadSheetData(workbook, selected_sheet, tmpl);
-      sheet_headers = headers;
-      sheet_rows = data_rows;
+      // Fall back to the first sheet if the saved one no longer exists, so the user can pick another.
+      selected_sheet = sheet_options.includes(saved.sheet) ? saved.sheet : sheet_options[0];
+      BuildSheetData(selected_sheet);
 
-      const warnings = CollectMissingColumnWarnings(headers, saved.mapping ?? {});
-      TemplateHelper.ApplyImportedRows(tmpl, headers, data_rows, saved.mapping ?? {});
-
-      FinalizeImport({
-        success: true,
-        title: "Re-imported Excel Data",
-        stats: {
-          rows: data_rows.length,
-          mapped: Object.values(saved.mapping ?? {}).filter((value) => value !== null && value !== "").length,
-          total: Object.keys(saved.mapping ?? {}).length,
-          sheet: selected_sheet,
-        },
-        warnings,
-      });
+      show = true;
     } catch (e) {
       l.error("[ImportExcel] Re-import failed", e);
       FinalizeImport({
@@ -415,7 +380,7 @@
 
     FinalizeImport({
       success: true,
-      title: "Imported Excel Data",
+      title: is_reimport ? "Re-imported Excel Data" : "Imported Excel Data",
       stats: {
         rows: sheet_rows.length,
         mapped: MappedCount(),
@@ -430,7 +395,7 @@
 {#if show}
   <div class="modal">
     <div class="wrapper import_excel_dialog">
-      <h3>Import Excel Data</h3>
+      <h3>{is_reimport ? "Re-import Excel Data" : "Import Excel Data"}</h3>
 
       <div class="summary">
         <span><b>File:</b> {excel_name}</span>

@@ -13,12 +13,17 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "test:screenshots": "playwright test -c playwright.screenshots.config.ts --ui",
+    "docs:copy-screenshots": "node ./tools/copy_doc_screenshots.mjs",
+    "docs:screenshots": "playwright test -c playwright.screenshots.config.ts && node ./tools/copy_doc_screenshots.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.58.0",
+    "@playwright/test": "1.64.1",
     "@sveltejs/vite-plugin-svelte": "6.2.4",
     "archiver": "^8.0.0",
+    "prettier": "^3.9.10",
+    "prettier-plugin-svelte": "^4.1.1",
     "puppeteer-core": "23.11.1",
     "rollup-plugin-copy": "3.5.0",
     "svelte": "5.55.7",

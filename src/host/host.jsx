@@ -80,6 +80,8 @@ function GetTemplates() {
           /** @type {number} */
           var t_type = templ_prop.propertyValueType;
           var val = "";
+          var alt_src_base = undefined;
+          var alt_src_pattern = undefined;
 
           /** @type {ColumnData["display"]} */
           var display = undefined;
@@ -90,6 +92,18 @@ function GetTemplates() {
             val = templ_prop.value.text;
           } else if (templ_prop.canSetAlternateSource && templ_prop.matchName === "ADBE Layer Source Alternate") {
             t_type = 9001; //Custom type for replaceable sources, the client will handle it accordingly
+            
+            //Creates a starting pattern for the alternate source file
+            var alt_file = _GetAltSrcFile(templ_prop);
+            val = alt_file !== null ? alt_file.fullName : "";
+
+            // Pre-fill the file pattern from the current file, best effort
+            var alt_pattern = _BuildAltSrcPattern(alt_file);
+            if (alt_pattern !== null) {
+              alt_src_base = alt_pattern.base;
+              alt_src_pattern = alt_pattern.pattern;
+            }
+
           } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE
             && templ_prop.matchName !== "ADBE Layer Overrides Comment") {
             val = templ_prop.value;
@@ -120,6 +134,8 @@ function GetTemplates() {
             values: [val],
             display: display,
             menu_params: menu_params,
+            alt_src_base: alt_src_base,
+            alt_src_pattern: alt_src_pattern,
           });
         }
 
@@ -443,6 +459,60 @@ function DeleteSettings() {
     response.success = false;
     response.error_obj = e;
     response.error_obj.source = "host.jsx @ DeleteSettings";
+  }
+
+  return JSON.stringify(response);
+}
+
+/**
+ * Removes EasyBatch project data created during a demonstration session.
+ * Template compositions and unrelated project items are preserved.
+ * @returns {string} Stringified JSON of a result object
+ */
+function CleanHouse() {
+  /** @type {{ success: boolean, error_obj?: any }} */
+  var response = {
+    success: false
+  };
+  var folders_to_remove = {
+    "~Imported by EasyBatch": true,
+    "Media Replacement Comps": true
+  };
+
+  try {
+    if (ExternalObject.AdobeXMPScript === undefined) {
+      ExternalObject.AdobeXMPScript = new ExternalObject("lib:AdobeXMPScript");
+    }
+
+    var mdata = new XMPMeta(app.project.xmpPacket);
+    var uri = XMPMeta.getNamespaceURI("easybatch");
+    if (uri !== undefined && uri !== "") {
+      mdata.deleteProperty(uri, "ProjectData");
+      mdata.deleteProperty(uri, "ProjectSettings");
+      app.project.xmpPacket = mdata.serialize();
+    }
+
+    for (var i_items = app.project.numItems; i_items >= 1; i_items--) {
+      var item = app.project.item(i_items);
+
+      if (item instanceof CompItem && item.name === PREV_COMP_N) {
+        item.remove();
+        continue;
+      }
+
+      if (item instanceof FolderItem && folders_to_remove[item.name]) {
+        for (var i_children = item.numItems; i_children >= 1; i_children--) {
+          item.item(i_children).remove();
+        }
+        item.remove();
+      }
+    }
+
+    response.success = true;
+  } catch (e) {
+    response.success = false;
+    response.error_obj = e;
+    response.error_obj.source = "host.jsx @ CleanHouse";
   }
 
   return JSON.stringify(response);
@@ -772,6 +842,57 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
   return errors;
 }
 
+/**
+ * Gets the file currently linked to a replaceable source property.
+ * @param {Property<any>} ess_prop
+ * @returns {File | null} null when the source has no file (solid, placeholder, comp, etc.)
+ */
+function _GetAltSrcFile(ess_prop) {
+  try {
+    var src = /** @type {AVLayer} */ (ess_prop.essentialPropertySource).source;
+    if (src instanceof FootageItem && src.file !== null) return src.file;
+  } catch (e) { }
+  return null;
+}
+
+/**
+ * Builds the base folder and file pattern that points back to the given file, so a replaceable
+ * source works right away. The base folder is relative to the project when possible.
+ * Never throws; returns null if no usable pattern can be made.
+ * @param {File | null} file
+ * @returns {{base: string, pattern: string} | null}
+ */
+function _BuildAltSrcPattern(file) {
+  try {
+    if (file === null || file === undefined) return null;
+
+    var parent = file.parent;
+    if (parent === null || parent === undefined) return null;
+
+    var file_name = file.name;
+    try { file_name = decodeURIComponent(file.name); } catch (e) { }
+    // These characters would be altered by the pattern resolver, so the pattern wouldn't match the file
+    if (!file_name || /[<>"|?*{}]/.test(file_name)) return null;
+
+    var base = null;
+    if (app.project.file !== null) {
+      var rel = parent.getRelativeURI(app.project.file.path);
+      if (rel === "") rel = ".";
+      // getRelativeURI returns an absolute path when there is no relative route (e.g. another drive)
+      if (!/^(\/|~|[A-Za-z]:)/.test(rel)) {
+        try { rel = decodeURIComponent(rel); } catch (e) { }
+        base = rel;
+      }
+    }
+    if (base === null) base = parent.fsName;
+    if (!base) return null;
+
+    return { base: base, pattern: "{base_path}/" + file_name };
+  } catch (e) {
+    return null;
+  }
+}
+
 function _ComparePaths(path1, path2) {
   try {
     // Normalize paths by converting to absolute paths
@@ -973,7 +1094,7 @@ function _FlattenPropertyGroup(pg, keep_comments) {
  * @param {string} folder Name of the project folder to store the generated render compositions
  * @returns {string}
  */
-function BatchRender(str_template, folder) {
+function BatchRender(str_template, folder, start_queue) {
   _EscapeArgs(arguments);
 
   /** @type {BatchRenderResult} */
@@ -1050,7 +1171,9 @@ function BatchRender(str_template, folder) {
     } //loop template rows
 
     //Start the render queue
-    app.project.renderQueue.renderAsync();
+    if (start_queue) {
+      app.project.renderQueue.renderAsync();
+    }
 
     result.success = true;
     return JSON.stringify(result);
@@ -1186,6 +1309,7 @@ function GetRenderTemplates() {
     var rq_item = app.project.renderQueue.items.add(render_comp);
     result.render_templs = rq_item.templates;
     result.output_modules_templs = rq_item.outputModule(1).templates;
+    result.output_modules_templs.push("EB_Single_Frame_PNG");
 
     //Delete the render queue item
     rq_item.remove();
@@ -1266,10 +1390,10 @@ function GetRelativeFolderPath(path) {
   return null;
 }
 
-function GetRelativeFilePath(path) {
+function GetRelativeFilePath(path, allow_missing) {
   _EscapeArgs(arguments);
   var file = new File(path);
-  if (file.exists) {
+  if (file.exists || allow_missing === true) {
     if (app.project.file !== null) {
       var base_path = app.project.file.path;
       return file.getRelativeURI(base_path);
@@ -1303,6 +1427,96 @@ function SelectFolder(default_path) {
     }
   }
   return null;
+}
+
+/**
+ * Resolves the folder a file dialog should start in.
+ * @param {string} [initial_path] Absolute, or relative to the project folder. May point to a file or folder.
+ * @returns {Folder}
+ */
+function _ResolveDialogStartFolder(initial_path) {
+  var base = app.project.file !== null ? app.project.file.parent : Folder.desktop;
+  if (!initial_path) return base;
+
+  var candidates = [new File(initial_path), new File(base.fsName + "/" + initial_path)];
+  for (var i = 0; i < candidates.length; i++) {
+    var cand = candidates[i];
+    if (cand.exists) {
+      return (cand instanceof Folder) ? cand : cand.parent;
+    }
+    if (cand.parent && cand.parent.exists) {
+      return cand.parent;
+    }
+  }
+  return base;
+}
+
+/**
+ * Builds a file dialog filter from a comma separated extension list.
+ * A pattern string on Windows, a filter function elsewhere. Undefined when no extensions are given.
+ * @param {string} [file_types] e.g. "png,jpg"
+ */
+function _BuildDialogFilter(file_types) {
+  if (!file_types) return undefined;
+
+  var exts = String(file_types).split(",");
+  var patterns = [];
+  for (var i = 0; i < exts.length; i++) {
+    var ext = exts[i].replace(/^[\s*.]+|\s+$/g, "");
+    if (ext !== "") patterns.push("*." + ext);
+  }
+  if (patterns.length === 0) return undefined;
+
+  if (File.fs === "Windows") {
+    return "Supported files:" + patterns.join(";") + ",All files:*.*";
+  }
+  return function (f) {
+    if (f instanceof Folder) return true;
+    var name = f.name.toLowerCase();
+    for (var k = 0; k < patterns.length; k++) {
+      var p = patterns[k].substring(1).toLowerCase();
+      if (name.substring(name.length - p.length) === p) return true;
+    }
+    return false;
+  };
+}
+
+/**
+ * Opens the native "open file" dialog. Returns the absolute fsName, or null if cancelled.
+ * @param {string} [title]
+ * @param {string} [initial_path] Absolute, or relative to the project folder. May point to a file or folder.
+ * @param {string} [file_types] Comma separated extensions, e.g. "png,jpg". Empty for all files.
+ */
+function OpenFileDialog(title, initial_path, file_types) {
+  _EscapeArgs(arguments);
+  if (!title) title = "Select File";
+
+  Folder.current = _ResolveDialogStartFolder(initial_path);
+  var file = File.openDialog(title, _BuildDialogFilter(file_types), false);
+  return file !== null ? file.fsName : null;
+}
+
+/**
+ * Opens the native "save file" dialog. Returns the absolute fsName, or null if cancelled.
+ * @param {string} [title]
+ * @param {string} [initial_path] Folder to start in (absolute or project-relative), or a file path whose name is used as the default name.
+ * @param {string} [file_types] Comma separated extensions, e.g. "csv". Empty for all files.
+ * @param {string} [default_name] Suggested file name, used when initial_path has none.
+ */
+function SaveFileDialog(title, initial_path, file_types, default_name) {
+  _EscapeArgs(arguments);
+  if (!title) title = "Save File";
+
+  var start = _ResolveDialogStartFolder(initial_path);
+  var name = default_name;
+  if (!name && initial_path) {
+    var as_file = new File(initial_path);
+    if (!as_file.exists) name = as_file.name;
+  }
+
+  var target = new File(start.fsName + "/" + (name || ""));
+  var file = target.saveDlg(title, _BuildDialogFilter(file_types));
+  return file !== null ? file.fsName : null;
 }
 
 /**Generic file import, returns an URI encoded string */
@@ -1372,7 +1586,7 @@ var queued_items;
  * @param {string} str_template - Stringified JSON of `TemplateData` object
  * @returns {string} Stringified JSON of `BatchRenderResult` object
  */
-function BatchRenderDepComps(str_template) {
+function BatchRenderDepComps(str_template, send_to_ame) {
   _EscapeArgs(arguments);
 
   dep_result = { success: false, row_results: [] };
@@ -1403,7 +1617,7 @@ function BatchRenderDepComps(str_template) {
     }
 
     // Start rendering the dependent compositions
-    RenderDeps(tmpl, props_layer);
+    RenderDeps(tmpl, props_layer, send_to_ame);
 
     dep_result.success = true;
     return JSON.stringify(dep_result);
@@ -1420,7 +1634,7 @@ function BatchRenderDepComps(str_template) {
  * Renders the dependent compositions
  * @param {TemplateData} tmpl
  */
-function RenderDeps(tmpl, props_layer) {
+function RenderDeps(tmpl, props_layer, send_to_ame) {
 
   //Loop through the rows and set the values of the template
   for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
@@ -1443,7 +1657,7 @@ function RenderDeps(tmpl, props_layer) {
       //Add the dependent compositions to the render queue
       for (var i = 0; i < tmpl.dep_comps.length; i++) {
 
-        if (ShouldCancelRenderDeps()) {
+        if (!send_to_ame && ShouldCancelRenderDeps()) {
           dep_result.user_stopped = true;
           return;
         }
@@ -1518,9 +1732,21 @@ function RenderDeps(tmpl, props_layer) {
       }
     }
 
-    if (app.project.renderQueue.numItems > 0) app.project.renderQueue.render();
+    if (app.project.renderQueue.numItems > 0){
+      if(send_to_ame) {
+      app.project.renderQueue.queueInAME(false);
+
+      //delete all items in the render queue since the render won't start in Ae
+      for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
+        app.project.renderQueue.item(i).remove();
+      }
+
+      }else{
+      app.project.renderQueue.render();
+      }
+    }
   } //loop template rows
-}
+} 
 
 /**
  * Checks if any of the queued render items has been stopped by the user,
@@ -1529,7 +1755,8 @@ function RenderDeps(tmpl, props_layer) {
  */
 function ShouldCancelRenderDeps() {
   for (var i = 0; i < queued_items.length; i++) {
-    if (queued_items[i].rqi !== undefined
+    if (queued_items[i] !== undefined 
+      && queued_items[i].rqi !== undefined
       && queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
       queued_items[i].row_result.status = 'stopped';
       queued_items[i].row_result.error = 'Render stopped by user';
@@ -1813,5 +2040,3 @@ function Test_CheckRenderResult(render_path) {
 
   return JSON.stringify(response);
 }
-
-

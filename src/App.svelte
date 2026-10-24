@@ -1,6 +1,6 @@
 <script lang="ts">
   import CSAdapter from "./lib/CSAdapter.ts";
-  import { onMount, setContext} from "svelte";
+  import {onMount, setContext} from "svelte";
 
   import {
     Camera,
@@ -20,6 +20,9 @@
     ArrowLeft,
     ArrowRight,
     Table,
+    Play,
+    ActivityLog,
+    ExternalLink,
   } from "radix-icons-svelte";
 
   import {
@@ -66,16 +69,20 @@
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
-  import { l, s, csa } from "./ui/States.svelte.ts";
+  import {l, s, csa} from "./ui/States.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
   import ImportCSVModal from "./ui/importers/ImportCSV.svelte";
   import ImportExcelModal from "./ui/importers/ImportExcel.svelte";
-  import type { ExcelImportResult, ExcelSaveResult } from "./ui/importers/ImportExcel.types.ts";
+  import type {
+    ExcelImportResult,
+    ExcelSaveResult,
+  } from "./ui/importers/ImportExcel.types.ts";
 
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
   let not_ready = $state(true);
 
+  //Modals
   let m_file_pattern = $state<ModalFilePattern>();
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
@@ -86,6 +93,66 @@
 
   let menu = $state<Menu>();
   let curr_row_i = $state(0);
+  /**Rows highlighted for batch actions (delete, checkbox sync). Independent of the render checkboxes.*/
+  let sel_rows = $state<Set<number>>(new Set([0]));
+  let sel_anchor = 0;
+
+  $effect(() => {
+    if (!sel_rows.has(curr_row_i) && sel_rows.size === 0) {
+      sel_rows = new Set([curr_row_i]);
+    }
+  });
+
+  function ResetRowSelection() {
+    sel_rows = new Set([curr_row_i]);
+    sel_anchor = curr_row_i;
+  }
+
+  function RowClicked(e: MouseEvent, row_i: number) {
+    if (e.shiftKey) {
+      const [a, b] = [Math.min(sel_anchor, row_i), Math.max(sel_anchor, row_i)];
+      const range = new Set<number>();
+      for (let i = a; i <= b; i++) range.add(i);
+      sel_rows = range;
+      curr_row_i = row_i;
+    } else if (e.ctrlKey || e.metaKey) {
+      const next = new Set(sel_rows);
+      if (next.has(row_i)) {
+        next.delete(row_i);
+      } else {
+        next.add(row_i);
+        curr_row_i = row_i;
+      }
+      sel_rows = next;
+      sel_anchor = row_i;
+    } else {
+      curr_row_i = row_i;
+      if (!sel_rows.has(row_i) || sel_rows.size > 1) {
+        sel_rows = new Set([row_i]);
+      }
+      sel_anchor = row_i;
+    }
+  }
+
+  /**A checkbox on a selected row applies its new state to every selected row.*/
+  function RowCheckChanged(row_i: number, checked: boolean) {
+    TemplateHelper.EnsureRowFlags(sel_tmpl);
+    const targets = sel_rows.has(row_i) ? sel_rows : new Set([row_i]);
+    targets.forEach((i) => {
+      sel_tmpl.row_enabled[i] = checked;
+    });
+  }
+
+  function AllRowsChecked(): boolean {
+    return (
+      row_count > 0 && TemplateHelper.EnabledRows(sel_tmpl).length === row_count
+    );
+  }
+
+  function SetAllRowsChecked(checked: boolean) {
+    TemplateHelper.EnsureRowFlags(sel_tmpl);
+    sel_tmpl.row_enabled = sel_tmpl.row_enabled.map(() => checked);
+  }
 
   let footer_txt = $state<string | undefined>();
   let footer_txt_long = $state<string | undefined>();
@@ -141,7 +208,7 @@
       no_tmpls = n_tmpls.length == 0;
       if (no_tmpls) return;
 
-      let { l_proj, l_setts } = await GetSettings();
+      let {l_proj, l_setts} = await GetSettings();
 
       loaded_project_path = await GetProjectPath();
 
@@ -149,10 +216,10 @@
 
       //for templates that where changed with the extension closed
       SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
-      GetAllComps();
 
       s.proj = l_proj;
       s.setts = l_setts;
+      await GetAllComps();
 
       if (s.proj.sel_tmpl == -1) {
         s.proj.sel_tmpl = 0;
@@ -186,7 +253,7 @@
     });
   }
 
-  function GetSettings(): Promise<{ l_proj: ProjData; l_setts: ProjSettings }> {
+  function GetSettings(): Promise<{l_proj: ProjData; l_setts: ProjSettings}> {
     return new Promise((resolve, reject) => {
       csa.Exec<GetSettsResult>("LoadSettings").then((result) => {
         l.debug("GetSettings result:", result);
@@ -257,7 +324,7 @@
                   callback: () => {
                     l.warn(`User ignored version mismatch`);
                     l_proj.version = _VERSION_;
-                    resolve({ l_proj, l_setts });
+                    resolve({l_proj, l_setts});
                   },
                 },
                 {
@@ -290,7 +357,7 @@
             l.log(`Parsed Settings`, result);
             //update project version
             l_proj.version = _VERSION_;
-            resolve({ l_proj, l_setts });
+            resolve({l_proj, l_setts});
           }
         }
       });
@@ -355,7 +422,6 @@
   async function SaveSettings(
     what: "reset" | "proj" | "setts" | "all" = "all",
   ): Promise<boolean> {
-
     console.debug("SaveSettings called with type:", what);
 
     last_type = "";
@@ -383,7 +449,7 @@
       request.proj_settings = s.setts; // Sending settings data
     }
 
-    if(what === "reset") {
+    if (what === "reset") {
       request.proj_settings = SettingsHelper.DefaultProjSettings;
       request.proj_data = SettingsHelper.DefaultProjectData;
     }
@@ -462,6 +528,12 @@
     ),
   );
 
+  let visible_output_module_labels = $derived(
+    visible_output_module_templates.map((templ) =>
+      templ === "EB_Single_Frame_PNG" ? "<b>Single Frame PNG</b>" : templ,
+    ),
+  );
+
   function GetRenderSettsTempls(): Promise<RenderSettsResults> {
     return new Promise((resolve, reject) => {
       csa.Exec<RenderSettsResults>("GetRenderTemplates").then((result) => {
@@ -489,10 +561,10 @@
       no_tmpls = false;
     }
 
-    GetAllComps();
     render_setts_templs = await GetRenderSettsTempls();
 
     SettingsHelper.UpdateTemplates(s.proj, n_tmpls);
+    await GetAllComps();
     l.debug("F_Reload called with templates:", n_tmpls);
   }
 
@@ -504,23 +576,23 @@
     ac.Init();
     csa.RegisterKeyEventsInterest([
       //MAC
-      { keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Down
-      { keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true }, // Arrow Up
+      {keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true}, // Arrow Down
+      {keyCode: 0x7e, ctrlKey: true, altKey: true, shiftKey: true}, // Arrow Up
 
-      { keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Down Opt
-      { keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false }, // Arrow Up Opt
+      {keyCode: 0x7d, ctrlKey: false, altKey: true, shiftKey: false}, // Arrow Down Opt
+      {keyCode: 0x7e, ctrlKey: false, altKey: true, shiftKey: false}, // Arrow Up Opt
 
-      { keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
-      { keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false }, // Delete
+      {keyCode: 0x33, ctrlKey: false, altKey: false, shiftKey: false}, // Delete
+      {keyCode: 0x24, ctrlKey: false, altKey: false, shiftKey: false}, // Delete
 
-      { keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false }, // S
-      { keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false }, // R
-      { keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false }, // P
-      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false }, // N
-      { keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true }, // Shift+N
+      {keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false}, // S
+      {keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false}, // R
+      {keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false}, // P
+      {keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false}, // N
+      {keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true}, // Shift+N
 
-      { keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false }, // T
-      { keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false }, // D
+      {keyCode: 0x11, ctrlKey: false, altKey: false, shiftKey: false}, // T
+      {keyCode: 0x02, ctrlKey: false, altKey: false, shiftKey: false}, // D
     ]);
 
     //File Actions
@@ -594,18 +666,21 @@
     ac.AddListener(
       "delete",
       () => {
+        const to_delete = sel_rows.size > 0 ? [...sel_rows] : [curr_row_i];
+
         //prevent deleting the row if only one row is left
-        if (row_count <= 1) {
-          footer_txt = "⚠️ Cannot delete the last row";
+        if (row_count - to_delete.length < 1) {
+          footer_txt = "⚠️ Cannot delete all rows";
           return;
         }
 
-        TemplateHelper.DeleteRow(sel_tmpl, curr_row_i);
+        TemplateHelper.DeleteRows(sel_tmpl, to_delete);
 
         //move the selected row up if the last row was deleted
         if (curr_row_i >= row_count) {
           curr_row_i = row_count - 1;
         }
+        ResetRowSelection();
       },
       "Backspace",
     );
@@ -616,6 +691,7 @@
         TemplateHelper.AddRowAfter(sel_tmpl, curr_row_i);
         s.proj = s.proj;
         NextRow();
+        ResetRowSelection();
       },
       "N",
       false,
@@ -627,6 +703,7 @@
       () => {
         TemplateHelper.AddRowBefore(sel_tmpl, curr_row_i);
         s.proj = s.proj;
+        ResetRowSelection();
       },
       "N",
       false,
@@ -695,6 +772,14 @@
       "report_issue",
       () => {
         ReportIssue();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "contact",
+      () => {
+        Contact();
       },
       "",
     );
@@ -907,12 +992,42 @@
   function NextRow() {
     if (curr_row_i < row_count - 1) {
       curr_row_i++;
+      ResetRowSelection();
+    }
+  }
+
+  /**
+   * Fixed width in px for non-text columns, or null for flexible (text) columns.
+   * @param {{type: number, display?: string}} col
+   */
+  function ColWidth(col: {type: number; display?: string}) {
+    const T = ColumnHelper.PropertyValueType;
+    if (col.display === "checkbox") return 56;
+    if (col.display === "menu") return 140;
+    switch (col.type) {
+      case T.TEXT_DOCUMENT:
+        return null;
+      case T.OneD:
+        return 90;
+      case T.TwoD:
+      case T.TwoD_SPATIAL:
+        return 100;
+      case T.ThreeD:
+      case T.ThreeD_SPATIAL:
+        return 180;
+      case T.COLOR:
+        return 160;
+      case T.SRC_ALTERNATE:
+        return 260;
+      default:
+        return 120;
     }
   }
 
   function PrevRow() {
     if (curr_row_i > 0) {
       curr_row_i--;
+      ResetRowSelection();
     }
   }
 
@@ -931,46 +1046,39 @@
   function OpenCSVImporter() {
     if (sel_tmpl === undefined) return;
 
-    m_import_csv?.Open(sel_tmpl, (stats: { rows: number; mapped: number; total: number }) => {
-
-      const details =
-        `Rows imported: ${stats.rows}<br>` +
-        `Mapped properties: ${stats.mapped}/${stats.total}`;
-      UpdateStatusFooter("CSV imported", details);
-    });
+    m_import_csv?.Open(
+      sel_tmpl,
+      (stats: {rows: number; mapped: number; total: number}) => {
+        const details =
+          `Rows imported: ${stats.rows}<br>` +
+          `Mapped properties: ${stats.mapped}/${stats.total}`;
+        UpdateStatusFooter("CSV imported", details);
+      },
+    );
   }
 
   function OpenExcelImporter() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.Open(
-      sel_tmpl,
-      (result: ExcelImportResult) => {
-        HandleExcelImportResult(result);
-      },
-    );
+    m_import_excel?.Open(sel_tmpl, (result: ExcelImportResult) => {
+      HandleExcelImportResult(result);
+    });
   }
 
   function ReImportExcelLast() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.ReImportLast(
-      sel_tmpl,
-      (result: ExcelImportResult) => {
-        HandleExcelImportResult(result);
-      },
-    );
+    m_import_excel?.ReImportLast(sel_tmpl, (result: ExcelImportResult) => {
+      HandleExcelImportResult(result);
+    });
   }
 
   function SaveToOpenedExcelFile() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.SaveToOpenedFile(
-      sel_tmpl,
-      (result: ExcelSaveResult) => {
-        HandleExcelSaveResult(result);
-      },
-    );
+    m_import_excel?.SaveToOpenedFile(sel_tmpl, (result: ExcelSaveResult) => {
+      HandleExcelSaveResult(result);
+    });
   }
 
   function HandleExcelImportResult(result: ExcelImportResult) {
@@ -1005,10 +1113,14 @@
 
     const warnings: string[] = [];
     if (result.stats.formula_cells_skipped > 0) {
-      warnings.push(`${result.stats.formula_cells_skipped} formula cells were not overwritten.`);
+      warnings.push(
+        `${result.stats.formula_cells_skipped} formula cells were not overwritten.`,
+      );
     }
     if (result.stats.missing_columns.length > 0) {
-      warnings.push(`Missing mapped columns: ${result.stats.missing_columns.join(", ")}.`);
+      warnings.push(
+        `Missing mapped columns: ${result.stats.missing_columns.join(", ")}.`,
+      );
     }
     if (warnings.length > 0) {
       m_message?.Open(warnings.join("<br>"), "Excel Save Warnings");
@@ -1057,6 +1169,16 @@
     );
   }
 
+  function Contact() {
+    m_message?.Open(
+      `
+    Contact us at info@easybatch.net <button onclick="window.cep.util.openURLInDefaultBrowser('mailto:info@easybatch.net')">Open</button><br>
+    Suggest improvements on our <a onclick="window.cep.util.openURLInDefaultBrowser('https://github.com/gabriel-ar/Ae-EasyBatch/discussions')" href="#" target="_blank">GitHub discussions page</a>.
+    `,
+      "Contact",
+    );
+  }
+
   function Surprise() {
     fetch("https://dog.ceo/api/breeds/image/random")
       .then(async (r) => {
@@ -1082,6 +1204,16 @@
   /////RENDER TAB/////
   ////////////////////
 
+  function OpenRenderedPath(path?: string) {
+    if (!path) return;
+    csa
+      .OpenPath(path)
+      .then((ok) => {
+        if (!ok) UpdateStatusFooter("Could not open: " + path);
+      })
+      .catch((e) => l.error("Failed to open rendered path", e));
+  }
+
   /**
    * Selects a folder to save the files to and adds it to the save pattern
    */
@@ -1089,7 +1221,7 @@
     l.debug("SelectBasePath called");
     let initial_folder = sel_tmpl.base_path || "";
 
-    csa.OpenFolderDialog(initial_folder).then((result) => {
+    csa.OpenSelectFolder(initial_folder).then((result) => {
       if (result === null) return;
 
       sel_tmpl.base_path = result;
@@ -1151,16 +1283,18 @@
   });
 
   let all_comps = $state<Comp[]>([]);
-  function GetAllComps() {
-    csa.Exec<GetAllCompsResult>("GetAllComps").then((result) => {
-      if (!result.success) {
-        l.error("Failed to get all comps", result.error_obj);
-        return;
-      } else {
-        all_comps = result.comps ?? [];
-        l.debug(`Got All Comps`, all_comps);
-      }
-    });
+  async function GetAllComps(): Promise<void> {
+    const result = await csa.Exec<GetAllCompsResult>("GetAllComps");
+    if (!result.success) {
+      l.error("Failed to get all comps", result.error_obj);
+      return;
+    }
+
+    all_comps = result.comps ?? [];
+    s.proj.tmpls.forEach((tmpl) =>
+      TemplateHelper.UpdateDependantCompNames(tmpl, all_comps),
+    );
+    l.debug(`Got All Comps`, all_comps);
   }
 
   let selected_comp = $state<number | "">("");
@@ -1176,30 +1310,28 @@
     }
   }
 
-  function AddSelectedCompsToDependents() {
-    csa.Exec<GetSelectedCompsResult>("GetSelectedComps").then((result) => {
-      l.debug(`Got selected Comps`, result);
+  async function AddSelectedCompsToDependents() {
+    const result = await csa.Exec<GetSelectedCompsResult>("GetSelectedComps");
+    l.debug(`Got selected Comps`, result);
 
-      if (!result.success) {
-        l.error("Failed to get selected comps", result.error_obj);
-        return;
+    if (!result.success) {
+      l.error("Failed to get selected comps", result.error_obj);
+      return;
+    }
+
+    await GetAllComps();
+
+    for (let comp_info of result.comps ?? []) {
+      let comp = all_comps.find((c) => c.id === comp_info.id);
+
+      if (comp) {
+        //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
+        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
       }
+    }
 
-      //Update the comps with the latest data
-      GetAllComps();
-
-      for (let comp_info of result.comps ?? []) {
-        let comp = all_comps.find((c) => c.id === comp_info.id);
-
-        if (comp) {
-          //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
-          TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
-        }
-      }
-
-      TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-      TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-    });
+    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
+    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
   }
 
   function DeleteDependentComp(dep_index: number) {
@@ -1241,13 +1373,41 @@
     );
   }
 
+  /**Returns a copy of the resolved template trimmed to the checked rows, or null (after warning the user) if none are checked.*/
+  function FilterEnabledRows(tmpl: TemplateData): TemplateData | null {
+    const rows = TemplateHelper.EnabledRows(tmpl);
+    if (rows.length === 0) {
+      m_message?.Open("Check at least one row to render.", "No Rows Selected");
+      return null;
+    }
+    if (rows.length === TemplateHelper.RowCount(tmpl)) return tmpl;
+    const copy = structuredClone($state.snapshot(tmpl)) as TemplateData;
+    TemplateHelper.KeepRows(copy, rows);
+    return copy;
+  }
+
   //User facing render results
   let render_results = $state<RowRenderResult[]>([]);
-  function BatchRender(row_i: number = -1) {
+  function BatchRender(row_i: number = -1, start_queue: boolean = true) {
     l.log("BatchRender called");
 
     //check if we should 'proceed'
     if (!proceed) {
+      return;
+    }
+
+    if (
+      !render_setts_templs.render_templs?.includes(
+        sel_tmpl.render_setts_templ,
+      ) ||
+      !render_setts_templs.output_modules_templs?.includes(
+        sel_tmpl.render_out_module_templ,
+      )
+    ) {
+      m_message?.Open(
+        "Select valid Render Settings and Output Module templates in the Output tab before rendering.",
+        "Render Settings Missing",
+      );
       return;
     }
 
@@ -1267,11 +1427,23 @@
     TemplateHelper.ResolveSavePaths(send_templ);
     TemplateHelper.ResolveAltSrcPaths(send_templ);
 
+    if (row_i === -1) {
+      const filtered = FilterEnabledRows(send_templ);
+      if (!filtered) return;
+      send_templ = filtered;
+    }
+
     //checks for dupliate save paths
-    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "render");
+    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
+      send_templ,
+      "render",
+    );
     if (path_conflicts.length > 0) {
       const details = path_conflicts
-        .map((c) => `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`)
+        .map(
+          (c) =>
+            `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`,
+        )
         .join("<br>");
 
       m_message?.Open(
@@ -1291,6 +1463,7 @@
         "BatchRender",
         string_templt,
         s.setts.render_comps_folder,
+        start_queue,
       )
       .then((result) => {
         if (!result.success) {
@@ -1338,7 +1511,10 @@
     TemplateHelper.ResolveCompsNames(sel_tmpl);
     TemplateHelper.ResolveAltSrcPaths(sel_tmpl);
 
-    let string_templt = JSON.stringify(sel_tmpl);
+    const send_templ = FilterEnabledRows(sel_tmpl);
+    if (!send_templ) return;
+
+    let string_templt = JSON.stringify(send_templ);
     l.debug("BatchGenerate called");
     l.log("Rendering:", string_templt);
 
@@ -1356,10 +1532,33 @@
 
   let dep_row_results = $state<RowRenderResult[]>([]);
   let user_stopped_deps = $state(false);
-  function BatchOneToMany(row_i: number = -1) {
+  function BatchOneToMany(row_i: number = -1, queue_ame: boolean = false) {
     l.log("BatchOneToMany called");
 
     if (!proceed) {
+      return;
+    }
+
+    const conf_issues = sel_tmpl.dep_config.filter((dc) => {
+      return (
+        dc.enabled &&
+        (!render_setts_templs.render_templs?.includes(dc.render_setts_templ) ||
+          !render_setts_templs.output_modules_templs?.includes(
+            dc.render_out_module_templ,
+          ))
+      );
+    });
+    if (conf_issues.length > 0) {
+      l.warn("Configuration issues detected:", conf_issues);
+      let issues_s = "";
+      for (let issue of conf_issues) {
+        issues_s += `<li>${issue.name ?? "Unknown"}</li>`;
+      }
+
+      m_message?.Open(
+        `Select a Render Settings template and an Output Module template for every enabled composition before rendering. Issues detected in:<br><ul>${issues_s}</ul>`,
+        "Render Settings Missing",
+      );
       return;
     }
 
@@ -1382,8 +1581,17 @@
     TemplateHelper.ResolveAltSrcPaths(send_templ);
     TemplateHelper.ResolveSavePathDeps(send_templ);
 
+    if (row_i === -1) {
+      const filtered = FilterEnabledRows(send_templ);
+      if (!filtered) return;
+      send_templ = filtered;
+    }
+
     //checks for dupliate save paths
-    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(send_templ, "dependant");
+    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
+      send_templ,
+      "dependant",
+    );
     if (dep_path_conflicts.length > 0) {
       const details = dep_path_conflicts
         .map((c) => {
@@ -1406,7 +1614,7 @@
     }
 
     csa
-      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt)
+      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt, queue_ame)
       .then((result) => {
         l.debug(`OtM Render Results`, result);
 
@@ -1498,9 +1706,26 @@
     {#if s.proj.sel_tmpl >= 0 && sel_tmpl !== undefined && s.proj.tmpls.length > 0}
       {#if s.setts.data_mode === "table"}
         <table class="dat_table">
+          <colgroup>
+            <col style="width: 64px;" />
+            {#each sel_tmpl.view_cols as col_i}
+              {@const w = ColWidth(sel_tmpl.columns[col_i])}
+              <col style={w ? `width: ${w}px;` : "min-width: 200px;"} />
+            {/each}
+          </colgroup>
           <thead>
             <tr>
-              <th></th>
+              <th>
+                <input
+                  type="checkbox"
+                  data-tooltip="Render all rows"
+                  data-tt-pos="middle-right"
+                  checked={AllRowsChecked()}
+                  onchange={(e) =>
+                    SetAllRowsChecked(
+                      (e.target as HTMLInputElement).checked,
+                    )} />
+              </th>
               {#each sel_tmpl.view_cols as col_i, view_i}
                 <th class="table_header">
                   {sel_tmpl.columns[col_i].cont_name}
@@ -1508,7 +1733,7 @@
                     <button
                       class="delete_col"
                       data-tooltip="Setup alternate source"
-                      data-tt-pos="middle-right"
+                      data-tt-pos="bottom"
                       onclick={() => {
                         SetupAlternateSource(col_i);
                       }}><Gear /></button>
@@ -1518,28 +1743,38 @@
             </tr>
           </thead>
           <tbody>
-            {#each { length: row_count } as _, row_i}
+            {#each {length: row_count} as _, row_i}
               <tr
                 oncontextmenu={function (e) {
                   OpenRowMenu(e, row_i);
                 }}
-                onclick={() => {
-                  curr_row_i = row_i;
-                }}
-                data-selected={row_i === curr_row_i}>
+                onclick={(e) => RowClicked(e, row_i)}
+                data-selected={sel_rows.has(row_i)}>
                 <td>
-                  {row_i + 1}
-                  <button
-                    class="delete_row"
-                    data-tooltip="Row menu"
-                    data-tt-pos="middle-right"
-                    onclick={(e) => OpenRowMenu(e, row_i)}
-                    ><HamburgerMenu /></button>
-                  <button
-                    class="delete_row"
-                    data-tooltip="Preview Row"
-                    data-tt-pos="middle-right"
-                    onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
+                  <div class="row_opts">
+                    <input
+                      class="row_opts_check"
+                      type="checkbox"
+                      checked={sel_tmpl.row_enabled?.[row_i] !== false}
+                      onclick={(e) => e.stopPropagation()}
+                      onchange={(e) =>
+                        RowCheckChanged(
+                          row_i,
+                          (e.target as HTMLInputElement).checked,
+                        )} />
+                    <span class="row_opts_num">{row_i + 1}</span>
+                    <button
+                      class="delete_row row_opts_menu"
+                      data-tooltip="Row menu"
+                      data-tt-pos="middle-right"
+                      onclick={(e) => OpenRowMenu(e, row_i)}
+                      ><HamburgerMenu /></button>
+                    <button
+                      class="delete_row row_opts_preview"
+                      data-tooltip="Preview Row"
+                      data-tt-pos="middle-right"
+                      onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
+                  </div>
                 </td>
                 {#each sel_tmpl.view_cols as td_col_i}
                   <td
@@ -1731,21 +1966,35 @@
       <div class="setting">
         <label for="sel_render_out_module">Output Module Template</label>
         <Dropdown
-          labels={[
-            "<b>Single Frame PNG</b>",
-            ...visible_output_module_templates,
-          ]}
-          options={["EB_Single_Frame_PNG", ...visible_output_module_templates]}
+          labels={visible_output_module_labels}
+          options={visible_output_module_templates}
           bind:value={sel_tmpl.render_out_module_templ} />
       </div>
 
-      <button class="setting" onclick={() => BatchRender()}
-        >Start Batch Render</button>
+      <div class="out_actions_cont">
+        <div class="out_actions">
+          <button class="setting" onclick={() => BatchRender()}
+            ><Play size={18} />Start Batch Render</button>
+
+          <button
+            class="setting"
+            onclick={() => BatchRender(-1, false)}
+            data-tooltip="Useful if you want to send the queue to Media Encoder."
+            data-tt-width="x-large"
+            ><ActivityLog size={18} />Queue Renders</button>
+        </div>
+      </div>
 
       <!--Results-->
       {#if render_results.length > 0}
-        <h4>Render Results</h4>
+        <h4>Results</h4>
         <table class="render_results">
+          <colgroup>
+            <col style="width: 45px;" />
+            <col style="width: 70px;" />
+            <col />
+            <col />
+          </colgroup>
           <thead>
             <tr>
               <th>Row</th>
@@ -1765,7 +2014,15 @@
                     <CrossCircled color="red" size={23} />
                   {/if}
                 </td>
-                <td>{row.rendered_path}</td>
+                <td
+                  >{row.rendered_path}
+                  <button
+                    onclick={() => OpenRenderedPath(row.rendered_path)}
+                    data-variant="discrete"
+                    style="margin-left: 4px;">
+                    <ExternalLink color="white" size={15} />
+                  </button>
+                </td>
                 <td>{row.error}</td>
               </tr>
             {/each}
@@ -1810,15 +2067,19 @@
       </div>
 
       <div class="setting">
-        <label for="in_imported_folder">Generated Comps Folder Name </label>
+        <label for="in_imported_folder">Generated Comps Folder Name</label>
         <input
           id="in_gen_folder"
           type="text"
           bind:value={sel_tmpl.gen_comps_folder} />
       </div>
 
-      <button class="setting" onclick={BatchGenerate}
-        >Generate Compositions</button>
+      <div class="out_actions_cont">
+        <div class="out_actions">
+          <button class="setting" onclick={() => BatchGenerate()}
+            ><Play size={18} />Generate Compositions</button>
+        </div>
+      </div>
     {:else if sel_tmpl.out_mode === "dependant"}
       <!-- MODE: DEPENDANT -->
 
@@ -1941,14 +2202,8 @@
               <label for="sel_render_out_module">Output Module</label>
 
               <Dropdown
-                labels={[
-                  "<b>Single Frame PNG</b>",
-                  ...visible_output_module_templates,
-                ]}
-                options={[
-                  "EB_Single_Frame_PNG",
-                  ...visible_output_module_templates,
-                ]}
+                labels={visible_output_module_labels}
+                options={visible_output_module_templates}
                 bind:value={
                   sel_tmpl.dep_config[dc_i].render_out_module_templ
                 } />
@@ -1957,15 +2212,24 @@
         </details>
       {/each}
 
-      <div class="OtM_ui_warn">
-        <ExclamationTriangle color="white" size={15} />
-        This render mode will block the user interface, press Esc to cancel all renders.
+      <div class="out_actions_cont">
+        <div class="out_actions">
+          <button class="setting" onclick={() => BatchOneToMany()}
+            ><Play size={18} />Start Batch Render</button>
+
+          <!-- <button class="setting" onclick={() => BatchOneToMany(-1, true)}
+            ><ActivityLog size={18} />Queue in Media Encoder</button> -->
+        </div>
+        <div class="OtM_ui_warn">
+          <ExclamationTriangle color="white" size={15} />
+          Using this render mode and rendering in After Effects will block the user
+          interface, press Esc to cancel all renders.
+        </div>
       </div>
-      <button onclick={() => BatchOneToMany()}>Batch One to Many</button>
 
       <!--Results-->
       {#if dep_row_results.length > 0}
-        <h4>Render Results</h4>
+        <h4>Results</h4>
         {#if user_stopped_deps}
           <div class="OtM_stopped_warn">
             <ExclamationTriangle color="yellow" size={14} />
@@ -1973,6 +2237,12 @@
           </div>
         {/if}
         <table class="render_results">
+          <colgroup>
+            <col style="width: 45px;" />
+            <col style="width: 70px;" />
+            <col />
+            <col />
+          </colgroup>
           <thead>
             <tr>
               <th>Row</th>
@@ -1994,7 +2264,15 @@
                     <CrossCircled color="red" size={23} />
                   {/if}
                 </td>
-                <td>{row.rendered_path}</td>
+                <td
+                  >{row.rendered_path}
+                  <button
+                    onclick={() => OpenRenderedPath(row.rendered_path)}
+                    data-variant="discrete"
+                    style="margin-left: 4px;">
+                    <ExternalLink color="white" size={15} />
+                  </button>
+                </td>
                 <td>{row.error}</td>
               </tr>
             {/each}
@@ -2017,7 +2295,10 @@
     onclose={AlertSrcModalClosed} />
 {/if}
 
-  <Menu bind:this={menu} onselect={MenuItemSelected} excel_last_file_label={GetExcelLastImportLabel()}></Menu>
+<Menu
+  bind:this={menu}
+  onselect={MenuItemSelected}
+  excel_last_file_label={GetExcelLastImportLabel()}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 <ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
 <ImportCSVModal bind:this={m_import_csv}></ImportCSVModal>
@@ -2132,6 +2413,10 @@
     /* background-color: var(--color-m1); */
   }
 
+  #main_data {
+    padding: 0;
+  }
+
   /* ////// DATA //////// */
 
   .dat_bar {
@@ -2153,8 +2438,65 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  tr {
-    height: 20px;
+  .dat_table {
+    user-select: none;
+    -webkit-user-select: none;
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    border-top: none;
+  }
+
+  .dat_table :global(input),
+  .dat_table :global(textarea) {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .dat_table,
+  .dat_table th:first-child,
+  .dat_table td:first-child {
+    border-left: none;
+  }
+
+  .dat_table td:first-child,
+  .dat_table th:first-child {
+    border-right: none;
+  }
+  .dat_table td:nth-child(2),
+  .dat_table th:nth-child(2) {
+    border-left: none;
+  }
+
+  .dat_table,
+  .dat_table th:last-child,
+  .dat_table td:last-child {
+    border-right: none;
+  }
+
+  .dat_table thead th:first-child {
+    left: 0;
+    z-index: 91;
+  }
+
+  .dat_table thead th:first-child {
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .dat_table th {
+    border-top: none;
+    z-index: 90;
+    position: sticky;
+    top: 0;
+    background-color: #131313;
+  }
+
+  .dat_table td {
+    height: 28px;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+
+    padding: 4px 6px;
   }
 
   tr:hover {
@@ -2165,8 +2507,30 @@
     background-color: rgba(255, 255, 255, 0.07) !important;
   }
 
-  :global(.dat_table td:first-child) {
+  .dat_table td:first-child {
     text-align: center;
+  }
+
+  .dat_table td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: rgb(30 30 30);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* The row tint is semi-transparent, so overlay it on the opaque sticky cell */
+  .dat_table tr:hover td:first-child {
+    background-image: linear-gradient(
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0.02)
+    );
+  }
+
+  .dat_table tr[data-selected="true"] td:first-child {
+    background-image: linear-gradient(
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.07)
+    );
   }
 
   td {
@@ -2184,6 +2548,32 @@
 
   .render_results thead th {
     padding: 0 5px;
+  }
+
+  .render_results td:nth-of-type(n + 1):nth-of-type(-n + 2) {
+    text-align: center;
+  }
+
+  .row_opts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .row_opts_check,
+  .row_opts_menu {
+    justify-self: start;
+  }
+
+  .row_opts_num {
+    justify-self: stretch;
+    text-align: center;
+  }
+
+  .row_opts_preview {
+    justify-self: end;
   }
 
   .delete_row,
@@ -2257,6 +2647,39 @@
     text-align: center;
   }*/
 
+  .out_actions_cont {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+    background-color: rgba(0, 0, 0, 0.15);
+
+    margin: 10px -10px;
+    padding: 10px 10px;
+  }
+
+  .out_actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .out_actions button {
+    font-weight: bold;
+    font-size: 1.05rem;
+
+    padding: 5px 8px;
+    margin: 0 !important;
+  }
+
+  :global(.out_actions svg) {
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+
   .out_prev {
     word-break: break-all;
     display: flex;
@@ -2297,7 +2720,7 @@
 
   .OtM_ui_warn {
     text-align: center;
-    margin: 10px 0;
+    margin: 5px 0 0 0;
   }
 
   :global(.OtM_ui_warn svg) {
@@ -2331,6 +2754,8 @@
 
     background-color: rgba(0, 0, 0, 0.597);
     backdrop-filter: blur(5px);
+
+    z-index: 1000;
   }
 
   .fs_no_tmpls span {
@@ -2347,13 +2772,16 @@
     justify-content: center;
     gap: 7px;
 
-    margin-bottom: 15px;
+    padding: 10px 10px 0 10px;
   }
 
   .dets_field_cont {
     display: flex;
     flex-direction: column;
     gap: 13px;
+
+    margin-top: 5px;
+    padding: 10px;
   }
 
   .dets_field {

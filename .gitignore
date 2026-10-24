@@ -19,9 +19,10 @@ npm-debug.log*
 playwright-report/
 tests/test-results/
 tests/projects/renders/
+tests/projects/generated/
 tests/projects/*Auto-Save*/
 tests/projects/*Logs/
-
+tests/screenshots/
 # Editor and operating-system files
 .DS_Store
 .idea/

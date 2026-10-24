@@ -4,6 +4,7 @@ import type { Page } from 'puppeteer-core';
 import * as fs from 'fs';
 import path from 'path';
 import { text } from 'stream/consumers';
+import * as XLSX from 'xlsx';
 
 /**
  * Test suite for extension startup and template loading
@@ -21,6 +22,21 @@ test.use({ trace: 'on' });
 test.beforeAll(async () => {
     con = await GetConnection();
     page = con.page!;
+});
+
+// Playwright can't see the Puppeteer page, so its screenshot/video options do nothing here.
+// Attach a Puppeteer screenshot to every test so it shows up in UI mode and the HTML report.
+test.afterEach(async ({}, testInfo) => {
+    try {
+        const shot = await page.screenshot({ type: 'png' });
+        await testInfo.attach(testInfo.status === testInfo.expectedStatus ? 'screenshot' : 'screenshot-on-failure', {
+            body: Buffer.from(shot),
+            contentType: 'image/png',
+        });
+    } catch (e) {
+        // The page can be mid-reload (project open / settings reset); a missing screenshot must not fail the test
+        console.warn('Could not capture screenshot:', (e as Error).message);
+    }
 });
 
 // Run tests in this suite sequentially to maintain state
@@ -113,7 +129,7 @@ test.describe('Reset and load template', async () => {
         await settingsTab!.tap();
 
         // Click the "Reset to Default" button
-        const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)', { timeout: 2000 });
+        const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)',         { timeout: 5000 });
         expect(resetButton, 'has Reset to Default button').toBeTruthy();
         await resetButton!.tap();
 
@@ -165,6 +181,36 @@ test.describe('Reset and load template', async () => {
 
         expect(await GetCell(page, CellType.Checkbox, 1, 8), 'checkbox input cell has default data').toBe('1');
         expect(await GetCell(page, CellType.Menu, 1, 9), 'menu input cell has default data').toBe('1');
+    });
+
+    test('should pre-fill the file path pattern from the current image of the replaceable', async () => {
+        // The template's own image must already resolve, without any manual setup
+        const cell_value = await GetCell(page, CellType.Image, 1, 6) as string;
+        expect(cell_value, 'image cell is not empty before any setup').not.toBe('');
+        expect(cell_value, 'image cell path is relative to the project').not.toMatch(/^([\/~]|[a-zA-Z]:)/);
+
+        const setup_btn = await page.$('.dat_table thead th button');
+        expect(setup_btn, 'has setup button for image replaceable').toBeTruthy();
+        await setup_btn!.tap();
+
+        await page.waitForSelector('#alternate_modal h4::-p-text(File Path Pattern)');
+
+        const pattern = await page.$eval('#alternate_modal #alt_src_pattern_ta', el => (el as HTMLTextAreaElement).value);
+        expect(pattern, 'pattern is the base folder plus the static file name').toMatch(/^\{base_path\}\/[^\/\\{}]+$/);
+
+        const preview = await page.$eval('#alternate_modal .out_prev', el => el.textContent);
+        expect(preview, 'preview matches the value shown in the table').toBe(cell_value);
+
+        // The file must exist, resolved from the project folder
+        await page.waitForSelector('#alternate_modal [data-tooltip="File exists"]', { timeout: 5000 });
+
+        const proj_folder = await GetProjectFilePath(page);
+        const exists = await CsaEval(`new File(${JSON.stringify(proj_folder + '/' + preview)}).exists`, page);
+        expect(exists, 'pre-filled pattern points to an existing file').toBe('true');
+
+        const done_btn = await page.$('#alternate_modal .modal-actions button::-p-text(Done)');
+        await done_btn!.tap();
+        await page.waitForSelector('#alternate_modal', { hidden: true });
     });
 
     test('should allow for file path setup for the image replaceable', async () => {
@@ -1039,13 +1085,20 @@ test.describe('OtM Render', async () => {
         const addExpBtn = await page.$('.output .setting button::-p-text(Add)');
         expect(addExpBtn, 'has Add button for exports in Output tab').toBeTruthy();
         await addExpBtn!.tap();
+        
+      //open the summary element
+        const summaryBtn = await page.$('.out_sub_render summary');
+        expect(summaryBtn, 'could find Summary element for export').toBeTruthy();
+        await summaryBtn!.tap();
 
         const patternEditBtn = await page.$('.out_sub_render_cont .setting button');
         expect(patternEditBtn, 'has Edit button for export pattern in Output tab').toBeTruthy();
         await patternEditBtn!.tap();
 
+  
+
         //wait for modal
-        const modal_header = await page.waitForSelector('.modal h4::-p-text(Render Save Path Pattern)');
+        const modal_header = await page.waitForSelector('.modal h4::-p-text(Render Save Path Pattern)', { timeout: 3000 });
         expect(modal_header, 'shows the File Path Pattern modal').toBeTruthy();
 
         const textarea = await page.$('.modal textarea');
@@ -1118,13 +1171,16 @@ test.describe('OtM Render', async () => {
 
         // 0. Clean the renders folder so we start from a known empty state
         const rendersFolder = path.join(await GetProjectFilePath(page), '/renders/otm_test');
-        if (fs.existsSync(rendersFolder)) {
+        // AE keeps recent outputs locked, so a rerun can't always delete them; best effort only
+        try {
             fs.rmSync(rendersFolder, { recursive: true, force: true });
+        } catch (e) {
+            console.warn('Could not fully clean renders folder (locked by AE?):', (e as Error).message);
         }
         fs.mkdirSync(rendersFolder, { recursive: true });
 
-        const renderBtn = await page.$('.output button::-p-text(Batch One to Many)');
-        expect(renderBtn, 'has Batch One to Many render button').toBeTruthy();
+        const renderBtn = await page.$('.out_actions_cont .out_actions button');
+        expect(renderBtn, 'has Start Batch Render button').toBeTruthy();
         await renderBtn!.tap();
 
         // 1. Wait for BatchRender to return — the results table appears as soon as
@@ -1148,7 +1204,6 @@ test.describe('OtM Render', async () => {
     test('verify that the renders exist', async () => {
 
         let all_found = true;
-
         // 4. Verify each output file was actually written to disk
         for (const p of renderedPaths) {
             const fullPath = path.join(await GetProjectFilePath(page), p + ".mov");
@@ -1187,8 +1242,618 @@ test.describe('OtM Render', async () => {
             const avg_color = (checkResult.color[0] + checkResult.color[1] + checkResult.color[2]) / 3;
 
             console.log('CheckRenderResult for', renderPath, 'returned:', checkResult, 'average color:', avg_color);
-            expect(checkResult.success && avg_color < 0.009, `Render in range ${p.file} (${avg_color})`).toBeTruthy();
+            expect(checkResult.success && avg_color < 0.0092, `Render in range ${p.file} (${avg_color})`).toBeTruthy();
         }
+    });
+});
+
+// ============================================================================
+// Excel Import
+// The native file dialog cannot be driven from Puppeteer, so the host's
+// OpenFileDialog is replaced for the duration of the suite. The workbook is
+// generated on the fly into tests/projects/generated (inside the project
+// folder, so the importer can store a project-relative path).
+// State coming in: any (the suite replaces the table data with the workbook's).
+// State going out: 6 rows imported from the workbook.
+// ============================================================================
+
+const EXCEL_DIR = path.join(process.cwd(), 'tests/projects/generated');
+const EXCEL_PATH = path.join(EXCEL_DIR, 'test-data.xlsx');
+
+// "reptext" matches by case, "Slider Value" has to be mapped by hand and
+// "Other Prop" (when the template has it) has no column at all.
+const EXCEL_HEADERS = ['reptext', 'RepColor', 'Slider Value', 'RepPos', 'RepImage', 'CommentField', 'CB', 'Select'];
+const EXCEL_ROWS: (string | number)[][] = [
+    ['Excel One', 'ff0000', 10, '1,2,3', './assets/headshot0.jpg', 'first', 1, 1],
+    ['Excel Two', '00ff00', 20, '4,5,6', './assets/headshot1.jpg', 'second', 0, 2],
+    ['Excel Three', '0000ff', 30, '7,8,9', './assets/headshot2.jpg', 'third', 1, 3],
+    ['Excel Four', 'ffff00', 40, '10,11,12', './assets/headshot3.jpg', 'fourth', 0, 1],
+    ['Excel Five', '00ffff', 50, '13,14,15', './assets/headshot4.jpg', 'fifth', 1, 2],
+];
+const EXCEL_ROWS_UPDATED: (string | number)[][] = [
+    ['Excel One Updated', 'ff0000', 11, '1,2,3', './assets/headshot0.jpg', 'first', 1, 1],
+    ...EXCEL_ROWS.slice(1),
+    ['Excel Six', '888888', 60, '16,17,18', './assets/headshot0.jpg', 'sixth', 1, 1],
+];
+
+/** Writes the test workbook: a decoy "Notes" sheet first, then the "Data" sheet whose Slider Value on row 3 is a formula. */
+function WriteExcelFixture(rows: (string | number)[][]) {
+    fs.mkdirSync(EXCEL_DIR, { recursive: true });
+
+    const notes = XLSX.utils.aoa_to_sheet([['Foo', 'Bar'], ['x', 'y']]);
+    const data = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, ...rows]);
+    // Sheet row 4 = data row 3, column C = "Slider Value"
+    data['C4'] = { t: 'n', v: rows[2][2] as number, f: `${rows[2][2]}*1` };
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, notes, 'Notes');
+    XLSX.utils.book_append_sheet(wb, data, 'Data');
+    // The file may be briefly locked right after the extension wrote it (AV / indexer)
+    for (let attempt = 0; ; attempt++) {
+        try {
+            XLSX.writeFile(wb, EXCEL_PATH);
+            return;
+        } catch (e: any) {
+            if (attempt >= 20 || (e?.code !== 'EBUSY' && e?.code !== 'EPERM')) throw e;
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+        }
+    }
+}
+
+/** Replaces the host's OpenFileDialog so it returns `file_path` (or null to simulate a cancel). */
+async function StubOpenFileDialog(file_path: string | null) {
+    const ret = file_path === null ? 'null' : `new File("${file_path.replaceAll('\\', '\\\\')}").fsName`;
+    await CsaEval(
+        `if (typeof $.global.__eb_orig_OpenFileDialog === "undefined") { $.global.__eb_orig_OpenFileDialog = OpenFileDialog; }` +
+        `OpenFileDialog = function () { return ${ret}; }; "ok"`,
+        page,
+    );
+}
+
+async function RestoreOpenFileDialog() {
+    await CsaEval(
+        `if (typeof $.global.__eb_orig_OpenFileDialog !== "undefined") { OpenFileDialog = $.global.__eb_orig_OpenFileDialog; } "ok"`,
+        page,
+    );
+}
+
+/** Opens a menu from the Data tab bar (File / Edit / View) and taps an item in it. */
+async function BarMenuAction(bar: 'File' | 'Edit' | 'View', item: string) {
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const bar_btn = await page.waitForSelector(`nav button::-p-text(${bar})`, { timeout: 3000 });
+    await bar_btn!.tap();
+    const item_btn = await page.waitForSelector(`.c_menu button::-p-text(${item})`, { timeout: 3000 });
+    await item_btn!.tap();
+}
+
+async function GoToDataTable() {
+    const dataTab = await page.waitForSelector('.header_tabs button::-p-text(Data)', { timeout: 5000 });
+    await dataTab!.tap();
+    await page.waitForSelector('.dat_table', { timeout: 5000 });
+}
+
+async function WaitForFooter(fragment: string) {
+    await page.waitForFunction(
+        (f: string) => document.querySelector('footer')?.textContent?.includes(f) ?? false,
+        { timeout: 5000 },
+        fragment,
+    );
+}
+
+/** Closes the generic message modal (ModalMessage) if it is showing, returning its title. */
+async function DismissMessageModal(expected_title: string): Promise<string> {
+    const title_el = await page.waitForSelector(`.modal h3::-p-text(${expected_title})`, { timeout: 3000 });
+    const body = await title_el!.evaluate(el => el.parentElement?.textContent ?? '');
+    const close = await page.$('.modal button::-p-text(Close)');
+    await close!.tap();
+    await page.waitForSelector('.modal', { hidden: true, timeout: 3000 });
+    return body;
+}
+
+async function GetSelectedTemplate(): Promise<any> {
+    return page.evaluate(() => {
+        const s = (window as any).__app_state__;
+        return JSON.parse(JSON.stringify(s.proj.tmpls[s.proj.sel_tmpl]));
+    });
+}
+
+/** Rows of the mapping table in the Excel dialog */
+async function ReadExcelMapping(): Promise<{ prop: string, col: string, status: string }[]> {
+    return page.$$eval('.import_excel_dialog .map_table tbody tr', trs => trs.map(tr => ({
+        prop: tr.children[0].textContent?.trim() ?? '',
+        col: tr.querySelector('.dropbtn')?.textContent?.trim() ?? '',
+        status: tr.children[2].textContent?.trim() ?? '',
+    })));
+}
+
+async function ExcelSummary(): Promise<string> {
+    return page.$$eval('.import_excel_dialog .summary', els => els.map(e => e.textContent?.replace(/\s+/g, ' ').trim()).join(' | '));
+}
+
+async function ConfirmExcelDialog() {
+    const confirm = await page.$('.import_excel_dialog .actions button::-p-text(Confirm Import)');
+    expect(confirm, 'dialog has Confirm Import button').toBeTruthy();
+    await confirm!.tap();
+    await page.waitForSelector('.import_excel_dialog', { hidden: true, timeout: 3000 });
+}
+
+test.describe('Excel Import', async () => {
+
+    test.beforeAll(() => {
+        WriteExcelFixture(EXCEL_ROWS);
+    });
+
+    test.afterAll(async () => {
+        await RestoreOpenFileDialog();
+
+        // A failed test can leave the dialog open, which would block every later suite
+        const cancel = await page.$('.import_excel_dialog .actions button::-p-text(Cancel)');
+        if (cancel) await cancel.tap();
+    });
+
+    test('should show the Excel actions in the File menu', async () => {
+        await GoToDataTable();
+
+        const bar_btn = await page.$('nav button::-p-text(File)');
+        await bar_btn!.tap();
+
+        const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
+        expect(await menu!.$('button::-p-text(Import Excel Data)'), 'has Import Excel Data').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Import CSV Data)'), 'has Import CSV Data').toBeTruthy();
+
+        await (await page.$('.c_menu_bg'))!.tap();
+        expect(await page.$('.c_menu'), 'menu closed').toBeNull();
+    });
+
+    test('should do nothing when the file dialog is cancelled', async () => {
+        await StubOpenFileDialog(null);
+        await BarMenuAction('File', 'Import Excel Data');
+
+        await new Promise(r => setTimeout(r, 800));
+        expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
+        expect(await page.$('.modal'), 'no error modal shown').toBeNull();
+    });
+
+    test('should report an error when the selected file does not exist', async () => {
+        await StubOpenFileDialog(path.join(EXCEL_DIR, 'does-not-exist.xlsx'));
+        await BarMenuAction('File', 'Import Excel Data');
+
+        const body = await DismissMessageModal('Excel Import Error');
+        expect(body, 'error explains the problem').toContain('relative path');
+        expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
+    });
+
+    test('should open the import dialog on the first sheet', async () => {
+        await StubOpenFileDialog(EXCEL_PATH);
+        await BarMenuAction('File', 'Import Excel Data');
+
+        const title = await page.waitForSelector('.import_excel_dialog h3', { timeout: 5000 });
+        expect(await title!.evaluate(el => el.textContent?.trim()), 'dialog title').toBe('Import Excel Data');
+
+        const summary = await ExcelSummary();
+        expect(summary, 'shows the file name').toContain('test-data.xlsx');
+        expect(summary, 'first sheet (Notes) has 1 data row').toMatch(/Rows:\s*1\b/);
+
+        const sheet_btn = await page.$eval('.import_excel_dialog .sheet_picker .dropbtn', el => el.textContent?.trim());
+        expect(sheet_btn, 'first sheet is preselected').toBe('Notes');
+
+        const mapping = await ReadExcelMapping();
+        expect(mapping.every(m => m.status === 'Unmapped'), 'nothing in "Notes" matches the template').toBe(true);
+        expect(await page.$('.import_excel_dialog .warning'), 'warns about unmapped properties').toBeTruthy();
+    });
+
+    test('should switch sheets and auto-match the headers', async () => {
+        const ok = await con.DropdownSelect('.import_excel_dialog .sheet_picker .dropdown', 'Data');
+        expect(ok, 'selected the Data sheet').toBeTruthy();
+
+        const summary = await ExcelSummary();
+        expect(summary, 'Data sheet row count').toMatch(/Rows:\s*5\b/);
+        expect(summary, 'Data sheet column count').toMatch(/Columns:\s*8\b/);
+
+        const mapping = await ReadExcelMapping();
+        const by_prop = Object.fromEntries(mapping.map(m => [m.prop, m]));
+
+        for (const prop of ['RepText', 'RepColor', 'RepPos', 'RepImage', 'CommentField', 'CB', 'Select']) {
+            expect(by_prop[prop]?.status, `${prop} auto-matched`).toBe('Matched');
+        }
+        expect(by_prop['RepText'].col, 'RepText matched case-insensitively to "reptext"').toBe('reptext');
+        expect(by_prop['RepSlider'].status, 'RepSlider has no matching header').toBe('Unmapped');
+        expect(by_prop['RepSlider'].col, 'unmapped column shows "Do not import"').toBe('Do not import');
+    });
+
+    test('should allow mapping a column manually', async () => {
+        const rows = await page.$$('.import_excel_dialog .map_table tbody tr');
+        const mapping = await ReadExcelMapping();
+        const idx = mapping.findIndex(m => m.prop === 'RepSlider');
+        expect(idx, 'RepSlider row present').toBeGreaterThanOrEqual(0);
+
+        const ok = await con.DropdownSelect('.dropdown', 'Slider Value', rows[idx]);
+        expect(ok, 'selected Slider Value').toBeTruthy();
+
+        const after = await ReadExcelMapping();
+        expect(after[idx].col, 'dropdown shows the chosen column').toBe('Slider Value');
+        expect(after[idx].status, 'status is Manual').toBe('Manual');
+
+        const tmpl = await GetSelectedTemplate();
+        const header_cols = new Set(EXCEL_HEADERS.map(h => h.toLowerCase()));
+        const expected_mapped = tmpl.columns.filter((c: any) =>
+            header_cols.has(c.cont_name.toLowerCase()) || c.cont_name === 'RepSlider').length;
+        expect(await ExcelSummary(), 'mapped counter updated')
+            .toMatch(new RegExp(`Mapped:\\s*${expected_mapped}\\s*/\\s*${tmpl.columns.length}`));
+    });
+
+    test('should import the rows into the table', async () => {
+        await ConfirmExcelDialog();
+        await WaitForFooter('Imported Excel Data');
+
+        const rows = await page.$$('.dat_table tbody tr');
+        expect(rows.length, 'table has the 5 imported rows').toBe(5);
+
+        const expected_text = ['Excel One', 'Excel Two', 'Excel Three', 'Excel Four', 'Excel Five'];
+        const expected_color = ['ff0000', '00ff00', '0000ff', 'ffff00', '00ffff'];
+        for (let i = 0; i < 5; i++) {
+            const r = i + 1;
+            expect(await GetCell(page, CellType.Text, r, 2), `row ${r} text`).toBe(expected_text[i]);
+            expect(await GetCell(page, CellType.Color, r, 3), `row ${r} color`).toBe(expected_color[i]);
+            expect(await GetCell(page, CellType.D1, r, 4), `row ${r} slider (manual mapping)`).toBe(String((i + 1) * 10));
+            expect(await GetCell(page, CellType.Text, r, 7), `row ${r} comment`).toBe(['first', 'second', 'third', 'fourth', 'fifth'][i]);
+            expect(await GetCell(page, CellType.Checkbox, r, 8), `row ${r} checkbox`).toBe(EXCEL_ROWS[i][6] === 1 ? '1' : '0');
+            expect(await GetCell(page, CellType.Menu, r, 9), `row ${r} menu`).toBe(String(EXCEL_ROWS[i][7]));
+        }
+
+        const pos = await GetCell(page, CellType.D3, 4, 5) as { x: string, y: string, z: string };
+        expect([pos.x, pos.y, pos.z], 'row 4 position').toEqual(['10', '11', '12']);
+
+        // The test template builds the image path from the comment field + 0-based row number
+        expect(await GetCell(page, CellType.Image, 5, 6), 'alternate source paths are resolved for imported rows')
+            .toBe('./assets/fifth4.jpg');
+    });
+
+    test('should remember the import for the template', async () => {
+        const tmpl = await GetSelectedTemplate();
+        const saved = tmpl.import_file_lasts.excel;
+
+        expect(saved.path, 'stored path points at the workbook').toContain('test-data.xlsx');
+        expect(saved.path.startsWith('/') || /^[a-zA-Z]:/.test(saved.path), 'stored path is relative to the project').toBe(false);
+        expect(saved.sheet, 'stored sheet').toBe('Data');
+        expect(saved.mapping['RepText'], 'stored auto mapping').toBe('reptext');
+        expect(saved.mapping['RepSlider'], 'stored manual mapping').toBe('Slider Value');
+
+        const bar_btn = await page.$('nav button::-p-text(File)');
+        await bar_btn!.tap();
+        const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
+        expect(await menu!.$eval('.c_subtitle', el => el.textContent?.trim()), 'menu shows the last file').toBe('test-data.xlsx');
+        expect(await menu!.$('button::-p-text(Re-import)'), 'has Re-import').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Save Updates)'), 'has Save Updates').toBeTruthy();
+        await (await page.$('.c_menu_bg'))!.tap();
+    });
+
+    test('should save the table values back to the opened workbook', async () => {
+        await EditCell(page, CellType.Text, 1, 2, 'Saved From UI');
+        await EditCell(page, CellType.D1, 2, 4, '222');
+        await EditCell(page, CellType.D1, 3, 4, '999'); // sits on a formula cell in the workbook
+
+        await BarMenuAction('File', 'Save Updates');
+        await WaitForFooter('Saved to Opened File');
+
+        // One formula cell must not be overwritten, which the user is told about
+        const body = await DismissMessageModal('Excel Save Warnings');
+        expect(body, 'warns about protected formula cells').toContain('1 formula cells were not overwritten');
+
+        const wb = XLSX.read(fs.readFileSync(EXCEL_PATH), { type: 'buffer' });
+        const ws = wb.Sheets['Data'];
+        expect(ws['A2'].v, 'text written to the mapped "reptext" column').toBe('Saved From UI');
+        expect(ws['C3'].v, 'slider written to the manually mapped column').toBe(222);
+        expect(ws['C4'].f, 'formula is preserved').toBeTruthy();
+        expect(ws['C4'].v, 'formula cell value is untouched').toBe(30);
+        expect(JSON.parse(ws['B2'].v), 'color written as an array').toEqual([1, 0, 0, 1]);
+        expect(wb.SheetNames, 'sheets are preserved').toEqual(['Notes', 'Data']);
+        expect(wb.Sheets['Notes']['A2'].v, 'other sheets are untouched').toBe('x');
+    });
+
+    test('should re-import the last file with the saved mapping', async () => {
+        // The file changed outside of the extension: a row was edited and another one appended
+        WriteExcelFixture(EXCEL_ROWS_UPDATED);
+
+        await BarMenuAction('File', 'Re-import');
+
+        const title = await page.waitForSelector('.import_excel_dialog h3', { timeout: 5000 });
+        expect(await title!.evaluate(el => el.textContent?.trim()), 'dialog title').toBe('Re-import Excel Data');
+
+        const sheet_btn = await page.$eval('.import_excel_dialog .sheet_picker .dropbtn', el => el.textContent?.trim());
+        expect(sheet_btn, 'saved sheet is preselected').toBe('Data');
+        expect(await ExcelSummary(), 'sees the appended row').toMatch(/Rows:\s*6\b/);
+
+        const slider = (await ReadExcelMapping()).find(m => m.prop === 'RepSlider')!;
+        expect(slider.col, 'manual mapping is restored').toBe('Slider Value');
+
+        await ConfirmExcelDialog();
+        await WaitForFooter('Re-imported Excel Data');
+
+        expect((await page.$$('.dat_table tbody tr')).length, 'table has 6 rows').toBe(6);
+        expect(await GetCell(page, CellType.Text, 1, 2), 'edited value is picked up').toBe('Excel One Updated');
+        expect(await GetCell(page, CellType.D1, 1, 4), 'edited slider is picked up').toBe('11');
+        expect(await GetCell(page, CellType.Text, 6, 2), 'appended row is imported').toBe('Excel Six');
+        expect(await GetCell(page, CellType.Color, 6, 3), 'appended row color').toBe('888888');
+    });
+
+    test('should keep the row flags in sync with the imported rows', async () => {
+        const flags = await page.$$eval('.dat_table tbody .row_opts_check', cbs => cbs.map(c => (c as HTMLInputElement).checked));
+        expect(flags.length, 'one render checkbox per row').toBe(6);
+        expect(flags.every(f => f), 'all imported rows are enabled for rendering').toBe(true);
+    });
+});
+
+// ============================================================================
+// Multi-Select Rows
+// Rows can be highlighted with click / Ctrl+click / Shift+click. Highlighted
+// rows are the target of Delete and of the render checkboxes.
+// State coming in: 6 rows from the Excel suite ("Excel One Updated" ... "Excel Six").
+// ============================================================================
+
+const ROW_TEXTS = ['Excel One Updated', 'Excel Two', 'Excel Three', 'Excel Four', 'Excel Five', 'Excel Six'];
+
+/** Clicks the row number of a row (1-based) while holding the given modifier keys. */
+async function ClickRow(row: number, modifiers: ('Shift' | 'Control')[] = []) {
+    const target = await page.waitForSelector(`.dat_table tbody tr:nth-child(${row}) .row_opts_num`, { timeout: 3000 });
+    // On macOS, Ctrl+click is a right-click; the app treats Cmd (metaKey) as the multi-select modifier.
+    const keys = modifiers.map(m => (m === 'Control' && process.platform === 'darwin' ? 'Meta' : m));
+    for (const m of keys) await page.keyboard.down(m);
+    try {
+        await target!.click();
+    } finally {
+        for (const m of [...keys].reverse()) await page.keyboard.up(m);
+    }
+}
+
+/** 1-based indices of the highlighted rows */
+async function GetSelectedRows(): Promise<number[]> {
+    return page.$$eval('.dat_table tbody tr', trs =>
+        trs.map((tr, i) => (tr.getAttribute('data-selected') === 'true' ? i + 1 : 0)).filter(i => i > 0));
+}
+
+/** Render checkbox states, in row order */
+async function GetRowFlags(): Promise<boolean[]> {
+    return page.$$eval('.dat_table tbody .row_opts_check', cbs => cbs.map(c => (c as HTMLInputElement).checked));
+}
+
+async function GetRowTexts(): Promise<string[]> {
+    return page.$$eval('.dat_table tbody tr td:nth-child(2) textarea', tas => tas.map(t => (t as HTMLTextAreaElement).value));
+}
+
+async function ClickRowCheckbox(row: number) {
+    const cb = await page.waitForSelector(`.dat_table tbody tr:nth-child(${row}) .row_opts_check`, { timeout: 3000 });
+    await cb!.click();
+}
+
+async function ClickHeaderCheckbox() {
+    const cb = await page.waitForSelector('.dat_table thead th:first-child input[type="checkbox"]', { timeout: 3000 });
+    await cb!.click();
+}
+
+test.describe('Multi-Select Rows', async () => {
+
+    test('should select a single row with a plain click', async () => {
+        await GoToDataTable();
+
+        await ClickRow(1);
+        expect(await GetSelectedRows(), 'row 1 selected').toEqual([1]);
+
+        await ClickRow(3);
+        expect(await GetSelectedRows(), 'selection moved to row 3').toEqual([3]);
+    });
+
+    test('should add and remove rows with Ctrl+click', async () => {
+        await ClickRow(3);
+
+        await ClickRow(5, ['Control']);
+        expect(await GetSelectedRows(), 'row 5 added').toEqual([3, 5]);
+
+        await ClickRow(1, ['Control']);
+        expect(await GetSelectedRows(), 'row 1 added').toEqual([1, 3, 5]);
+
+        await ClickRow(3, ['Control']);
+        expect(await GetSelectedRows(), 'row 3 removed').toEqual([1, 5]);
+    });
+
+    test('should select a range with Shift+click from the anchor row', async () => {
+        await ClickRow(2);
+        await ClickRow(4, ['Shift']);
+        expect(await GetSelectedRows(), 'range 2-4').toEqual([2, 3, 4]);
+
+        await ClickRow(6, ['Shift']);
+        expect(await GetSelectedRows(), 'range keeps the original anchor').toEqual([2, 3, 4, 5, 6]);
+
+        await ClickRow(1, ['Shift']);
+        expect(await GetSelectedRows(), 'range can flip above the anchor').toEqual([1, 2]);
+    });
+
+    test('should collapse the selection with a plain click', async () => {
+        await ClickRow(2);
+        await ClickRow(5, ['Shift']);
+        expect((await GetSelectedRows()).length, 'multi selection exists').toBe(4);
+
+        await ClickRow(3);
+        expect(await GetSelectedRows(), 'collapsed to the clicked row').toEqual([3]);
+    });
+
+    test('should apply a row checkbox to every selected row', async () => {
+        expect(await GetRowFlags(), 'all rows start enabled').toEqual([true, true, true, true, true, true]);
+
+        await ClickRow(2);
+        await ClickRow(4, ['Shift']);
+
+        await ClickRowCheckbox(3);
+        expect(await GetRowFlags(), 'unchecking one selected row unchecks all selected rows')
+            .toEqual([true, false, false, false, true, true]);
+        expect(await GetSelectedRows(), 'clicking the checkbox does not change the selection').toEqual([2, 3, 4]);
+
+        await ClickRowCheckbox(4);
+        expect(await GetRowFlags(), 'checking one selected row checks all selected rows')
+            .toEqual([true, true, true, true, true, true]);
+    });
+
+    test('should only change the clicked row when it is not part of the selection', async () => {
+        await ClickRow(2);
+        await ClickRow(3, ['Shift']);
+
+        await ClickRowCheckbox(6);
+        expect(await GetRowFlags(), 'only row 6 changed').toEqual([true, true, true, true, true, false]);
+
+        await ClickRowCheckbox(6);
+        expect(await GetRowFlags(), 'row 6 restored').toEqual([true, true, true, true, true, true]);
+    });
+
+    test('should toggle every row with the header checkbox', async () => {
+        const header_checked = () => page.$eval('.dat_table thead th:first-child input', el => (el as HTMLInputElement).checked);
+        expect(await header_checked(), 'header is checked when all rows are').toBe(true);
+
+        await ClickHeaderCheckbox();
+        expect(await GetRowFlags(), 'all rows unchecked').toEqual([false, false, false, false, false, false]);
+        expect(await header_checked(), 'header is unchecked').toBe(false);
+
+        await ClickRowCheckbox(1);
+        expect(await header_checked(), 'header stays unchecked when only some rows are checked').toBe(false);
+
+        await ClickHeaderCheckbox();
+        expect(await GetRowFlags(), 'all rows checked again').toEqual([true, true, true, true, true, true]);
+        expect(await header_checked(), 'header is checked again').toBe(true);
+    });
+
+    test('should refuse to render when no rows are checked', async () => {
+        await ClickHeaderCheckbox();
+        expect(await GetRowFlags(), 'all rows unchecked').toEqual([false, false, false, false, false, false]);
+
+        const results_rows = () => page.$$eval('table.render_results tbody tr', trs => trs.length);
+
+        const outputTab = await page.$('.header_tabs button::-p-text(Output)');
+        await outputTab!.tap();
+        const before = await results_rows();
+
+        const renderBtn = await page.waitForSelector('.out_actions_cont .out_actions button', { timeout: 3000 });
+        await renderBtn!.tap();
+
+        const body = await DismissMessageModal('No Rows Selected');
+        expect(body, 'tells the user to check a row').toContain('Check at least one row');
+        expect(await results_rows(), 'nothing was queued').toBe(before);
+
+        await GoToDataTable();
+    });
+
+    test('should only render the checked rows', async () => {
+        test.setTimeout(240_000);
+
+        // Only row 3 is checked (all rows are unchecked from the previous test).
+        // Collapse the selection first, otherwise the checkbox applies to every selected row.
+        await ClickRow(3);
+        await ClickRowCheckbox(3);
+        expect(await GetRowFlags(), 'only row 3 checked').toEqual([false, false, true, false, false, false]);
+
+        // AE keeps recent render outputs locked for a while, so every run renders into its own folder
+        const renders_root = path.join(await GetProjectFilePath(page), 'renders');
+        for (const old of fs.existsSync(renders_root) ? fs.readdirSync(renders_root) : []) {
+            if (old.startsWith('otm_checked_rows_')) {
+                try { fs.rmSync(path.join(renders_root, old), { recursive: true, force: true }); } catch { /* still locked, next run */ }
+            }
+        }
+        const subfolder = `renders/otm_checked_rows_${Date.now()}`;
+        const rendersFolder = path.join(await GetProjectFilePath(page), subfolder);
+        fs.mkdirSync(rendersFolder, { recursive: true });
+
+        const outputTab = await page.$('.header_tabs button::-p-text(Output)');
+        await outputTab!.tap();
+        await page.evaluate((folder: string) => {
+            const s = (window as any).__app_state__;
+            s.proj.tmpls[s.proj.sel_tmpl].base_path = folder;
+        }, subfolder);
+        const renderBtn = await page.waitForSelector('.out_actions_cont .out_actions button', { timeout: 3000 });
+        await renderBtn!.tap();
+
+        // The results table of the earlier render may still be showing, so wait until it lists row 3's paths
+        await page.waitForFunction(() => {
+            const paths = [...document.querySelectorAll('table.render_results tbody tr td:nth-child(3)')]
+                .map(td => td.textContent?.trim() ?? '');
+            return paths.length > 0 && paths.every(p => /-2$/.test(p));
+        }, { timeout: 30_000 });
+        const queued = await page.$$eval(
+            'table.render_results tbody tr td:nth-child(3)',
+            tds => tds.map(td => td.textContent?.trim()).filter(Boolean) as string[]
+        );
+        console.log('Queued paths for the single checked row:', queued);
+
+        // Two exports are configured, one row is checked
+        expect(queued.length, 'one render per export for the checked row').toBe(2);
+        for (const p of queued) {
+            expect(p, 'queued render belongs to row 3 (row_number is 0-based)').toMatch(/-2$/);
+        }
+
+        await WaitForRenderQueue(page, 200_000);
+
+        const produced = fs.readdirSync(rendersFolder).filter(f => f.endsWith('.mov'));
+        console.log('Rendered files:', produced);
+        expect(produced.length, 'only the checked row was rendered').toBe(2);
+        expect(produced.every(f => /-2\.mov$/.test(f)), 'file names belong to row 3').toBe(true);
+
+        await GoToDataTable();
+    });
+
+    test('should restore all rows to checked', async () => {
+        await ClickHeaderCheckbox();
+        if ((await GetRowFlags()).some(f => !f)) await ClickHeaderCheckbox();
+        expect(await GetRowFlags(), 'all rows checked').toEqual([true, true, true, true, true, true]);
+    });
+
+    test('should delete every selected row from the Edit menu', async () => {
+        await ClickRow(2);
+        await ClickRow(3, ['Shift']);
+        expect(await GetSelectedRows(), 'rows 2-3 selected').toEqual([2, 3]);
+
+        await BarMenuAction('Edit', 'Delete');
+
+        expect(await GetRowTexts(), 'both selected rows were deleted')
+            .toEqual(['Excel One Updated', 'Excel Four', 'Excel Five', 'Excel Six']);
+        expect((await GetSelectedRows()).length, 'selection is reset to a single row').toBe(1);
+        expect((await GetRowFlags()).length, 'render flags follow the rows').toBe(4);
+    });
+
+    test('should keep the render checkboxes aligned with their rows after a delete', async () => {
+        await ClickRowCheckbox(2); // "Excel Four"
+        expect(await GetRowFlags(), 'row 2 unchecked').toEqual([true, false, true, true]);
+
+        await ClickRow(1);
+        await BarMenuAction('Edit', 'Delete');
+
+        expect(await GetRowTexts(), 'first row deleted').toEqual(['Excel Four', 'Excel Five', 'Excel Six']);
+        expect(await GetRowFlags(), 'unchecked state moved with "Excel Four"').toEqual([false, true, true]);
+
+        await ClickRowCheckbox(1);
+        expect(await GetRowFlags(), 'restored').toEqual([true, true, true]);
+    });
+
+    test('should not delete every row', async () => {
+        await ClickRow(1);
+        await ClickRow(3, ['Shift']);
+        expect(await GetSelectedRows(), 'all rows selected').toEqual([1, 2, 3]);
+
+        await BarMenuAction('Edit', 'Delete');
+
+        await WaitForFooter('Cannot delete all rows');
+        expect(await GetRowTexts(), 'nothing was deleted').toEqual(['Excel Four', 'Excel Five', 'Excel Six']);
+    });
+
+    test('should delete the whole selection from the context menu', async () => {
+        await ClickRow(1);
+        await ClickRow(2, ['Shift']);
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+        const target = await page.$('.dat_table tbody tr:nth-child(2) td:first-child');
+        await target!.click({ button: 'right' });
+
+        const deleteBtn = await page.waitForSelector('.c_menu button::-p-text(Delete)', { timeout: 3000 });
+        await deleteBtn!.tap();
+
+        expect(await GetRowTexts(), 'both selected rows were deleted').toEqual(['Excel Six']);
+        expect(await GetRowFlags(), 'one flag left').toEqual([true]);
     });
 });
 

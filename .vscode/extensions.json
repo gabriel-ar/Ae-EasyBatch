@@ -1,3 +1,7 @@
 {
-  "recommendations": ["svelte.svelte-vscode", "adobe.extendscript-debug"],
+  "recommendations": [
+    "svelte.svelte-vscode",
+    "adobe.extendscript-debug",
+    "esbenp.prettier-vscode"
+  ]
 }

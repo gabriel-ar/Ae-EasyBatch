@@ -66,7 +66,7 @@
    */
   function SelectBasePath() {
 
-    csa.OpenFolderDialog(tmpl.base_path).then((result) => {
+    csa.OpenSelectFolder(tmpl.base_path).then((result) => {
       if (result === null) return;
 
       tmpl.base_path = result;

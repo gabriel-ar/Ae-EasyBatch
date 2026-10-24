@@ -13,6 +13,7 @@
     ArrowDown,
     FileText,
     GithubLogo,
+    EnvelopeClosed,
     Face,
     Reload,
   } from "radix-icons-svelte";
@@ -232,6 +233,12 @@
           data-tooltip="Report an issue on GitHub"
           data-tt-pos="right"
           ><GithubLogo />Report Issue</button>
+        <button
+          class="c_item"
+          onclick={() => Selected("contact")}
+          data-tooltip="Contact us"
+          data-tt-pos="right"
+          ><EnvelopeClosed />Contact</button>
         <div class="c_divider"></div>
         <button
           class="c_item"
@@ -270,6 +277,8 @@
     left: 0;
     width: 100vw;
     height: 100vh;
+
+    z-index: 100;
   }
 
   .c_item {
