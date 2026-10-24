@@ -13,7 +13,10 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "test:screenshots": "playwright test -c playwright.screenshots.config.ts --ui",
+    "docs:copy-screenshots": "node ./tools/copy_doc_screenshots.mjs",
+    "docs:screenshots": "playwright test -c playwright.screenshots.config.ts && node ./tools/copy_doc_screenshots.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
