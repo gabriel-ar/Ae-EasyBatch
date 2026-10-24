@@ -338,10 +338,11 @@ test.describe('Team vs Team project', () => {
     });
 
     test('data-hl-menu', async () => {
+
         const nav = await Find('nav.dat_bar');
         const row = await Find(FirstRow);
         await WithHighlights([[nav, COLORS.yellow, { offset: -5 }], [row, COLORS.green, { offset: 0, overlay: true }]], async () => {
-            await Shoot('data-hl-menu', await PanelTop(432));
+            await Shoot('data-hl-menu', await PanelTop(200));
         });
     });
 
@@ -349,8 +350,26 @@ test.describe('Team vs Team project', () => {
         const preview = await Find(`${FirstRow} .row_opts_preview`);
         const gear = await Find('.dat_table thead th button');
         await WithHighlights([[preview, COLORS.blue], [gear, COLORS.purple, { offset: -2 }]], async () => {
-            await Shoot('data-hl-preview', await PanelTop());
+            await Shoot('data-hl-preview', await PanelTop(210));
         });
+    });
+
+    test('datar-hl-edit', async () => {
+        await OpenMenu('Edit');
+        const item = await Find('.c_menu button::-p-text(Add Row After)');
+        await WithHighlights([[item, COLORS.green]], async () => {
+            await Shoot('datar-hl-edit', await PanelTop(250));
+        });
+        await CloseMenu();
+    });
+
+    test('data-replaceable', async () => {
+        await (await Find('.dat_table thead th button')).tap();
+        const modal = await Find('#alternate_modal .wrapper');
+        await Sleep(500);
+        await Shoot('data-replaceable', await Around([modal], 0));
+        await (await Find('#alternate_modal .modal-actions button::-p-text(Done)')).tap();
+        await page.waitForSelector('#alternate_modal', { hidden: true });
     });
 
     test('data-hl-row-opts', async () => {
@@ -360,6 +379,12 @@ test.describe('Team vs Team project', () => {
         await WithHighlights([[opts, COLORS.blue]], async () => {
             await Shoot('data-hl-row-opts', await Around([head, row], 6));
         });
+
+        
+    });
+
+    test('resize-for-menus', async () => {
+        await WaitForManualResize('Resize so the last menu can be seen');
     });
 
     for (const m of [
@@ -376,23 +401,7 @@ test.describe('Team vs Team project', () => {
         });
     }
 
-    test('datar-hl-edit', async () => {
-        await OpenMenu('Edit');
-        const item = await Find('.c_menu button::-p-text(Add Row After)');
-        await WithHighlights([[item, COLORS.green]], async () => {
-            await Shoot('datar-hl-edit', await PanelTop());
-        });
-        await CloseMenu();
-    });
 
-    test('data-replaceable', async () => {
-        await (await Find('.dat_table thead th button')).tap();
-        const modal = await Find('#alternate_modal .wrapper');
-        await Sleep(500);
-        await Shoot('data-replaceable', await Around([modal], 0));
-        await (await Find('#alternate_modal .modal-actions button::-p-text(Done)')).tap();
-        await page.waitForSelector('#alternate_modal', { hidden: true });
-    });
 
     test('export and export-pattern', async () => {
         await GoToTab('Output');
