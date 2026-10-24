@@ -1929,7 +1929,15 @@ function Test_CheckRenderResult(render_path) {
     // e.g. "output_row0.mp4" → "output_row0.png"
     var render_name = render_file.name; // includes extension
     var base_name = render_name.substring(0, render_name.lastIndexOf("."));
+
+    var platform = $.os.toLowerCase();
+  
     var expected_name = base_name + ".png";
+    if (platform.indexOf("windows") !== -1) {
+      expected_name += " w";
+    } else if (platform.indexOf("mac") !== -1) {
+      expected_name += " m";
+    }
 
     // ── 2. Find the "expected" folder item ───────────────────────────────
     /** @type {FolderItem|undefined} */

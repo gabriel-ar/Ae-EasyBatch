@@ -1,6 +1,6 @@
 import { test } from '@playwright/test';
 import type { ElementHandle, Page } from 'puppeteer-core';
-import { CEFConnection, GetConnection } from '../helpers/cef-helpers';
+import { CEFConnection, GetConnection, Sleep } from '../helpers/cef-helpers';
 import * as fs from 'fs';
 import path from 'path';
 
@@ -50,91 +50,6 @@ test.beforeAll(async () => {
     con = await GetConnection();
     page = con.page!;
 });
-
-const Sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function CsaEval(script: string): Promise<string> {
-    return page.evaluate((script: string): Promise<string> => {
-        // @ts-ignore
-        const a_cep = window.__adobe_cep__;
-        return new Promise((resolve) => a_cep.evalScript(script, (r: string) => resolve(r)));
-    }, script);
-}
-
-async function WaitForPageContext(timeoutMs = 20_000) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-        try {
-            await page.waitForSelector('.header_tabs', { timeout: 3000 });
-            return;
-        } catch {
-            await Sleep(500);
-        }
-    }
-    throw new Error('Page context did not become ready');
-}
-
-async function OpenProject(projectPath: string, name: string) {
-    if (!projectPath) throw new Error(`Missing ${name} in tests/.env.local (see tests/.env.example)`);
-    if ((await CsaEval(`new File(${JSON.stringify(projectPath)}).exists`)) !== 'true') {
-        throw new Error(`Project not found: ${projectPath}`);
-    }
-
-    await CsaEval('app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES)');
-    await CsaEval(`app.openFast(new File(${JSON.stringify(projectPath)}))`);
-
-    // The extension reloads when a project opens
-    await Sleep(2000);
-    await WaitForPageContext();
-
-    const noTmpls = await page.$('.fs_no_tmpls');
-    if (noTmpls) {
-        await (await noTmpls.$('button::-p-text(Reload)'))?.tap();
-        await page.waitForSelector('.fs_no_tmpls', { hidden: true });
-    }
-}
-
-async function SelectTemplate(name: string) {
-    await con.DropdownSelect('.header_template .dropdown', name);
-    await Sleep(500);
-}
-
-async function GoToTab(tab: 'Data' | 'Output' | 'Settings') {
-    const btn = await Find(`.header_tabs button::-p-text(${tab})`);
-    await btn.tap();
-    await Sleep(400);
-}
-
-async function Find(selector: string): Promise<ElementHandle<Element>> {
-    const el = await page.waitForSelector(selector, { timeout: 5000 });
-    if (!el) throw new Error(`Element not found: ${selector}`);
-    return el as ElementHandle<Element>;
-}
-
-async function OpenMenu(button: 'File' | 'Edit' | 'View') {
-    await (await Find(`nav button::-p-text(${button})`)).tap();
-    await page.waitForFunction(() => {
-        const m = document.querySelector('.c_menu') as HTMLElement | null;
-        return !!m && getComputedStyle(m).opacity === '1';
-    });
-}
-
-async function CloseMenu() {
-    const bg = await page.$('.c_menu_bg');
-    if (bg) await bg.tap();
-    await page.waitForSelector('.c_menu', { hidden: true });
-}
-
-/** Sets the textarea content through real input events so Svelte bindings update */
-async function SetTextarea(selector: string, value: string) {
-    const ta = await Find(selector);
-    await ta.click({ count: 3 });
-    await page.keyboard.down('Control');
-    await page.keyboard.press('KeyA');
-    await page.keyboard.up('Control');
-    await page.keyboard.type(value);
-    await Sleep(400);
-}
 
 /**
  * [element(s), color, options]. A negative `offset` draws the outline inside the element,
@@ -228,58 +143,10 @@ async function WithHighlights(highlights: Highlight[], capture: () => Promise<vo
     }
 }
 
-/**
- * The panel can't be resized from the test, so show a banner inside the panel and wait until the
- * user has resized it and pressed Continue. The banner is removed before returning so it never
- * ends up in a screenshot. There is no timeout; the calling test must disable its own.
- */
+/** Disables the test timeout (the user resizes at their own pace) and waits for the manual resize */
 async function WaitForManualResize(message: string) {
     test.setTimeout(0);
-    console.log(`\n>>> MANUAL STEP: ${message}, then press Continue in the panel.\n`);
-
-    await page.evaluate(
-        (msg, attr) => new Promise<void>((resolve) => {
-            const bar = document.createElement('div');
-            bar.setAttribute(attr, '');
-            bar.style.cssText = [
-                'position:fixed',
-                'left:0',
-                'right:0',
-                'bottom:0',
-                'display:flex',
-                'gap:8px',
-                'align-items:center',
-                'padding:8px',
-                'background:rgba(179,107,0,0.6)',
-                'color:#fff',
-                'z-index:2147483647',
-            ].join(';');
-            const text = document.createElement('span');
-            text.textContent = msg;
-            text.style.flex = '1';
-            const size = document.createElement('span');
-            size.style.fontVariantNumeric = 'tabular-nums';
-            const UpdateSize = () => {
-                size.textContent = `${window.innerWidth} x ${window.innerHeight}`;
-            };
-            UpdateSize();
-            window.addEventListener('resize', UpdateSize);
-            const btn = document.createElement('button');
-            btn.textContent = 'Continue';
-            btn.onclick = () => {
-                window.removeEventListener('resize', UpdateSize);
-                bar.remove();
-                resolve();
-            };
-            bar.append(text, size, btn);
-            document.body.appendChild(bar);
-        }),
-        message,
-        OVERLAY_ATTR
-    );
-
-    // Let the layout settle after the resize
-    await Sleep(800);
+    await con.WaitForManualResize(message);
 }
 
 type Clip = { x: number; y: number; width: number; height: number };
@@ -324,60 +191,62 @@ test.describe('Team vs Team project', () => {
     test.describe.configure({ mode: 'serial' });
 
     test('open project', async () => {
-        await OpenProject(CFG.projectTeam, 'DOCS_PROJECT_TEAM');
-        await SelectTemplate(CFG.tmplTeam);
-        await GoToTab('Data');
+        await con.OpenProject(CFG.projectTeam);
+        await con.SelectTemplate(CFG.tmplTeam);
+        await con.GoToTab('Data');
     });
 
     test('top-bar-hl-template', async () => {
         await WaitForManualResize('Resize the panel so we can see up the to Flag L column');
-        const tmpl = await Find('.header_template');
+        const tmpl = await con.Find('.header_template');
         await WithHighlights([[tmpl, COLORS.red, { offset: -6 }]], async () => {
-            await Shoot('top-bar-hl-template', await PanelTop());
+            await Shoot('top-bar-hl-template', await PanelTop(210));
         });
     });
 
     test('data-hl-menu', async () => {
 
-        const nav = await Find('nav.dat_bar');
-        const row = await Find(FirstRow);
+        const nav = await con.Find('nav.dat_bar');
+        const row = await con.Find(FirstRow);
         await WithHighlights([[nav, COLORS.yellow, { offset: -5 }], [row, COLORS.green, { offset: 0, overlay: true }]], async () => {
-            await Shoot('data-hl-menu', await PanelTop(200));
+            await Shoot('data-hl-menu', await PanelTop(210));
         });
     });
 
     test('data-hl-preview', async () => {
-        const preview = await Find(`${FirstRow} .row_opts_preview`);
-        const gear = await Find('.dat_table thead th button');
+        const preview = await con.Find(`${FirstRow} .row_opts_preview`);
+        const gear = await con.Find('.dat_table thead th button');
         await WithHighlights([[preview, COLORS.blue], [gear, COLORS.purple, { offset: -2 }]], async () => {
             await Shoot('data-hl-preview', await PanelTop(210));
         });
     });
 
     test('datar-hl-edit', async () => {
-        await OpenMenu('Edit');
-        const item = await Find('.c_menu button::-p-text(Add Row After)');
+        await con.OpenMenu('Edit');
+        const item = await con.Find('.c_menu button::-p-text(Add Row After)');
         await WithHighlights([[item, COLORS.green]], async () => {
             await Shoot('datar-hl-edit', await PanelTop(250));
         });
-        await CloseMenu();
+        await con.CloseMenu();
     });
 
     test('data-replaceable', async () => {
-        await (await Find('.dat_table thead th button')).tap();
-        const modal = await Find('#alternate_modal .wrapper');
+        await (await con.Find('.dat_table thead th button')).tap();
+        const modal = await con.Find('#alternate_modal .wrapper');
+        // The check icon only renders once the previewed file is found
+        await page.waitForSelector('#alternate_modal .out_prev + span svg', { timeout: 10_000 });
         await Sleep(500);
         await Shoot('data-replaceable', await Around([modal], 0));
-        await (await Find('#alternate_modal .modal-actions button::-p-text(Done)')).tap();
+        await (await con.Find('#alternate_modal .modal-actions button::-p-text(Done)')).tap();
         await page.waitForSelector('#alternate_modal', { hidden: true });
     });
 
     test('data-hl-row-opts', async () => {
-        const opts = await Find(`${FirstRow} .row_opts`);
-        const head = await Find('.dat_table thead');
-        const row = await Find(FirstRow);
+        const opts = await con.Find(`${FirstRow} .row_opts`);
+        const head = await con.Find('.dat_table thead');
+        const row = await con.Find(FirstRow);
         await WithHighlights([[opts, COLORS.blue]], async () => {
-            await Shoot('data-hl-row-opts', await Around([head, row], 6));
+            await Shoot('data-hl-row-opts', await Around([head, row], 0));
         });
 
         
@@ -393,28 +262,28 @@ test.describe('Team vs Team project', () => {
         { button: 'View', name: 'data-hl-menu-view' },
     ] as const) {
         test(m.name, async () => {
-            await OpenMenu(m.button);
-            const nav = await Find('nav.dat_bar');
-            const menu = await Find('.c_menu');
+            await con.OpenMenu(m.button);
+            const nav = await con.Find('nav.dat_bar');
+            const menu = await con.Find('.c_menu');
             await Shoot(m.name, await Around([nav, menu], 10));
-            await CloseMenu();
+            await con.CloseMenu();
         });
     }
 
 
 
     test('export and export-pattern', async () => {
-        await GoToTab('Output');
-        await Find('main.output');
-        await SetTextarea('#save_pattern_ta', 'Renders/{Tricode L}vs{Tricode R}');
-        const header = await Find('header');
-        const actions = await Find('.out_actions_cont');
+        await con.GoToTab('Output');
+        await con.Find('main.output');
+        await con.SetTextarea('#save_pattern_ta', 'Renders/{Tricode L}vs{Tricode R}');
+        const header = await con.Find('header');
+        const actions = await con.Find('.out_actions_cont');
         await Shoot('export', await Around([header, actions], 0));
 
-        await SetTextarea('#save_pattern_ta', 'Renders/Promos/PROMO MATCH {Tricode L}vs{Tricode R}');
-        const title = await Find('main.output h4');
-        const preview = await Find('main.output .out_prev');
-        const ta = await Find('#save_pattern_ta');
+        await con.SetTextarea('#save_pattern_ta', 'Renders/Promos/PROMO MATCH {Tricode L}vs{Tricode R}');
+        const title = await con.Find('main.output h4');
+        const preview = await con.Find('main.output .out_prev');
+        const ta = await con.Find('#save_pattern_ta');
         await Shoot('export-pattern', await Around([title, ta, preview], 12));
     });
 });
@@ -424,14 +293,14 @@ test.describe('Properties demo template', () => {
     test.describe.configure({ mode: 'serial' });
 
     test('select template', async () => {
-        await SelectTemplate(CFG.tmplProps);
-        await GoToTab('Data');
+        await con.SelectTemplate(CFG.tmplProps);
+        await con.GoToTab('Data');
     });
 
     test('data-hl-row-props', async () => {
         await WaitForManualResize('Resize the panel so every column of the row is visible');
-        const head = await Find('.dat_table thead');
-        const row = await Find(FirstRow);
+        const head = await con.Find('.dat_table thead');
+        const row = await con.Find(FirstRow);
         await Shoot('data-hl-row-props', await Around([head, row], 0));
     });
 });
@@ -440,9 +309,9 @@ test.describe('Goal Takeover project', () => {
     test.describe.configure({ mode: 'serial' });
 
     test('open project', async () => {
-        await OpenProject(CFG.projectGoal, 'DOCS_PROJECT_GOAL');
-        await SelectTemplate(CFG.tmplGoal);
-        await GoToTab('Output');
+        await con.OpenProject(CFG.projectGoal);
+        await con.SelectTemplate(CFG.tmplGoal);
+        await con.GoToTab('Output');
     });
 
     test('export-multi', async () => {
@@ -453,8 +322,8 @@ test.describe('Goal Takeover project', () => {
             await Sleep(500);
         }
 
-        const header = await Find('header');
-        const actions = await Find('.out_actions_cont');
+        const header = await con.Find('header');
+        const actions = await con.Find('.out_actions_cont');
         const addComp = (await page.evaluateHandle(() => {
             const h4 = Array.from(document.querySelectorAll('main.output h4')).find((h) =>
                 h.textContent?.trim().startsWith('Add Composition')
