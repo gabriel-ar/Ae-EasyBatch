@@ -20,18 +20,31 @@ export class CEFConnection {
   private readonly debugPort: number;
   private readonly pageSelectors: string[];
 
+  private connecting: Promise<void> | null = null;
+
   constructor(debugPort: number = 8009, pageSelectors: string[] = ['index.html', 'dev.html', 'localhost:5173']) {
     this.debugPort = debugPort;
     this.pageSelectors = pageSelectors;
 
-    this.Connect();
+    this.Connect().catch(() => { /* surfaced again when a test awaits GetConnection() */ });
   }
 
   /**
-   * Connect to the CEF instance being used by AE using Puppeteer
-   * Returns the browser and page, reusing existing connection if available
+   * Connect to the CEF instance being used by AE using Puppeteer.
+   * Concurrent calls share one connection: a second Puppeteer connection would produce another
+   * Page object for the same tab, and element handles can't be used across Page objects.
    */
-  async Connect() {
+  Connect(): Promise<void> {
+    if (!this.connecting) {
+      this.connecting = this.DoConnect().catch((error) => {
+        this.connecting = null;
+        throw error;
+      });
+    }
+    return this.connecting;
+  }
+
+  private async DoConnect() {
     try {
       // Connect to CEF via browserURL (Puppeteer feature)
       this.browser = await puppeteer.connect({
@@ -84,6 +97,7 @@ export class CEFConnection {
       }
       this.browser = null;
       this.page = null;
+      this.connecting = null;
     }
   }
 
