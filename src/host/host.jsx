@@ -80,6 +80,8 @@ function GetTemplates() {
           /** @type {number} */
           var t_type = templ_prop.propertyValueType;
           var val = "";
+          var alt_src_base = undefined;
+          var alt_src_pattern = undefined;
 
           /** @type {ColumnData["display"]} */
           var display = undefined;
@@ -90,6 +92,18 @@ function GetTemplates() {
             val = templ_prop.value.text;
           } else if (templ_prop.canSetAlternateSource && templ_prop.matchName === "ADBE Layer Source Alternate") {
             t_type = 9001; //Custom type for replaceable sources, the client will handle it accordingly
+            
+            //Creates a starting pattern for the alternate source file
+            var alt_file = _GetAltSrcFile(templ_prop);
+            val = alt_file !== null ? alt_file.fullName : "";
+
+            // Pre-fill the file pattern from the current file, best effort
+            var alt_pattern = _BuildAltSrcPattern(alt_file);
+            if (alt_pattern !== null) {
+              alt_src_base = alt_pattern.base;
+              alt_src_pattern = alt_pattern.pattern;
+            }
+
           } else if (templ_prop.propertyValueType !== PropertyValueType.NO_VALUE
             && templ_prop.matchName !== "ADBE Layer Overrides Comment") {
             val = templ_prop.value;
@@ -120,6 +134,8 @@ function GetTemplates() {
             values: [val],
             display: display,
             menu_params: menu_params,
+            alt_src_base: alt_src_base,
+            alt_src_pattern: alt_src_pattern,
           });
         }
 
@@ -824,6 +840,57 @@ function _ApplyTemplProps(layer, template, row_i, replace_orgs, e_props) {
     }
   }
   return errors;
+}
+
+/**
+ * Gets the file currently linked to a replaceable source property.
+ * @param {Property<any>} ess_prop
+ * @returns {File | null} null when the source has no file (solid, placeholder, comp, etc.)
+ */
+function _GetAltSrcFile(ess_prop) {
+  try {
+    var src = /** @type {AVLayer} */ (ess_prop.essentialPropertySource).source;
+    if (src instanceof FootageItem && src.file !== null) return src.file;
+  } catch (e) { }
+  return null;
+}
+
+/**
+ * Builds the base folder and file pattern that points back to the given file, so a replaceable
+ * source works right away. The base folder is relative to the project when possible.
+ * Never throws; returns null if no usable pattern can be made.
+ * @param {File | null} file
+ * @returns {{base: string, pattern: string} | null}
+ */
+function _BuildAltSrcPattern(file) {
+  try {
+    if (file === null || file === undefined) return null;
+
+    var parent = file.parent;
+    if (parent === null || parent === undefined) return null;
+
+    var file_name = file.name;
+    try { file_name = decodeURIComponent(file.name); } catch (e) { }
+    // These characters would be altered by the pattern resolver, so the pattern wouldn't match the file
+    if (!file_name || /[<>"|?*{}]/.test(file_name)) return null;
+
+    var base = null;
+    if (app.project.file !== null) {
+      var rel = parent.getRelativeURI(app.project.file.path);
+      if (rel === "") rel = ".";
+      // getRelativeURI returns an absolute path when there is no relative route (e.g. another drive)
+      if (!/^(\/|~|[A-Za-z]:)/.test(rel)) {
+        try { rel = decodeURIComponent(rel); } catch (e) { }
+        base = rel;
+      }
+    }
+    if (base === null) base = parent.fsName;
+    if (!base) return null;
+
+    return { base: base, pattern: "{base_path}/" + file_name };
+  } catch (e) {
+    return null;
+  }
 }
 
 function _ComparePaths(path1, path2) {
@@ -1862,7 +1929,15 @@ function Test_CheckRenderResult(render_path) {
     // e.g. "output_row0.mp4" → "output_row0.png"
     var render_name = render_file.name; // includes extension
     var base_name = render_name.substring(0, render_name.lastIndexOf("."));
+
+    var platform = $.os.toLowerCase();
+  
     var expected_name = base_name + ".png";
+    if (platform.indexOf("windows") !== -1) {
+      expected_name += " w";
+    } else if (platform.indexOf("mac") !== -1) {
+      expected_name += " m";
+    }
 
     // ── 2. Find the "expected" folder item ───────────────────────────────
     /** @type {FolderItem|undefined} */

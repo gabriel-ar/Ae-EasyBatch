@@ -42,32 +42,13 @@ test.afterEach(async ({}, testInfo) => {
 // Run tests in this suite sequentially to maintain state
 test.describe.configure({ mode: 'serial' });
 
-/**
- * Wait for the CEF page execution context to be ready.
- * After events that reload the page (app.open, window.location.reload)
- * the old context is destroyed; any Puppeteer call will throw until the
- * new context finishes loading.  This helper retries until #app is found.
- */
-async function WaitForPageContext(page: Page, timeoutMs = 15_000) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-        try {
-            await page.waitForSelector('#app', { timeout: 3000 });
-            return;
-        } catch {
-            await new Promise(r => setTimeout(r, 500));
-        }
-    }
-    throw new Error(`Page context did not become ready within ${timeoutMs}ms`);
-}
-
 test.describe('Load the test project', async () => {
 
     test('sould close the previously opened project without saving', async () => {
-        await CsaEval('app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES)', page);
+        await con.CsaEval('app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES)');
 
-        const hasProject = await CsaEval('app.project.file === null', page) === 'false';
-        console.log("Project open after close attempt:", await CsaEval('app.project.file', page));
+        const hasProject = await con.CsaEval('app.project.file === null') === 'false';
+        console.log("Project open after close attempt:", await con.CsaEval('app.project.file'));
         expect(hasProject, 'project was closed successfully').toBeFalsy();
     });
 
@@ -76,15 +57,15 @@ test.describe('Load the test project', async () => {
 
     test('project file exists', async () => {
         console.log("Checking test project path: ", testProjectPath);
-        const existEval = (await CsaEval(`new File("${testProjectPath}").exists`, page)) === 'true' ? true : false;
+        const existEval = (await con.CsaEval(`new File("${testProjectPath}").exists`)) === 'true' ? true : false;
         console.log("Test project file existence check result: ", existEval);
         expect(existEval, `Test project file exists at ${testProjectPath}`).toBeTruthy();
     });
 
     test('should load the test project', async () => {
-        await CsaEval(`app.open(new File("${testProjectPath}"))`, page);
+        await con.CsaEval(`app.open(new File("${testProjectPath}"))`);
 
-        const loaded = await CsaEval(`app.project.file ? app.project.file.fsName : ""`, page);
+        const loaded = await con.CsaEval(`app.project.file ? app.project.file.fsName : ""`);
 
         console.log("Checking loaded vs expected", loaded, path.normalize(testProjectPath));
         expect(loaded === path.normalize(testProjectPath), 'Project loaded successfully').toBe(true);
@@ -99,7 +80,7 @@ test.describe('Reset and load template', async () => {
         // After loading a new project the CEP extension reloads, which
         // destroys the old page execution context.  Poll until the new
         // context is ready.
-        await WaitForPageContext(page);
+        await con.WaitForPageContext();
 
         const fs_no_tmpls = await page.$('.fs_no_tmpls');   
         if (fs_no_tmpls) {
@@ -124,9 +105,7 @@ test.describe('Reset and load template', async () => {
 
     test('should reset the settings to default', async () => {
         // Click the Settings tab
-        const settingsTab = await page.$('.header_tabs button::-p-text(Settings)');
-        expect(settingsTab, 'has Settings tab button').toBeTruthy();
-        await settingsTab!.tap();
+        await con.GoToTab('Settings');
 
         // Click the "Reset to Default" button
         const resetButton = await page.waitForSelector('main.settings button::-p-text(Reset Settings)',         { timeout: 5000 });
@@ -136,7 +115,7 @@ test.describe('Reset and load template', async () => {
         // ResetSettings() calls setTimeout(() => window.location.reload(), 1000)
         // Wait for the reload to fire, then for the new context to be ready.
         await new Promise(r => setTimeout(r, 1500));
-        await WaitForPageContext(page);
+        await con.WaitForPageContext();
     });
 
     test('should find and select the template in the dropdown', async () => {
@@ -181,6 +160,36 @@ test.describe('Reset and load template', async () => {
 
         expect(await GetCell(page, CellType.Checkbox, 1, 8), 'checkbox input cell has default data').toBe('1');
         expect(await GetCell(page, CellType.Menu, 1, 9), 'menu input cell has default data').toBe('1');
+    });
+
+    test('should pre-fill the file path pattern from the current image of the replaceable', async () => {
+        // The template's own image must already resolve, without any manual setup
+        const cell_value = await GetCell(page, CellType.Image, 1, 6) as string;
+        expect(cell_value, 'image cell is not empty before any setup').not.toBe('');
+        expect(cell_value, 'image cell path is relative to the project').not.toMatch(/^([\/~]|[a-zA-Z]:)/);
+
+        const setup_btn = await page.$('.dat_table thead th button');
+        expect(setup_btn, 'has setup button for image replaceable').toBeTruthy();
+        await setup_btn!.tap();
+
+        await page.waitForSelector('#alternate_modal h4::-p-text(File Path Pattern)');
+
+        const pattern = await page.$eval('#alternate_modal #alt_src_pattern_ta', el => (el as HTMLTextAreaElement).value);
+        expect(pattern, 'pattern is the base folder plus the static file name').toMatch(/^\{base_path\}\/[^\/\\{}]+$/);
+
+        const preview = await page.$eval('#alternate_modal .out_prev', el => el.textContent);
+        expect(preview, 'preview matches the value shown in the table').toBe(cell_value);
+
+        // The file must exist, resolved from the project folder
+        await page.waitForSelector('#alternate_modal [data-tooltip="File exists"]', { timeout: 5000 });
+
+        const proj_folder = await GetProjectFilePath();
+        const exists = await con.CsaEval(`new File(${JSON.stringify(proj_folder + '/' + preview)}).exists`);
+        expect(exists, 'pre-filled pattern points to an existing file').toBe('true');
+
+        const done_btn = await page.$('#alternate_modal .modal-actions button::-p-text(Done)');
+        await done_btn!.tap();
+        await page.waitForSelector('#alternate_modal', { hidden: true });
     });
 
     test('should allow for file path setup for the image replaceable', async () => {
@@ -946,8 +955,7 @@ test.describe('Final State Verification', async () => {
 
     test('should verify the table has exactly 2 rows with expected data', async () => {
         // Make sure we're on the Data tab in table view
-        const dataTab = await page.$('.header_tabs button::-p-text(Data)');
-        await dataTab!.tap();
+        await con.GoToTab('Data');
 
         const table = await page.waitForSelector('.dat_table', { timeout: 2000 });
         expect(table, 'table is visible').toBeTruthy();
@@ -984,7 +992,7 @@ test.describe('Final State Verification', async () => {
 
 test.describe('Add Property to Template', async () => {
     test('should call Test_AddPropToEGP to add a new property to the Essential Graphics panel', async () => {
-        const result = await CsaEval('Test_AddPropToEGP()', page);
+        const result = await con.CsaEval('Test_AddPropToEGP()');
         const parsed = JSON.parse(result);
         console.log('Test_AddPropToEGP result:', parsed);
         expect(parsed.success, 'Test_AddPropToEGP succeeded').toBeTruthy();
@@ -997,8 +1005,7 @@ test.describe('Add Property to Template', async () => {
         await reloadBtn!.tap();
 
         // Switch to Data tab to see the table
-        const dataTab = await page.waitForSelector('.header_tabs button::-p-text(Data)', { timeout: 5000 });
-        await dataTab!.tap();
+        await con.GoToTab('Data');
 
         // Wait for the new "Other Prop" column header to appear
         const newColHeader = await page.waitForSelector('.dat_table th::-p-text(Other Prop )', { timeout: 5000 });
@@ -1031,9 +1038,7 @@ test.describe('Add Property to Template', async () => {
 test.describe('OtM Render', async () => {
 
     test('should change mode and allow for base folder setup', async () => {
-        const outputTab = await page.$('.header_tabs button::-p-text(Output)');
-        expect(outputTab, 'has Output tab button').toBeTruthy();
-        await outputTab!.tap();
+        await con.GoToTab('Output');
 
         const sel = await con.DropdownSelect('.output span .dropdown', 'Multi-Output');
         expect(sel, 'has OtM template option').toBeTruthy();
@@ -1140,7 +1145,7 @@ test.describe('OtM Render', async () => {
         test.setTimeout(40_000);
 
         // 0. Clean the renders folder so we start from a known empty state
-        const rendersFolder = path.join(await GetProjectFilePath(page), '/renders/otm_test');
+        const rendersFolder = path.join(await GetProjectFilePath(), '/renders/');
         // AE keeps recent outputs locked, so a rerun can't always delete them; best effort only
         try {
             fs.rmSync(rendersFolder, { recursive: true, force: true });
@@ -1167,7 +1172,7 @@ test.describe('OtM Render', async () => {
         console.log('Expected output paths:', renderedPaths);
 
         // 3. Poll the AE render queue until encoding finishes
-        await WaitForRenderQueue(page, 300_000);
+        await WaitForRenderQueue(300_000);
 
     });
 
@@ -1176,7 +1181,7 @@ test.describe('OtM Render', async () => {
         let all_found = true;
         // 4. Verify each output file was actually written to disk
         for (const p of renderedPaths) {
-            const fullPath = path.join(await GetProjectFilePath(page), p + ".mov");
+            const fullPath = path.join(await GetProjectFilePath(), p + ".mov");
 
             let exists = fs.existsSync(fullPath);
             let size = exists ? fs.statSync(fullPath).size : 0;
@@ -1194,7 +1199,7 @@ test.describe('OtM Render', async () => {
     test('renders are similar to expected output', async () => {
         // 5. (Optional) Check that the rendered files are visually similar to expected output using the CompareResults composition in the test project
 
-        const rendersFolder = path.join(await GetProjectFilePath(page), 'renders', 'otm_test');
+        const rendersFolder = path.join(await GetProjectFilePath(), 'renders', 'otm_test');
 
         let renderedPaths = fs.readdirSync(rendersFolder)
             .filter(file => file.endsWith('.mov'))
@@ -1206,8 +1211,10 @@ test.describe('OtM Render', async () => {
             console.log('Checking render output for:', p);
 
             const renderPath = path.join(p.path).replaceAll("\\", "\\\\");
-            const result = await CsaEval(`Test_CheckRenderResult("${renderPath}")`, page);
+            const result = await con.CsaEval(`Test_CheckRenderResult("${renderPath}")`);
             const checkResult = JSON.parse(result);
+
+            console.log('Raw check result:', checkResult);
 
             const avg_color = (checkResult.color[0] + checkResult.color[1] + checkResult.color[2]) / 3;
 
@@ -1273,32 +1280,27 @@ function WriteExcelFixture(rows: (string | number)[][]) {
 /** Replaces the host's OpenFileDialog so it returns `file_path` (or null to simulate a cancel). */
 async function StubOpenFileDialog(file_path: string | null) {
     const ret = file_path === null ? 'null' : `new File("${file_path.replaceAll('\\', '\\\\')}").fsName`;
-    await CsaEval(
+    await con.CsaEval(
         `if (typeof $.global.__eb_orig_OpenFileDialog === "undefined") { $.global.__eb_orig_OpenFileDialog = OpenFileDialog; }` +
         `OpenFileDialog = function () { return ${ret}; }; "ok"`,
-        page,
     );
 }
 
 async function RestoreOpenFileDialog() {
-    await CsaEval(
+    await con.CsaEval(
         `if (typeof $.global.__eb_orig_OpenFileDialog !== "undefined") { OpenFileDialog = $.global.__eb_orig_OpenFileDialog; } "ok"`,
-        page,
     );
 }
 
 /** Opens a menu from the Data tab bar (File / Edit / View) and taps an item in it. */
 async function BarMenuAction(bar: 'File' | 'Edit' | 'View', item: string) {
-    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    const bar_btn = await page.waitForSelector(`nav button::-p-text(${bar})`, { timeout: 3000 });
-    await bar_btn!.tap();
+    await con.OpenMenu(bar);
     const item_btn = await page.waitForSelector(`.c_menu button::-p-text(${item})`, { timeout: 3000 });
     await item_btn!.tap();
 }
 
 async function GoToDataTable() {
-    const dataTab = await page.waitForSelector('.header_tabs button::-p-text(Data)', { timeout: 5000 });
-    await dataTab!.tap();
+    await con.GoToTab('Data');
     await page.waitForSelector('.dat_table', { timeout: 5000 });
 }
 
@@ -1696,8 +1698,7 @@ test.describe('Multi-Select Rows', async () => {
 
         const results_rows = () => page.$$eval('table.render_results tbody tr', trs => trs.length);
 
-        const outputTab = await page.$('.header_tabs button::-p-text(Output)');
-        await outputTab!.tap();
+        await con.GoToTab('Output');
         const before = await results_rows();
 
         const renderBtn = await page.waitForSelector('.out_actions_cont .out_actions button', { timeout: 3000 });
@@ -1720,18 +1721,17 @@ test.describe('Multi-Select Rows', async () => {
         expect(await GetRowFlags(), 'only row 3 checked').toEqual([false, false, true, false, false, false]);
 
         // AE keeps recent render outputs locked for a while, so every run renders into its own folder
-        const renders_root = path.join(await GetProjectFilePath(page), 'renders');
+        const renders_root = path.join(await GetProjectFilePath(), 'renders');
         for (const old of fs.existsSync(renders_root) ? fs.readdirSync(renders_root) : []) {
             if (old.startsWith('otm_checked_rows_')) {
                 try { fs.rmSync(path.join(renders_root, old), { recursive: true, force: true }); } catch { /* still locked, next run */ }
             }
         }
         const subfolder = `renders/otm_checked_rows_${Date.now()}`;
-        const rendersFolder = path.join(await GetProjectFilePath(page), subfolder);
+        const rendersFolder = path.join(await GetProjectFilePath(), subfolder);
         fs.mkdirSync(rendersFolder, { recursive: true });
 
-        const outputTab = await page.$('.header_tabs button::-p-text(Output)');
-        await outputTab!.tap();
+        await con.GoToTab('Output');
         await page.evaluate((folder: string) => {
             const s = (window as any).__app_state__;
             s.proj.tmpls[s.proj.sel_tmpl].base_path = folder;
@@ -1757,7 +1757,7 @@ test.describe('Multi-Select Rows', async () => {
             expect(p, 'queued render belongs to row 3 (row_number is 0-based)').toMatch(/-2$/);
         }
 
-        await WaitForRenderQueue(page, 200_000);
+        await WaitForRenderQueue(200_000);
 
         const produced = fs.readdirSync(rendersFolder).filter(f => f.endsWith('.mov'));
         console.log('Rendered files:', produced);
@@ -1827,35 +1827,21 @@ test.describe('Multi-Select Rows', async () => {
     });
 });
 
-/**Helper function to evaluate a script in the CEP environment */
-async function CsaEval(script: string, page: Page) {
-    return page.evaluate((script: string): Promise<string> => {
-        // @ts-ignore
-        const a_cep = window.__adobe_cep__;
-        return new Promise((resolve) => {
-            a_cep.evalScript(script, (result: string) => {
-                resolve(result);
-            });
-        });
-    }, script);//evaluate
-}
-
 /** Retrieves the current After Effects project file path */
-async function GetProjectFilePath(page: Page): Promise<string> {
-    const result = await CsaEval('app.project.file.parent ? app.project.file.parent.fsName : ""', page);
-    return result as string;
+async function GetProjectFilePath(): Promise<string> {
+    return con.CsaEval('app.project.file.parent ? app.project.file.parent.fsName : ""');
 }
 
 /**
  * Polls the AE render queue status via ExtendScript until it finishes.
  * RQStatus enum: STOPPED=1, NEEDS_OUTPUT=2, RENDERING=3, DONE=4, ERR_STOPPED=5
  */
-async function WaitForRenderQueue(page: Page, timeoutMs = 120_000): Promise<void> {
+async function WaitForRenderQueue(timeoutMs = 120_000): Promise<void> {
     const pollInterval = 2_000;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
-        const status = await CsaEval('app.project.renderQueue.rendering', page) as string;
+        const status = await con.CsaEval('app.project.renderQueue.rendering');
         console.log('Current render queue status:', status);
 
         if (status === 'false') {

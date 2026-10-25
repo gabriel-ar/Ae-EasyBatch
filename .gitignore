@@ -24,7 +24,7 @@ tests/projects/*Auto-Save*/
 tests/projects/*Logs/
 pkg/exports/*
 pkg/*.p12
-
+tests/screenshots/
 # Editor and operating-system files
 .DS_Store
 .idea/

@@ -106,6 +106,29 @@ class CSAdapter {
   }
 
   /**
+   * Opens a file with the OS default application. Relative paths are resolved against the project folder.
+   * If the file doesn't exist, opens its parent folder instead.
+   * @returns true if something was opened.
+   */
+  async OpenPath(path: string): Promise<boolean> {
+    if (!path) return false;
+    const node_path = cep_node.require("path");
+    let abs = path;
+    if (!node_path.isAbsolute(path) && !/^[a-zA-Z]:[\\/]/.test(path)) {
+      const proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`) as string;
+      abs = node_path.resolve(proj_folder, path);
+    }
+    abs = node_path.normalize(abs);
+
+    const stat = cep.fs.stat(abs);
+    const target = stat.err === 0 ? abs : node_path.dirname(abs);
+    const res = await this.EvalDirectAsync(
+      `(function(){ var f = new File(decodeURIComponent("${encodeURIComponent(target)}")); if (!f.exists) { f = new Folder(f.fsName); } return f.exists && f.execute(); })()`
+    );
+    return res === true || res === "true";
+  }
+
+  /**
    * Uses the CEP API to open a folder selection dialog. Returns a path relative to the project folder.
    * @param {string} starting_folder 
    * @returns {Promise<string|null>} The selected folder path or null if the user cancels the dialog.
