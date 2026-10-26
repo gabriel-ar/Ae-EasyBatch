@@ -19,6 +19,7 @@ nav:
     - Data Tab: tab-data.md
     - Output Tab: tab-output.md
   - Known Issues: known-issues.md
+  - Changelog: changelog.md
 
 markdown_extensions:
   - admonition
