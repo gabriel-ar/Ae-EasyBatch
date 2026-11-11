@@ -1236,6 +1236,7 @@ test.describe('OtM Render', async () => {
 
 const EXCEL_DIR = path.join(process.cwd(), 'tests/projects/generated');
 const EXCEL_PATH = path.join(EXCEL_DIR, 'test-data.xlsx');
+const CSV_PATH = path.join(EXCEL_DIR, 'test-data.csv');
 
 // "reptext" matches by case, "Slider Value" has to be mapped by hand and
 // "Other Prop" (when the template has it) has no column at all.
@@ -1289,6 +1290,20 @@ async function StubOpenFileDialog(file_path: string | null) {
 async function RestoreOpenFileDialog() {
     await con.CsaEval(
         `if (typeof $.global.__eb_orig_OpenFileDialog !== "undefined") { OpenFileDialog = $.global.__eb_orig_OpenFileDialog; } "ok"`,
+    );
+}
+
+async function StubSaveFileDialog(file_path: string) {
+    const ret = `new File("${file_path.replaceAll('\\', '\\\\')}").fsName`;
+    await con.CsaEval(
+        `if (typeof $.global.__eb_orig_SaveFileDialog === "undefined") { $.global.__eb_orig_SaveFileDialog = SaveFileDialog; }` +
+        `SaveFileDialog = function () { return ${ret}; }; "ok"`,
+    );
+}
+
+async function RestoreSaveFileDialog() {
+    await con.CsaEval(
+        `if (typeof $.global.__eb_orig_SaveFileDialog !== "undefined") { SaveFileDialog = $.global.__eb_orig_SaveFileDialog; } "ok"`,
     );
 }
 
@@ -1357,29 +1372,91 @@ test.describe('Excel Import', async () => {
 
     test.afterAll(async () => {
         await RestoreOpenFileDialog();
+        await RestoreSaveFileDialog();
 
         // A failed test can leave the dialog open, which would block every later suite
         const cancel = await page.$('.import_excel_dialog .actions button::-p-text(Cancel)');
         if (cancel) await cancel.tap();
     });
 
-    test('should show the Excel actions in the File menu', async () => {
+    test('should show unified import and export actions in the File menu', async () => {
         await GoToDataTable();
 
         const bar_btn = await page.$('nav button::-p-text(File)');
         await bar_btn!.tap();
 
         const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
-        expect(await menu!.$('button::-p-text(Import Excel Data)'), 'has Import Excel Data').toBeTruthy();
-        expect(await menu!.$('button::-p-text(Import CSV Data)'), 'has Import CSV Data').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Import Data)'), 'has Import Data').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Export Data)'), 'has Export Data').toBeTruthy();
 
         await (await page.$('.c_menu_bg'))!.tap();
         expect(await page.$('.c_menu'), 'menu closed').toBeNull();
     });
 
+    test('should export new CSV and Excel files without changing the active source', async () => {
+        const previous = (await GetSelectedTemplate()).import_file_lasts.active_source;
+        for (const [label, extension] of [['CSV', 'csv'], ['Excel', 'xlsx']]) {
+            const destination = path.join(EXCEL_DIR, `exported-data.${extension}`);
+            await StubSaveFileDialog(destination);
+            await BarMenuAction('File', 'Export Data');
+            await page.waitForSelector('.export_data_dialog', { timeout: 3000 });
+            expect(await con.DropdownSelect('.export_data_dialog .dropdown', label)).toBeTruthy();
+            if (extension === 'xlsx') {
+                const sheetName = await page.$('.export_data_dialog input#export-sheet-name');
+                expect(await sheetName!.evaluate((input: HTMLInputElement) => input.value)).toBe((await GetSelectedTemplate()).name);
+                await sheetName!.click({ clickCount: 3 });
+                await sheetName!.type('Custom Sheet');
+            }
+            const button = await page.$('.export_data_dialog .actions button::-p-text(Export)');
+            await button!.tap();
+            await WaitForFooter(`Exported ${extension.toUpperCase()} Data`);
+            expect(fs.existsSync(destination)).toBe(true);
+            if (extension === 'xlsx') {
+                const workbook = XLSX.read(fs.readFileSync(destination), { type: 'buffer' });
+                expect(workbook.SheetNames).toEqual(['Custom Sheet']);
+                expect(workbook.Sheets['Custom Sheet'].A1.v).toBe('RepText');
+            } else {
+                expect(fs.readFileSync(destination, 'utf8')).toContain('RepText');
+            }
+        }
+        expect((await GetSelectedTemplate()).import_file_lasts.active_source).toEqual(previous);
+    });
+
+    test('should import, save and re-import CSV and show it in recent sources', async () => {
+        fs.writeFileSync(CSV_PATH, 'reptext,Extra\r\nCSV Original,keep\r\n', 'utf8');
+        await StubOpenFileDialog(CSV_PATH);
+        await BarMenuAction('File', 'Import Data');
+        await page.waitForSelector('.import_excel_dialog h3::-p-text(Import CSV Data)', { timeout: 5000 });
+        await ConfirmExcelDialog();
+        await WaitForFooter('Imported CSV Data');
+        expect((await GetSelectedTemplate()).import_file_lasts.active_source.type).toBe('csv');
+        expect(await GetCell(page, CellType.Text, 1, 2)).toBe('CSV Original');
+
+        await EditCell(page, CellType.Text, 1, 2, 'CSV Saved');
+        await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+        await page.keyboard.down('Alt');
+        await page.keyboard.press('s');
+        await page.keyboard.up('Alt');
+        await WaitForFooter('Saved to Opened File');
+        expect(fs.readFileSync(CSV_PATH, 'utf8')).toContain('CSV Saved,keep');
+
+        fs.writeFileSync(CSV_PATH, 'reptext,Extra\r\nCSV Reloaded,keep\r\n', 'utf8');
+        await page.keyboard.down('Alt');
+        await page.keyboard.press('r');
+        await page.keyboard.up('Alt');
+        await page.waitForSelector('.import_excel_dialog h3::-p-text(Re-import CSV Data)', { timeout: 5000 });
+        await ConfirmExcelDialog();
+        await WaitForFooter('Re-imported CSV Data');
+        expect(await GetCell(page, CellType.Text, 1, 2)).toBe('CSV Reloaded');
+
+        await con.OpenMenu('File');
+        expect(await page.$('.c_menu button::-p-text(test-data.csv)')).toBeTruthy();
+        await (await page.$('.c_menu_bg'))!.tap();
+    });
+
     test('should do nothing when the file dialog is cancelled', async () => {
         await StubOpenFileDialog(null);
-        await BarMenuAction('File', 'Import Excel Data');
+        await BarMenuAction('File', 'Import Data');
 
         await new Promise(r => setTimeout(r, 800));
         expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
@@ -1388,16 +1465,16 @@ test.describe('Excel Import', async () => {
 
     test('should report an error when the selected file does not exist', async () => {
         await StubOpenFileDialog(path.join(EXCEL_DIR, 'does-not-exist.xlsx'));
-        await BarMenuAction('File', 'Import Excel Data');
+        await BarMenuAction('File', 'Import Data');
 
-        const body = await DismissMessageModal('Excel Import Error');
-        expect(body, 'error explains the problem').toContain('relative path');
+        const body = await DismissMessageModal('Import Error');
+        expect(body, 'error explains the problem').toContain('path');
         expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
     });
 
     test('should open the import dialog on the first sheet', async () => {
         await StubOpenFileDialog(EXCEL_PATH);
-        await BarMenuAction('File', 'Import Excel Data');
+        await BarMenuAction('File', 'Import Data');
 
         const title = await page.waitForSelector('.import_excel_dialog h3', { timeout: 5000 });
         expect(await title!.evaluate(el => el.textContent?.trim()), 'dialog title').toBe('Import Excel Data');
@@ -1483,7 +1560,8 @@ test.describe('Excel Import', async () => {
 
     test('should remember the import for the template', async () => {
         const tmpl = await GetSelectedTemplate();
-        const saved = tmpl.import_file_lasts.excel;
+        const saved = tmpl.import_file_lasts.active_source;
+        expect(saved.type, 'stored source type').toBe('excel');
 
         expect(saved.path, 'stored path points at the workbook').toContain('test-data.xlsx');
         expect(saved.path.startsWith('/') || /^[a-zA-Z]:/.test(saved.path), 'stored path is relative to the project').toBe(false);
@@ -1494,7 +1572,9 @@ test.describe('Excel Import', async () => {
         const bar_btn = await page.$('nav button::-p-text(File)');
         await bar_btn!.tap();
         const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
-        expect(await menu!.$eval('.c_subtitle', el => el.textContent?.trim()), 'menu shows the last file').toBe('test-data.xlsx');
+        expect(await menu!.$eval('.c_filename', el => el.textContent?.trim()), 'menu shows the last file').toBe('test-data.xlsx');
+        expect(path.normalize(await menu!.$eval('.c_filename', el => el.getAttribute('title') ?? '')), 'hover shows the source path').toBe(path.normalize(EXCEL_PATH));
+        expect(await menu!.$eval('button::-p-text(Save Updates)', el => el.nextElementSibling?.classList.contains('c_divider')), 'separator follows Save Updates').toBe(true);
         expect(await menu!.$('button::-p-text(Re-import)'), 'has Re-import').toBeTruthy();
         expect(await menu!.$('button::-p-text(Save Updates)'), 'has Save Updates').toBeTruthy();
         await (await page.$('.c_menu_bg'))!.tap();
@@ -1509,7 +1589,7 @@ test.describe('Excel Import', async () => {
         await WaitForFooter('Saved to Opened File');
 
         // One formula cell must not be overwritten, which the user is told about
-        const body = await DismissMessageModal('Excel Save Warnings');
+        const body = await DismissMessageModal('Save Updates Warnings');
         expect(body, 'warns about protected formula cells').toContain('1 formula cells were not overwritten');
 
         const wb = XLSX.read(fs.readFileSync(EXCEL_PATH), { type: 'buffer' });
@@ -2003,4 +2083,3 @@ async function GetCell(page: Page, cellType: CellType, row: number, col: number)
             throw new Error(`Unsupported cell type ${cellType}`);
     }
 }
-
