@@ -1,7 +1,6 @@
 <script lang="ts">
   import CSAdapter from "./lib/CSAdapter.ts";
   import {onMount, setContext} from "svelte";
-
   import {
     Camera,
     Crosshair2,
@@ -71,13 +70,9 @@
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import {l, s, csa} from "./ui/States.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
-  import ImportCSVModal from "./ui/importers/ImportCSV.svelte";
-  import ImportExcelModal from "./ui/importers/ImportExcel.svelte";
-  import type {
-    ExcelImportResult,
-    ExcelSaveResult,
-  } from "./ui/importers/ImportExcel.types.ts";
-
+  import DataImport, { type ImportResult, type ImportSaveResult } from "./ui/DataImport.svelte";
+  import DataExport, { type ExportResult } from "./ui/DataExport.svelte";
+  import { LocalSettings, type RecentSource } from "./lib/LocalSettings.ts";
   let ac = $state(new ActionCoordinator());
   let no_tmpls = $state(false);
   let not_ready = $state(true);
@@ -87,8 +82,9 @@
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
   let m_proceed = $state<ModalProceed>();
-  let m_import_csv = $state<any>();
-  let m_import_excel = $state<any>();
+  let m_import_data = $state<DataImport>();
+  let m_export_data = $state<DataExport>();
+  let recent_sources = $state<RecentSource[]>([]);
   let proceed = $state(true);
 
   let menu = $state<Menu>();
@@ -574,6 +570,7 @@
   function SetupShortcuts() {
     //csa.KeyRegisterOverride();
     ac.Init();
+    const is_mac = cep_node.require("os").platform() === "darwin";
     csa.RegisterKeyEventsInterest([
       //MAC
       {keyCode: 0x7d, ctrlKey: true, altKey: true, shiftKey: true}, // Arrow Down
@@ -587,6 +584,8 @@
 
       {keyCode: 0x01, ctrlKey: false, altKey: false, shiftKey: false}, // S
       {keyCode: 0x0f, ctrlKey: false, altKey: false, shiftKey: false}, // R
+      {keyCode: is_mac ? 0x01 : 0x53, ctrlKey: false, altKey: true, shiftKey: false}, // Alt/Option+S
+      {keyCode: is_mac ? 0x0f : 0x52, ctrlKey: false, altKey: true, shiftKey: false}, // Alt/Option+R
       {keyCode: 0x23, ctrlKey: false, altKey: false, shiftKey: false}, // P
       {keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: false}, // N
       {keyCode: 0x2d, ctrlKey: false, altKey: false, shiftKey: true}, // Shift+N
@@ -597,43 +596,49 @@
 
     //File Actions
     ac.AddListener(
-      "import_csv",
+      "import_data",
       () => {
-        OpenCSVImporter();
-      },
-      "i",
-    );
-
-    ac.AddListener(
-      "import_excel",
-      () => {
-        OpenExcelImporter();
+        OpenDataImporter();
       },
       "",
     );
 
     ac.AddListener(
-      "reimport_excel",
-      () => {
-        ReImportExcelLast();
+      "reimport_data",
+      (event?: KeyboardEvent) => {
+        if (sel_tmpl?.import_file_lasts?.active_source &&
+            (!event || (!event.metaKey && !event.repeat && !document.querySelector(".modal")))) {
+          ReImportLast();
+        }
       },
-      "",
+      "r",
+      false,
+      false,
+      true,
     );
 
     ac.AddListener(
-      "save_excel",
-      () => {
-        SaveToOpenedExcelFile();
+      "save_data",
+      (event?: KeyboardEvent) => {
+        if (sel_tmpl?.import_file_lasts?.active_source &&
+            (!event || (!event.metaKey && !event.repeat && !document.querySelector(".modal")))) {
+          SaveToOpenedFile();
+        }
       },
-      "",
+      "s",
+      false,
+      false,
+      true,
     );
 
     ac.AddListener(
-      "export_csv",
+      "export_data",
       () => {
-        ExportCSV();
+        if (sel_tmpl) {
+          m_export_data?.Open(sel_tmpl, HandleExportResult);
+        }
       },
-      "e",
+      "",
     );
 
     // Row/Edit Actions
@@ -975,6 +980,14 @@
   }
 
   function OpenBarMenu(e: MouseEvent, type: string) {
+    if (type === "file") {
+      try {
+        recent_sources = LocalSettings.LoadRecentSources();
+      } catch (error) {
+        l.error("Failed to load recent sources", error);
+        recent_sources = [];
+      }
+    }
     let btn = e.target as HTMLButtonElement;
     menu?.Open(
       btn.offsetLeft,
@@ -986,6 +999,13 @@
 
   function BarMenuSelected(action: string) {
     l.debug("BarMenuSelected called with action:", action);
+    if (action.startsWith("recent_source:")) {
+      const source = recent_sources[Number(action.slice("recent_source:".length))];
+      if (source && sel_tmpl) {
+        m_import_data?.OpenPath(sel_tmpl, source.path, HandleImportResult);
+      }
+      return;
+    }
     ac.Fire(action);
   }
 
@@ -1043,66 +1063,60 @@
     }
   }
 
-  function OpenCSVImporter() {
+  function OpenDataImporter() {
     if (sel_tmpl === undefined) return;
 
-    m_import_csv?.Open(
-      sel_tmpl,
-      (stats: {rows: number; mapped: number; total: number}) => {
-        const details =
-          `Rows imported: ${stats.rows}<br>` +
-          `Mapped properties: ${stats.mapped}/${stats.total}`;
-        UpdateStatusFooter("CSV imported", details);
-      },
-    );
-  }
-
-  function OpenExcelImporter() {
-    if (sel_tmpl === undefined) return;
-
-    m_import_excel?.Open(sel_tmpl, (result: ExcelImportResult) => {
-      HandleExcelImportResult(result);
+    m_import_data?.Open(sel_tmpl, (result: ImportResult) => {
+      HandleImportResult(result);
     });
   }
 
-  function ReImportExcelLast() {
+  function ReImportLast() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.ReImportLast(sel_tmpl, (result: ExcelImportResult) => {
-      HandleExcelImportResult(result);
+    m_import_data?.ReImportLast(sel_tmpl, (result: ImportResult) => {
+      HandleImportResult(result);
     });
   }
 
-  function SaveToOpenedExcelFile() {
+  function SaveToOpenedFile() {
     if (sel_tmpl === undefined) return;
 
-    m_import_excel?.SaveToOpenedFile(sel_tmpl, (result: ExcelSaveResult) => {
-      HandleExcelSaveResult(result);
+    m_import_data?.SaveToOpenedFile(sel_tmpl, (result: ImportSaveResult) => {
+      HandleSaveResult(result);
     });
   }
 
-  function HandleExcelImportResult(result: ExcelImportResult) {
+  function HandleImportResult(result: ImportResult) {
     if (!result.success) {
-      m_message?.Open(result.error, "Excel Import Error");
+      m_message?.Open(EscapeHTML(result.error), "Import Error");
       return;
     }
 
     s.proj = s.proj;
 
     const details =
-      `Sheet: ${result.stats.sheet}<br>` +
+      (result.stats.sheet ? `Sheet: ${EscapeHTML(result.stats.sheet)}<br>` : "") +
       `Rows imported: ${result.stats.rows}<br>` +
       `Mapped properties: ${result.stats.mapped}/${result.stats.total}`;
     UpdateStatusFooter(result.title, details);
 
+    try {
+      recent_sources = LocalSettings.RememberRecentSource(result.source);
+    } catch (error) {
+      l.error("Failed to save recent source", error);
+      m_message?.Open(`The data was imported, but the recent source could not be saved: ${EscapeHTML(error instanceof Error ? error.message : String(error))}`, "Recent Sources Error");
+      return;
+    }
+
     if (result.warnings.length > 0) {
-      m_message?.Open(result.warnings.join("<br>"), "Excel Import Warnings");
+      m_message?.Open(result.warnings.map(EscapeHTML).join("<br>"), "Import Warnings");
     }
   }
 
-  function HandleExcelSaveResult(result: ExcelSaveResult) {
+  function HandleSaveResult(result: ImportSaveResult) {
     if (!result.success) {
-      m_message?.Open(result.error, "Excel Save Error");
+      m_message?.Open(EscapeHTML(result.error), "Save Updates Error");
       return;
     }
 
@@ -1119,30 +1133,35 @@
     }
     if (result.stats.missing_columns.length > 0) {
       warnings.push(
-        `Missing mapped columns: ${result.stats.missing_columns.join(", ")}.`,
+        `Missing mapped columns: ${result.stats.missing_columns.map(EscapeHTML).join(", ")}.`,
       );
     }
     if (warnings.length > 0) {
-      m_message?.Open(warnings.join("<br>"), "Excel Save Warnings");
+      m_message?.Open(warnings.join("<br>"), "Save Updates Warnings");
     }
   }
 
-  function GetExcelLastImportLabel(): string {
-    const rel_path = sel_tmpl?.import_file_lasts?.excel?.path;
-    if (!rel_path) return "";
-
-    return rel_path.split(/[\\/]/).pop() ?? rel_path;
+  function GetActiveImportPath(): string {
+    const source_path = sel_tmpl?.import_file_lasts?.active_source?.path;
+    if (!source_path) return "";
+    const path = cep_node.require("path");
+    if (path.isAbsolute(source_path) || !loaded_project_path) return source_path;
+    return path.join(path.dirname(loaded_project_path), source_path);
   }
 
-  function ExportCSV() {
-    let content = TemplateHelper.MakeCSV(sel_tmpl);
-    l.debug("ExportCSV called");
+  function HandleExportResult(result: ExportResult) {
+    if (!result.success) {
+      m_message?.Open(EscapeHTML(result.error), "Export Error");
+      return;
+    }
+    UpdateStatusFooter(result.title);
+  }
 
-    csa
-      .Eval("ExportFile", content, "CSV Files: *.csv, All Files: *.*")
-      .then((result) => {
-        if (result == "null") return;
-      });
+  function EscapeHTML(text: string): string {
+    const escaped: Record<string, string> = {
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    };
+    return text.replace(/[&<>"']/g, (character) => escaped[character]);
   }
 
   function UpdateStatusFooter(txt: string, long_msg = "") {
@@ -2298,11 +2317,12 @@
 <Menu
   bind:this={menu}
   onselect={MenuItemSelected}
-  excel_last_file_label={GetExcelLastImportLabel()}></Menu>
+  active_source_path={GetActiveImportPath()}
+  {recent_sources}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 <ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>
-<ImportCSVModal bind:this={m_import_csv}></ImportCSVModal>
-<ImportExcelModal bind:this={m_import_excel}></ImportExcelModal>
+<DataImport bind:this={m_import_data}></DataImport>
+<DataExport bind:this={m_export_data}></DataExport>
 
 {#if no_tmpls}
   <div class="fs_no_tmpls">

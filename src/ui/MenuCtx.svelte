@@ -19,13 +19,18 @@
   } from "radix-icons-svelte";
   import AddAfter from "../assets/AddAfter.svelte";
   import AddBefore from "../assets/AddBefore.svelte";
+  import type { RecentSource } from "../lib/LocalSettings.ts";
+
+  const alt_label = cep_node.require("os").platform() === "darwin" ? "Option" : "Alt";
 
   let {
     onselect = (option: string) => {},
-    excel_last_file_label = "",
+    active_source_path = "",
+    recent_sources = [],
   }: {
     onselect?: (option: string) => void;
-    excel_last_file_label?: string;
+    active_source_path?: string;
+    recent_sources?: RecentSource[];
   } = $props();
 
   let open = $state(false);
@@ -143,48 +148,45 @@
           data-tt-pos="right"
           ><Camera />Render Row<span class="c_shortcut">R</span></button>
       {:else if mode === "file"}
-      <div class="c_divider">Excel</div>
-        <button
-          class="c_item"
-          onclick={() => Selected("import_excel")}
-          data-tooltip="Import data from Excel file"
-          data-tt-pos="right"
-          ><Enter />Import Excel Data<span class="c_shortcut"></span></button>
-        {#if excel_last_file_label !== ""}
-        <div class="c_file_acctions">
-
-        <span class="c_subtitle">{excel_last_file_label}</span>
+        {#if active_source_path !== ""}
+          <div class="c_divider">Opened File</div>
+          <span class="c_filename" title={active_source_path}>{active_source_path.split(/[\\/]/).pop()}</span>
           <button
-            class="c_item c_subitem"
-            onclick={() => Selected("reimport_excel")}
-            data-tooltip="Re-import values from the currently opened Excel file."
+            class="c_item"
+            onclick={() => Selected("reimport_data")}
+            data-tooltip="Re-import values from the currently opened file."
             data-tt-pos="right"
             data-tt-width="x-large"
-            ><div><Reload />Re-import</div>
-            </button>
+            ><Reload />Re-import<span class="c_shortcut">{alt_label} + R</span></button>
           <button
-            class="c_item c_subitem"
-            onclick={() => Selected("save_excel")}
-            data-tooltip="Save values to the currently opened Excel file."
+            class="c_item"
+            onclick={() => Selected("save_data")}
+            data-tooltip="Save modified data to the currently opened file."
             data-tt-pos="right"
             data-tt-width="x-large"
-            ><div><Enter />Save Updates</div>
-            </button>
-            </div>
+            ><Enter />Save Updates<span class="c_shortcut">{alt_label} + S</span></button>
+          <div class="c_divider"></div>
         {/if}
-        <div class="c_divider">CSV</div>
-          <button
-          class="c_item"
-          onclick={() => Selected("import_csv")}
-          data-tooltip="Import data from CSV file"
-          data-tt-pos="right"
-          ><Enter />Import CSV Data<span class="c_shortcut"></span></button>
         <button
           class="c_item"
-          onclick={() => Selected("export_csv")}
-          data-tooltip="Export data to CSV file"
+          onclick={() => Selected("import_data")}
+          data-tooltip="Import data from a CSV or Excel file"
           data-tt-pos="right"
-          ><Exit />Export CSV Data<span class="c_shortcut"></span></button>
+          ><Enter />Import Data</button>
+        <button
+          class="c_item"
+          onclick={() => Selected("export_data")}
+          data-tooltip="Export data to a new file"
+          data-tt-pos="right"
+          ><Exit />Export Data</button>
+        {#if recent_sources.length > 0}
+          <div class="c_divider">Recent Sources</div>
+          {#each recent_sources as source, index}
+            <button class="c_item c_recent" title={source.path} onclick={() => Selected(`recent_source:${index}`)}>
+              {source.path.split(/[\\/]/).pop()} <span class="c_shortcut">{source.type === "csv" ? "CSV" : "Excel"}</span>
+            </button>
+          {/each}
+        {/if}
       {:else if mode === "view"}
         <button
           class="c_item"
@@ -293,32 +295,22 @@
     outline: none;
   }
 
-  .c_subitem {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+  .c_recent {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .c_subtitle {
+  .c_filename {
     color: var(--color-text-disabled);
-    font-size: 11px;
+    font-size: 13px;
+    cursor: help;
     margin: 2px 8px;
-    border-bottom: solid 1px var(--color-border-p1);
-  }
-
-  .c_file_acctions{
-    display: flex;
-    flex-direction: column;
-    margin: 2px 0px 6px 0;
-  }
-
-  .c_file_acctions > button {
-    padding-left: 22px;
-  }
-
-  .c_file_acctions .c_subtitle {
-    margin-left: 22px;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .c_item:focus {

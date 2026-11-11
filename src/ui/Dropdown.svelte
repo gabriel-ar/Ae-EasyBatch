@@ -11,6 +11,7 @@
     style = "",
     style_list = "",
     search_enabled = false,
+    aria_labelledby = undefined,
     onselect = (option, index) => {},
   } = $props();
 
@@ -90,7 +91,7 @@
     placeholder="Search..."
     bind:value={search_term}
     oninput={OnSearchInput} />
-  <button class="dropbtn"
+  <button class="dropbtn" aria-labelledby={aria_labelledby}
     >{@html sel_label}<ChevronDown
       style="vertical-align:middle; margin-left: 5px;" />
   </button>

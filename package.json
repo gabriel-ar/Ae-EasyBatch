@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:check": "vite build --mode check",
     "preview": "vite preview",
     "symlink:windows": "node ./tools/debug_create_symlink.mjs --platform=windows",
     "symlink:macos": "node ./tools/debug_create_symlink.mjs --platform=macos",
     "package": "node ./tools/package.mjs",
+    "test:unit": "node --test tests/unit/source-files.test.mjs tests/unit/import-dialog.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

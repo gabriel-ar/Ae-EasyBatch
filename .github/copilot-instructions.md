@@ -54,8 +54,14 @@ npm run build  # Creates dist/index.html with bundled JS/CSS
 - Vite updates `manifest.xml` MainPath to `./index.html`
 - Copies `CSXS/` and `host/` folders to `dist/`
 - Version number injected from `package.json` via `_VERSION_` placeholder
+- **Agents: never run `npm run build`.** `dist/` is symlinked into After Effects and the build overwrites `dist/CSXS/manifest.xml` (MainPath → `index.html`) and removes `dev.html`, breaking the dev redirect. To verify the project compiles, run `npm run build:check` (outputs to the git-ignored `dist-check/`, leaves `dist/` untouched). `npm run package` and releases are the only reasons to build into `dist/`, and only when the user asks.
 
 ## Project-Specific Conventions
+
+### UI Component Organization
+- Keep individual UI components directly in `src/ui/`; create a subfolder when it groups multiple closely related files.
+- Name related components with a shared subject prefix so they sort together, e.g. `DataExport.svelte` and `DataImport.svelte`.
+- Keep component-specific behavior and types in the component; use shared modules for logic or types used across features. Let `App.svelte` coordinate components and present results.
 
 ### Communication Pattern
 **Always use `CSAdapter.Eval()` for Svelte → ExtendScript calls**:
@@ -83,6 +89,7 @@ function GetTemplates() {
 
 ### State Management
 - `Settings` class holds all app state, serialized to AE project metadata
+- `src/lib/LocalSettings.ts` manages settings stored locally across projects; preserve existing storage keys and surface storage errors.
 - Debounced auto-save: `DebouncedSaveSetts()` waits 2s after last edit before calling `SaveSettings()`
 - Reactivity trigger pattern: `setts = setts` forces Svelte to detect mutations on nested objects
 

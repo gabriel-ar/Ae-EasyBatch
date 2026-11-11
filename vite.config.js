@@ -15,13 +15,17 @@ export default defineConfig(({ command, mode }) => {
 
   console.log(`VITE - Command: ${command}, Mode: ${mode}`);
 
+  // `--mode check` builds into a separate folder so the symlinked dist/ (served to After Effects) is untouched
+  const outDir = mode === 'check' ? 'dist-check' : 'dist';
+
   return {
     // CEP's forced downleveling so syntax is transpiled for both dev and production.
     esbuild: {
       target: 'es2018'
     },
     build: {
-      target: 'es2018'
+      target: 'es2018',
+      outDir
     },
     define: {
       '_VERSION_': JSON.stringify(version)
@@ -34,7 +38,7 @@ export default defineConfig(({ command, mode }) => {
           // Copy the manifest file, and update the version and main file path depending on mode
           {
             src: 'src/host/manifest.xml',
-            dest: 'dist/CSXS',
+            dest: `${outDir}/CSXS`,
             transform: (contents, filename) => contents.toString()
               .replaceAll('_VERSION_', version)
               .replaceAll('_EXTENSION_ID_', `com.setreports.${packageJson.name}`)
@@ -44,7 +48,7 @@ export default defineConfig(({ command, mode }) => {
           ...(mode === 'development' ? [
             {
               src: ['src/host/dev.html', 'src/host/.debug'],
-              dest: 'dist',
+              dest: outDir,
               transform: (contents, filename) => {
                   return contents.toString()
                     .replaceAll('_VERSION_', version)
@@ -55,7 +59,7 @@ export default defineConfig(({ command, mode }) => {
           // Copy host files (ExtendScript files)
           {
             src: ['src/host/host.jsx', 'src/host/json2.js'],
-            dest: 'dist/host'
+            dest: `${outDir}/host`
           },
 
         ],

@@ -18,16 +18,15 @@ export interface ProjData {
   version?: string;
 }
 
-export interface ExcelImportState {
-  path: string | null;
+export interface ImportSource {
+  type: "csv" | "excel";
+  path: string;
   sheet: string | null;
   mapping: Record<string, string | null>;
 }
 
 export interface ImportFileLasts {
-  csv_folder: string | null;
-  config_folder: string | null;
-  excel: ExcelImportState;
+  active_source: ImportSource | null;
 }
 
 export class SettingsHelper {
@@ -136,10 +135,6 @@ export interface TemplateData {
   dep_comps: Comp[];
   dep_config: DepCompSetts[];
   import_file_lasts: ImportFileLasts;
-  save_file_lasts: {
-    csv_folder: string | null;
-    config_folder: string | null;
-  };
 }
 
 export interface ColumnData {
@@ -156,13 +151,7 @@ export interface ColumnData {
 export class TemplateHelper {
   static get DefaultImportFileLasts(): ImportFileLasts {
     return {
-      csv_folder: null,
-      config_folder: null,
-      excel: {
-        path: null,
-        sheet: null,
-        mapping: {},
-      },
+      active_source: null,
     };
   }
 
@@ -188,24 +177,16 @@ export class TemplateHelper {
       dep_comps: [],
       dep_config: [],
       import_file_lasts: this.DefaultImportFileLasts,
-      save_file_lasts: {
-        csv_folder: null,
-        config_folder: null,
-      }
     };
     return tmpl;
   }
 
   static FromJson(json: any): TemplateData {
-    let templ = Object.assign({}, this.DefaultTemplate(), json);
+    const { save_file_lasts: _legacy_save_file_lasts, ...template_data } = json;
+    let templ = Object.assign({}, this.DefaultTemplate(), template_data);
     templ.columns = [];
     templ.import_file_lasts = {
-      ...this.DefaultImportFileLasts,
-      ...(json.import_file_lasts ?? {}),
-      excel: {
-        ...this.DefaultImportFileLasts.excel,
-        ...((json.import_file_lasts ?? {}).excel ?? {}),
-      },
+      active_source: json.import_file_lasts?.active_source ?? null,
     };
 
     if (json.columns !== undefined) {

@@ -1,11 +1,53 @@
+<script module lang="ts">
+  type ImportStats = {
+    rows: number;
+    mapped: number;
+    total: number;
+    sheet: string;
+  };
+
+  type ImportSuccessResult = {
+    success: true;
+    title: string;
+    stats: ImportStats;
+    warnings: string[];
+    source: { type: "csv" | "excel"; path: string };
+  };
+
+  type ImportFailureResult = {
+    success: false;
+    error: string;
+  };
+
+  export type ImportResult = ImportSuccessResult | ImportFailureResult;
+
+  type ImportSaveStats = {
+    written_cells: number;
+    formula_cells_skipped: number;
+    missing_columns: string[];
+  };
+
+  type ImportSaveSuccessResult = {
+    success: true;
+    title: string;
+    stats: ImportSaveStats;
+  };
+
+  type ImportSaveFailureResult = {
+    success: false;
+    error: string;
+  };
+
+  export type ImportSaveResult = ImportSaveSuccessResult | ImportSaveFailureResult;
+</script>
+
 <script lang="ts">
   import * as XLSX from "xlsx";
-  import { l, csa } from "../States.svelte.ts";
-  import { TemplateHelper, type TemplateData, type ExcelImportState } from "../../lib/Settings.svelte.ts";
-  import { SaveMappedTemplateValuesToSheet } from "../../lib/ExcelWorkbookWriter.ts";
-  import Dropdown from "../Dropdown.svelte";
-  import type { ExcelImportResult, ExcelSaveResult } from "./ImportExcel.types.ts";
-
+  import { l, csa } from "./States.svelte.ts";
+  import { TemplateHelper, type TemplateData, type ImportSource } from "../lib/Settings.svelte.ts";
+  import { SaveMappedTemplateValuesToSheet } from "../lib/ExcelWorkbookWriter.ts";
+  import { ParseCSVSource, SaveMappedCSVValues } from "../lib/CSVSource.ts";
+  import Dropdown from "./Dropdown.svelte";
   type MatchState = "auto" | "manual" | "unmapped";
 
   type MappingRow = {
@@ -21,6 +63,8 @@
   let selected_sheet = $state("");
   let excel_name = $state("");
   let excel_relative_path = $state("");
+  let source_path = $state("");
+  let source_type = $state<"csv" | "excel">("excel");
 
   let current_tmpl = $state<TemplateData | undefined>(undefined);
   let sheet_options = $state<string[]>([]);
@@ -31,9 +75,9 @@
   let mapping_options = $state<string[]>([]);
   let mapping_labels = $state<string[]>([]);
 
-  let on_result = $state<((result: ExcelImportResult) => void) | undefined>(undefined);
+  let on_result = $state<((result: ImportResult) => void) | undefined>(undefined);
 
-  let saved_import = $state<ExcelImportState | undefined>(undefined);
+  let saved_import = $state<ImportSource | undefined>(undefined);
   let is_reimport = $state(false);
 
   function Normalize(value: string): string {
@@ -70,7 +114,7 @@
         const saved_col = saved_import.mapping?.[col.cont_name];
         if (saved_col && headers.includes(saved_col)) {
           mapped = saved_col;
-        } else if (saved_col === null && sheet_name === saved_import.sheet) {
+        } else if (saved_col === null && (sheet_name === saved_import.sheet || (source_type === "csv" && saved_import.sheet === null))) {
           mapped = "";
         }
       }
@@ -90,25 +134,25 @@
 
   async function ResolveRelativePath(absolute_path: string): Promise<string> {
     const project_folder = await GetProjectFolder();
-    if (!project_folder) {
-      throw new Error("Save the project before importing Excel files so the source path can be stored relative to it.");
+    if (!project_folder || project_folder === "null" || project_folder === "undefined") {
+      return absolute_path;
     }
-
     const rel_path = await csa.Eval("GetRelativeFilePath", absolute_path);
     if (!rel_path || rel_path === "null") {
-      throw new Error("Could not resolve a relative path for the selected Excel file.");
+      throw new Error("Could not resolve a path for the selected file.");
     }
 
     return decodeURIComponent(rel_path);
   }
 
   async function ResolveAbsolutePath(relative_path: string): Promise<string> {
+    const path_util = cep_node.require("path");
+    if (path_util.isAbsolute(relative_path)) return relative_path;
     const project_folder = await GetProjectFolder();
-    if (!project_folder) {
-      throw new Error("Save the project before re-importing Excel files.");
+    if (!project_folder || project_folder === "null" || project_folder === "undefined") {
+      throw new Error("Save the project before reopening a project-relative source.");
     }
 
-    const path_util = cep_node.require("path");
     return path_util.join(project_folder, relative_path);
   }
 
@@ -129,7 +173,7 @@
     return "xlsx";
   }
 
-  function WriteWorkbookToPath(workbook_to_write: XLSX.WorkBook, path: string) {
+  function WriteFileToPath(output: unknown, path: string) {
     const fs = cep_node.require("fs");
     const path_util = cep_node.require("path");
     const temporary_path = path_util.join(
@@ -138,11 +182,6 @@
     );
 
     try {
-      const output = XLSX.write(workbook_to_write, {
-        type: "buffer",
-        bookType: ExcelBookType(path),
-        bookVBA: ExcelBookType(path) === "xlsm",
-      });
       fs.writeFileSync(temporary_path, output);
       fs.renameSync(temporary_path, path);
     } finally {
@@ -182,6 +221,15 @@
     BuildRows(current_tmpl, sheet_headers, sheet_name);
   }
 
+  function BuildCSVData(path: string) {
+    const fs = cep_node.require("fs");
+    const csv = ParseCSVSource(fs.readFileSync(path, "utf8"));
+    sheet_headers = csv.rows[csv.headerIndex].map((header) => header.trim());
+    sheet_rows = csv.dataIndices.map((index) => csv.rows[index]);
+    if (!current_tmpl) throw new Error("No template is selected.");
+    BuildRows(current_tmpl, sheet_headers, "");
+  }
+
   function MappedCount(): number {
     return rows.filter((r) => r.mapped_col !== "").length;
   }
@@ -214,6 +262,8 @@
     selected_sheet = "";
     excel_name = "";
     excel_relative_path = "";
+    source_path = "";
+    source_type = "excel";
     current_tmpl = undefined;
     sheet_options = [];
     sheet_headers = [];
@@ -226,20 +276,16 @@
     is_reimport = false;
   }
 
-  function PickExcelPath(): Promise<string | null> {
+  function PickSourcePath(): Promise<string | null> {
     return csa.OpenFileDialog(
       false,
-      "Select Excel file",
+      "Select CSV or Excel file",
       "",
-      ["xlsx", "xls", "xlsm"],
+      ["csv", "xlsx", "xls", "xlsm"],
     );
   }
 
-  function PersistExcelImportState(tmpl: TemplateData, excel_state: ExcelImportState) {
-    tmpl.import_file_lasts.excel = excel_state;
-  }
-
-  function FinalizeImport(result: ExcelImportResult) {
+  function FinalizeImport(result: ImportResult) {
     on_result?.(result);
     Close();
   }
@@ -251,7 +297,7 @@
 
   export async function Open(
     tmpl: TemplateData,
-    imported_callback: ((result: ExcelImportResult) => void) | undefined = undefined,
+    imported_callback: ((result: ImportResult) => void) | undefined = undefined,
   ) {
     show = false;
     ResetState();
@@ -260,23 +306,11 @@
     on_result = imported_callback;
 
     try {
-      const picked_path = await PickExcelPath();
+      const picked_path = await PickSourcePath();
       if (!picked_path) return;
-
-      const rel_path = await ResolveRelativePath(picked_path);
-      excel_relative_path = rel_path;
-      excel_name = cep_node.require("path").basename(rel_path);
-
-      workbook = LoadWorkbookFromPath(picked_path);
-      sheet_options = workbook.SheetNames ?? [];
-      if (sheet_options.length === 0) return;
-
-      selected_sheet = sheet_options[0];
-      BuildSheetData(selected_sheet);
-
-      show = true;
+      await LoadSource(picked_path);
     } catch (e) {
-      l.error("[ImportExcel] Failed to load workbook", e);
+      l.error("[Import] Failed to load file", e);
       FinalizeImport({
         success: false,
         error: e instanceof Error ? e.message : String(e),
@@ -284,9 +318,55 @@
     }
   }
 
+  export async function OpenPath(
+    tmpl: TemplateData,
+    path: string,
+    imported_callback: ((result: ImportResult) => void) | undefined = undefined,
+  ) {
+    show = false;
+    ResetState();
+    current_tmpl = tmpl;
+    on_result = imported_callback;
+    try {
+      await LoadSource(path);
+    } catch (e) {
+      l.error("[Import] Failed to load recent source", e);
+      FinalizeImport({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function LoadSource(path: string, saved?: ImportSource) {
+    const path_util = cep_node.require("path");
+    const extension = path_util.extname(path).toLowerCase();
+    if (![".csv", ".xlsx", ".xls", ".xlsm"].includes(extension)) {
+      throw new Error("Select a CSV, XLSX, XLS, or XLSM file.");
+    }
+    source_type = extension === ".csv" ? "csv" : "excel";
+    source_path = path;
+    excel_relative_path = await ResolveRelativePath(path);
+    excel_name = path_util.basename(path);
+    const previous = current_tmpl?.import_file_lasts.active_source;
+    if (!saved && previous && previous.type === source_type &&
+        path_util.normalize(previous.path) === path_util.normalize(excel_relative_path)) {
+      saved = previous;
+    }
+    saved_import = saved;
+
+    if (source_type === "csv") {
+      BuildCSVData(path);
+    } else {
+      workbook = LoadWorkbookFromPath(path);
+      sheet_options = workbook.SheetNames ?? [];
+      if (sheet_options.length === 0) throw new Error("The Excel file does not contain any sheets.");
+      selected_sheet = saved?.sheet && sheet_options.includes(saved.sheet) ? saved.sheet : sheet_options[0];
+      BuildSheetData(selected_sheet);
+    }
+    show = true;
+  }
+
   export async function ReImportLast(
     tmpl: TemplateData,
-    imported_callback: ((result: ExcelImportResult) => void) | undefined = undefined,
+    imported_callback: ((result: ImportResult) => void) | undefined = undefined,
   ) {
     show = false;
     ResetState();
@@ -295,31 +375,16 @@
     on_result = imported_callback;
 
     try {
-      const saved = tmpl.import_file_lasts?.excel;
-      if (!saved || !saved.path || !saved.sheet) {
-        throw new Error("No Excel import has been saved for this template yet.");
+      const saved = tmpl.import_file_lasts?.active_source;
+      if (!saved || !saved.path) {
+        throw new Error("No source has been imported for this template yet.");
       }
 
       const absolute_path = await ResolveAbsolutePath(saved.path);
-      excel_relative_path = saved.path;
-      excel_name = cep_node.require("path").basename(saved.path);
-
-      workbook = LoadWorkbookFromPath(absolute_path);
-      sheet_options = workbook.SheetNames ?? [];
-      if (sheet_options.length === 0) {
-        throw new Error("The Excel file does not contain any sheets.");
-      }
-
-      saved_import = saved;
       is_reimport = true;
-
-      // Fall back to the first sheet if the saved one no longer exists, so the user can pick another.
-      selected_sheet = sheet_options.includes(saved.sheet) ? saved.sheet : sheet_options[0];
-      BuildSheetData(selected_sheet);
-
-      show = true;
+      await LoadSource(absolute_path, saved);
     } catch (e) {
-      l.error("[ImportExcel] Re-import failed", e);
+      l.error("[Import] Re-import failed", e);
       FinalizeImport({
         success: false,
         error: e instanceof Error ? e.message : String(e),
@@ -329,23 +394,33 @@
 
   export async function SaveToOpenedFile(
     tmpl: TemplateData,
-    saved_callback: ((result: ExcelSaveResult) => void) | undefined = undefined,
+    saved_callback: ((result: ImportSaveResult) => void) | undefined = undefined,
   ) {
     try {
-      const saved = tmpl.import_file_lasts?.excel;
-      if (!saved || !saved.path || !saved.sheet) {
-        throw new Error("No Excel import has been saved for this template yet.");
+      const saved = tmpl.import_file_lasts?.active_source;
+      if (!saved || !saved.path) {
+        throw new Error("No source has been imported for this template yet.");
       }
 
       const absolute_path = await ResolveAbsolutePath(saved.path);
-      const workbook_to_save = LoadWorkbookFromPath(absolute_path);
-      const stats = SaveMappedTemplateValuesToSheet(
-        workbook_to_save,
-        saved.sheet,
-        saved.mapping ?? {},
-        tmpl.columns,
-      );
-      WriteWorkbookToPath(workbook_to_save, absolute_path);
+      let stats;
+      if (saved.type === "csv") {
+        const content = cep_node.require("fs").readFileSync(absolute_path, "utf8");
+        const result = SaveMappedCSVValues(content, saved.mapping, tmpl.columns);
+        WriteFileToPath(result.content, absolute_path);
+        stats = result.stats;
+      } else {
+        if (!saved.sheet) throw new Error("The saved Excel source has no sheet.");
+        const workbook_to_save = LoadWorkbookFromPath(absolute_path);
+        stats = SaveMappedTemplateValuesToSheet(
+          workbook_to_save, saved.sheet, saved.mapping ?? {}, tmpl.columns,
+        );
+        const bookType = ExcelBookType(absolute_path);
+        const output = XLSX.write(workbook_to_save, {
+          type: "buffer", bookType, bookVBA: bookType === "xlsm",
+        });
+        WriteFileToPath(output, absolute_path);
+      }
 
       saved_callback?.({
         success: true,
@@ -353,7 +428,7 @@
         stats,
       });
     } catch (e) {
-      l.error("[ImportExcel] Save to opened file failed", e);
+      l.error("[Import] Save to opened file failed", e);
       saved_callback?.({
         success: false,
         error: e instanceof Error ? e.message : String(e),
@@ -367,20 +442,20 @@
   }
 
   function ConfirmImport() {
-    if (!current_tmpl || selected_sheet === "" || sheet_headers.length === 0) return;
+    if (!current_tmpl || (source_type === "excel" && selected_sheet === "") || sheet_headers.length === 0) return;
 
     const mapping = MappingObject();
     TemplateHelper.ApplyImportedRows(current_tmpl, sheet_headers, sheet_rows, mapping);
 
-    PersistExcelImportState(current_tmpl, {
+    current_tmpl.import_file_lasts.active_source = {
+      type: source_type,
       path: excel_relative_path,
-      sheet: selected_sheet,
+      sheet: source_type === "excel" ? selected_sheet : null,
       mapping,
-    });
-
+    };
     FinalizeImport({
       success: true,
-      title: is_reimport ? "Re-imported Excel Data" : "Imported Excel Data",
+      title: `${is_reimport ? "Re-imported" : "Imported"} ${source_type === "excel" ? "Excel" : "CSV"} Data`,
       stats: {
         rows: sheet_rows.length,
         mapped: MappedCount(),
@@ -388,6 +463,7 @@
         sheet: selected_sheet,
       },
       warnings: [],
+      source: { type: source_type, path: source_path },
     });
   }
 </script>
@@ -395,13 +471,13 @@
 {#if show}
   <div class="modal">
     <div class="wrapper import_excel_dialog">
-      <h3>{is_reimport ? "Re-import Excel Data" : "Import Excel Data"}</h3>
+      <h3>{is_reimport ? "Re-import" : "Import"} {source_type === "excel" ? "Excel" : "CSV"} Data</h3>
 
       <div class="summary">
         <span><b>File:</b> {excel_name}</span>
       </div>
 
-      <div class="sheet_picker">
+      {#if source_type === "excel"}<div class="sheet_picker">
         <span>Sheet</span>
         <Dropdown
           bind:value={selected_sheet}
@@ -411,7 +487,7 @@
           style="min-width: 220px;"
           style_list="max-height: 220px; overflow-y: auto;"
           onselect={(sheet_name: string) => OnSheetSelect(sheet_name)} />
-      </div>
+      </div>{/if}
 
       <div class="summary">
         <span><b>Rows:</b> {sheet_rows.length}</span>
@@ -419,6 +495,9 @@
         <span><b>Mapped:</b> {MappedCount()} / {rows.length}</span>
       </div>
 
+      {#if sheet_headers.length === 0}
+        <p class="warning">The selected sheet is empty. Choose a sheet with a header row.</p>
+      {/if}
       {#if UnmappedCount() > 0}
         <p class="warning">
           {UnmappedCount()} template properties are not mapped. Those properties will keep existing values.
@@ -465,7 +544,7 @@
 
       <div class="actions">
         <button data-variant="discrete" onclick={Close}>Cancel</button>
-        <button onclick={ConfirmImport}>Confirm Import</button>
+        <button onclick={ConfirmImport} disabled={sheet_headers.length === 0}>Confirm Import</button>
       </div>
     </div>
   </div>

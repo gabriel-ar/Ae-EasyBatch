@@ -14,7 +14,13 @@ Each row is a version of your template. You can add, remove, and edit rows as ne
 #### File
 ![Screenshot of the File menu](assets/data-hl-menu-file.png)
 
-Import or export data in CSV format. This is helpful if you want to edit the data outside After Effects or if you have an external data source. Because the data must be provided in a specific format, we recommend that you export at least one row of your template as a CSV file and then modify that file. For instructions on CSV formatting, see *Importing CSV Data* below.
+Use **Import Data** to open a CSV or Excel file (`.xlsx`, `.xls`, or `.xlsm`). Choose the Excel sheet, if applicable, then review the automatic property-to-column matches and adjust them before confirming. Unmapped properties keep their existing values where possible.
+
+After an import, **Re-import** (Alt/Option+R) reloads the active source with its saved mapping, and **Save Updates** (Alt/Option+S) writes the mapped values back to that source. These actions use the last source imported into the selected template. Saving preserves other columns and does not overwrite Excel formula cells or CSV cells starting with `=`. Existing rows beyond the template's current row count are not deleted. If a mapped header is duplicated or multiple properties map to the same header, saving is refused to avoid an ambiguous update.
+
+**Export Data** is always available for the selected template and creates a separate CSV or `.xlsx` file. Choose the export method before selecting the destination. For Excel, the sheet name defaults to the template name and can be edited; it must meet Excel's sheet-naming rules. Exporting does not change the active import source. Exporting a sample is a useful way to see the expected column names and value formats.
+
+The **Recent Sources** section lists up to ten successfully imported files across templates and projects on this computer. Select one to reopen the mapping dialog. The list stores local file paths in the extension's local browser storage; it does not transfer files to other machines. The active source and its mapping are stored with the project, normally using a path relative to the project folder. Files imported before a project is saved use an absolute path.
 
 #### Edit
 ![Screenshot of the Edit menu](assets/data-hl-menu-edit.png)
@@ -101,7 +107,7 @@ To add a field, open the `Add Field` dropdown and select one. Fields in bold rep
 
 
 ## Importing CSV Data
-**Comma-Separated Values** is a file format that stores data in a table, similar to a spreadsheet. To import a CSV file into the extension, make sure the name of each column matches the name of a property in your template. If the columns in the imported file do not match, the extension ignores that data. Values must also be formatted correctly, depending on the type:
+**Comma-Separated Values** is a file format that stores data in a table, similar to a spreadsheet. Matching column names to properties in your template allows EasyBatch to map them automatically. You can also choose a column manually or leave a property unmapped in the import dialog. Values must be formatted correctly, depending on the type:
 
 - **Text:** Write the text directly in the cells. Line breaks (multiline text) may cause unexpected behavior in the extension.
 - **Color:** Format colors as an RGBA array of four numbers between 0 and 1. For example, pure red is `1,0,0,1`, white is `1,1,1,1`, and gray is `0.5,0.5,0.5,1`.
@@ -109,4 +115,3 @@ To add a field, open the `Add Field` dropdown and select one. Fields in bold rep
 - **Scale:** Represent the scale as an array of three numbers in percentages. For example, a layer at its default scale is `100,100,100`.
 - **Values:** Write any other one-dimensional value directly in the cell.
 - **Images or videos:** The extension currently does not allow file paths to be entered for *replaceables*. To work with these files, see the replaceables section above.
-

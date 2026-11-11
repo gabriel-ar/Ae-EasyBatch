@@ -109,7 +109,11 @@ export default class ActionCoordinator {
    * @returns {string}
    */
   CombinedFromEvent(e: KeyboardEvent): string {
-    return this.#Combined(e.key, e.ctrlKey, e.shiftKey, e.altKey);
+    // On macOS, Option can turn letter keys into characters such as ® or ß.
+    const key = e.altKey && e.key.length === 1 && !/^[a-z]$/i.test(e.key) && /^Key[A-Z]$/.test(e.code)
+      ? e.code.slice(3)
+      : e.key;
+    return this.#Combined(key, e.ctrlKey, e.shiftKey, e.altKey);
   }
 
   /**
