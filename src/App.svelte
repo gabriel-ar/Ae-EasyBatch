@@ -9,37 +9,26 @@
     OpenInNewWindow,
     QuestionMark,
     Reload,
-    Trash,
     Update,
-    CheckCircled,
-    CrossCircled,
-    Pencil1,
-    ExclamationTriangle,
     HamburgerMenu,
     ArrowLeft,
     ArrowRight,
     Table,
-    Play,
-    ActivityLog,
-    ExternalLink,
   } from "radix-icons-svelte";
 
   import {
     type ProjData,
-    type TemplateData,
     type ColumnData,
     SettingsHelper,
     TemplateHelper,
     ColumnHelper,
     type DepCompSetts,
-    type Comp,
     Tabs,
     type ProjSettings,
   } from "./lib/Settings.svelte.ts";
 
   import {
-    SaveSettsRequest,
-    type GetSelectedCompsResult,
+    SaveSettsRequest, 
     type HostTemplateData,
   } from "./lib/Messaging";
 
@@ -47,28 +36,25 @@
     GetTmplsResult,
     GetSettsResult,
     SaveSettingsResults,
-    RenderSettsResults,
-    BatchRenderResult,
-    BatchGenerateResult,
-    ProjectPathResult,
-    GetAllCompsResult,
-    RowRenderResult,
+    RenderSettsResults,  
+    ProjectPathResult,  
     PreviewRowResult,
     GetCurrentValuesResults,
   } from "./lib/Messaging";
 
   import PropInput from "./ui/PropInput.svelte";
   import ModalAltSrcFilePattern from "./ui/ModalAltSrcFilePattern.svelte";
-  import ModalFilePattern from "./ui/ModalDepFilePattern.svelte";
   import Dropdown from "./ui/Dropdown.svelte";
   import ModalMessage from "./ui/ModalMessage.svelte";
   import ModalEditView from "./ui/ModalEditView.svelte";
-  import SettingsPanel from "./ui/SettingsTab.svelte";
+  import TabSettings from "./ui/TabSettings.svelte";
+  import TabOutput from "./ui/TabOutput.svelte";
   import Menu from "./ui/MenuCtx.svelte";
   import AddAfter from "./assets/AddAfter.svelte";
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
-  import {l, s, csa} from "./ui/States.svelte.ts";
+  import {l, s, csa} from "./lib/States.svelte.ts";
+  import { output_hooks, GetAllComps, RenderRow } from "./lib/Output.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
   import DataImport, { type ImportResult, type ImportSaveResult } from "./ui/DataImport.svelte";
   import DataExport, { type ExportResult } from "./ui/DataExport.svelte";
@@ -78,7 +64,6 @@
   let not_ready = $state(true);
 
   //Modals
-  let m_file_pattern = $state<ModalFilePattern>();
   let m_message = $state<ModalMessage>();
   let m_edit_view = $state<ModalEditView>();
   let m_proceed = $state<ModalProceed>();
@@ -132,22 +117,22 @@
 
   /**A checkbox on a selected row applies its new state to every selected row.*/
   function RowCheckChanged(row_i: number, checked: boolean) {
-    TemplateHelper.EnsureRowFlags(sel_tmpl);
+    TemplateHelper.EnsureRowFlags(s.tmpl);
     const targets = sel_rows.has(row_i) ? sel_rows : new Set([row_i]);
     targets.forEach((i) => {
-      sel_tmpl.row_enabled[i] = checked;
+      s.tmpl.row_enabled[i] = checked;
     });
   }
 
   function AllRowsChecked(): boolean {
     return (
-      row_count > 0 && TemplateHelper.EnabledRows(sel_tmpl).length === row_count
+      row_count > 0 && TemplateHelper.EnabledRows(s.tmpl).length === row_count
     );
   }
 
   function SetAllRowsChecked(checked: boolean) {
-    TemplateHelper.EnsureRowFlags(sel_tmpl);
-    sel_tmpl.row_enabled = sel_tmpl.row_enabled.map(() => checked);
+    TemplateHelper.EnsureRowFlags(s.tmpl);
+    s.tmpl.row_enabled = s.tmpl.row_enabled.map(() => checked);
   }
 
   let footer_txt = $state<string | undefined>();
@@ -159,11 +144,8 @@
 
   let is_new_setts = false;
 
-  /**Selected template*/
-  let sel_tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
-
   /**Number of rows in the selected template, derived from the first column's values */
-  let row_count = $derived(sel_tmpl ? TemplateHelper.RowCount(sel_tmpl) : 0);
+  let row_count = $derived(s.tmpl ? TemplateHelper.RowCount(s.tmpl) : 0);
 
   //Update the log level of the logger when the settings changes
   $effect(() => {
@@ -176,6 +158,10 @@
 
     StartupSequence();
     SetupShortcuts();
+
+    output_hooks.Message = (msg, title) => m_message?.Open(msg, title);
+    output_hooks.Footer = UpdateStatusFooter;
+    output_hooks.CanProceed = () => proceed;
 
     m_proceed?.ShouldProceed();
 
@@ -208,7 +194,7 @@
 
       loaded_project_path = await GetProjectPath();
 
-      render_setts_templs = await GetRenderSettsTempls();
+      s.render_setts_templs = await GetRenderSettsTempls();
 
       //for templates that where changed with the extension closed
       SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
@@ -504,32 +490,6 @@
     StartupSequence();
   }
 
-  let render_setts_templs = $state<RenderSettsResults>({
-    success: true,
-    render_templs: [],
-    default_render_templ: 0,
-    output_modules_templs: [],
-    default_output_module_templ: 0,
-  });
-
-  let visible_render_templates = $derived(
-    (render_setts_templs.render_templs ?? []).filter(
-      (templ) => !templ.startsWith("_HIDDEN"),
-    ),
-  );
-
-  let visible_output_module_templates = $derived(
-    (render_setts_templs.output_modules_templs ?? []).filter(
-      (templ) => !templ.startsWith("_HIDDEN"),
-    ),
-  );
-
-  let visible_output_module_labels = $derived(
-    visible_output_module_templates.map((templ) =>
-      templ === "EB_Single_Frame_PNG" ? "<b>Single Frame PNG</b>" : templ,
-    ),
-  );
-
   function GetRenderSettsTempls(): Promise<RenderSettsResults> {
     return new Promise((resolve, reject) => {
       csa.Exec<RenderSettsResults>("GetRenderTemplates").then((result) => {
@@ -557,7 +517,7 @@
       no_tmpls = false;
     }
 
-    render_setts_templs = await GetRenderSettsTempls();
+    s.render_setts_templs = await GetRenderSettsTempls();
 
     SettingsHelper.UpdateTemplates(s.proj, n_tmpls);
     await GetAllComps();
@@ -606,7 +566,7 @@
     ac.AddListener(
       "reimport_data",
       (event?: KeyboardEvent) => {
-        if (sel_tmpl?.import_file_lasts?.active_source &&
+        if (s.tmpl?.import_file_lasts?.active_source &&
             (!event || (!event.metaKey && !event.repeat && !document.querySelector(".modal")))) {
           ReImportLast();
         }
@@ -620,7 +580,7 @@
     ac.AddListener(
       "save_data",
       (event?: KeyboardEvent) => {
-        if (sel_tmpl?.import_file_lasts?.active_source &&
+        if (s.tmpl?.import_file_lasts?.active_source &&
             (!event || (!event.metaKey && !event.repeat && !document.querySelector(".modal")))) {
           SaveToOpenedFile();
         }
@@ -634,8 +594,8 @@
     ac.AddListener(
       "export_data",
       () => {
-        if (sel_tmpl) {
-          m_export_data?.Open(sel_tmpl, HandleExportResult);
+        if (s.tmpl) {
+          m_export_data?.Open(s.tmpl, HandleExportResult);
         }
       },
       "",
@@ -679,7 +639,7 @@
           return;
         }
 
-        TemplateHelper.DeleteRows(sel_tmpl, to_delete);
+        TemplateHelper.DeleteRows(s.tmpl, to_delete);
 
         //move the selected row up if the last row was deleted
         if (curr_row_i >= row_count) {
@@ -693,7 +653,7 @@
     ac.AddListener(
       "add_after",
       () => {
-        TemplateHelper.AddRowAfter(sel_tmpl, curr_row_i);
+        TemplateHelper.AddRowAfter(s.tmpl, curr_row_i);
         s.proj = s.proj;
         NextRow();
         ResetRowSelection();
@@ -706,7 +666,7 @@
     ac.AddListener(
       "add_before",
       () => {
-        TemplateHelper.AddRowBefore(sel_tmpl, curr_row_i);
+        TemplateHelper.AddRowBefore(s.tmpl, curr_row_i);
         s.proj = s.proj;
         ResetRowSelection();
       },
@@ -810,31 +770,7 @@
       console.debug("Saved scroll position:", last_scroll_top);
     }
 
-    if (s.setts.active_tab === "output" && active_tab !== "output") {
-      //Check if there's any template selected, otherwise just select the first one
-
-      if (sel_tmpl !== undefined) {
-        let render_templs = render_setts_templs.render_templs ?? [];
-        let output_module_templs =
-          render_setts_templs.output_modules_templs ?? [];
-        let default_render_templ_i =
-          render_setts_templs.default_render_templ ?? 0;
-        let default_output_module_templ_i =
-          render_setts_templs.default_output_module_templ ?? 0;
-
-        if (sel_tmpl.render_setts_templ == "") {
-          sel_tmpl.render_setts_templ =
-            render_templs[default_render_templ_i] || render_templs[0] || "";
-        }
-
-        if (sel_tmpl.render_out_module_templ == "") {
-          sel_tmpl.render_out_module_templ =
-            output_module_templs[default_output_module_templ_i] ||
-            output_module_templs[0] ||
-            "";
-        }
-      }
-    } else if (s.setts.active_tab === "data" && active_tab !== "data") {
+    if (s.setts.active_tab === "data" && active_tab !== "data") {
       has_opened_viewer = false;
 
       //Restore the scroll position of the data tab when coming back to it
@@ -873,16 +809,16 @@
       open_comp_viewer = true;
     }
 
-    TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
+    TemplateHelper.ResolveAltSrcPathsRow(s.tmpl, row_i);
 
     //Trim the template to contain only the modified row
-    let send_templ = structuredClone($state.snapshot(sel_tmpl));
+    let send_templ = structuredClone($state.snapshot(s.tmpl));
 
     for (let col of send_templ.columns) {
       col.values = [col.values[row_i]];
     }
 
-    TemplateHelper.UpdateRows(sel_tmpl);
+    TemplateHelper.UpdateRows(s.tmpl);
 
     send_templ.save_paths = [send_templ.save_paths[0]];
     send_templ.generate_names = [send_templ.generate_names[0]];
@@ -933,7 +869,7 @@
    * @param row_i
    */
   function SampleRow(row_i: number) {
-    let s_templt = JSON.stringify(sel_tmpl);
+    let s_templt = JSON.stringify(s.tmpl);
     l.debug("SampleRow called with row index:", row_i);
 
     csa
@@ -952,8 +888,8 @@
           return;
         }
 
-        TemplateHelper.CopyValuesFromPreview(sel_tmpl, result, row_i);
-        TemplateHelper.ResolveAltSrcPathsRow(sel_tmpl, row_i);
+        TemplateHelper.CopyValuesFromPreview(s.tmpl, result, row_i);
+        TemplateHelper.ResolveAltSrcPathsRow(s.tmpl, row_i);
         s.proj = s.proj;
 
         PreviewRow(row_i, true);
@@ -1001,8 +937,8 @@
     l.debug("BarMenuSelected called with action:", action);
     if (action.startsWith("recent_source:")) {
       const source = recent_sources[Number(action.slice("recent_source:".length))];
-      if (source && sel_tmpl) {
-        m_import_data?.OpenPath(sel_tmpl, source.path, HandleImportResult);
+      if (source && s.tmpl) {
+        m_import_data?.OpenPath(s.tmpl, source.path, HandleImportResult);
       }
       return;
     }
@@ -1051,38 +987,26 @@
     }
   }
 
-  /**Renders only the selected row instead of batch rendering*/
-  function RenderRow(row_i: number) {
-    switch (sel_tmpl.out_mode) {
-      case "render":
-        BatchRender(row_i);
-        break;
-      case "dependant":
-        BatchOneToMany(row_i);
-        break;
-    }
-  }
-
   function OpenDataImporter() {
-    if (sel_tmpl === undefined) return;
+    if (s.tmpl === undefined) return;
 
-    m_import_data?.Open(sel_tmpl, (result: ImportResult) => {
+    m_import_data?.Open(s.tmpl, (result: ImportResult) => {
       HandleImportResult(result);
     });
   }
 
   function ReImportLast() {
-    if (sel_tmpl === undefined) return;
+    if (s.tmpl === undefined) return;
 
-    m_import_data?.ReImportLast(sel_tmpl, (result: ImportResult) => {
+    m_import_data?.ReImportLast(s.tmpl, (result: ImportResult) => {
       HandleImportResult(result);
     });
   }
 
   function SaveToOpenedFile() {
-    if (sel_tmpl === undefined) return;
+    if (s.tmpl === undefined) return;
 
-    m_import_data?.SaveToOpenedFile(sel_tmpl, (result: ImportSaveResult) => {
+    m_import_data?.SaveToOpenedFile(s.tmpl, (result: ImportSaveResult) => {
       HandleSaveResult(result);
     });
   }
@@ -1142,7 +1066,7 @@
   }
 
   function GetActiveImportPath(): string {
-    const source_path = sel_tmpl?.import_file_lasts?.active_source?.path;
+    const source_path = s.tmpl?.import_file_lasts?.active_source?.path;
     if (!source_path) return "";
     const path = cep_node.require("path");
     if (path.isAbsolute(source_path) || !loaded_project_path) return source_path;
@@ -1215,164 +1139,35 @@
   }
 
   function EditViewModalClosed(new_table_cols: number[]) {
-    sel_tmpl.view_cols = new_table_cols;
+    s.tmpl.view_cols = new_table_cols;
     s.proj = s.proj; // Force reactivity
     l.debug("Edit view modal closed with new table_cols:", new_table_cols);
   }
 
-  /////RENDER TAB/////
-  ////////////////////
-
-  function OpenRenderedPath(path?: string) {
-    if (!path) return;
-    csa
-      .OpenPath(path)
-      .then((ok) => {
-        if (!ok) UpdateStatusFooter("Could not open: " + path);
-      })
-      .catch((e) => l.error("Failed to open rendered path", e));
-  }
-
-  /**
-   * Selects a folder to save the files to and adds it to the save pattern
-   */
-  function SelRenderBasePath() {
-    l.debug("SelectBasePath called");
-    let initial_folder = sel_tmpl.base_path || "";
-
-    csa.OpenSelectFolder(initial_folder).then((result) => {
-      if (result === null) return;
-
-      sel_tmpl.base_path = result;
-    });
-  }
-
-  let sel_add_field = $state("base_path");
-  function RenderSave_AddField() {
-    let save_pattern_ta =
-      document.querySelector<HTMLTextAreaElement>("#save_pattern_ta");
-    if (!save_pattern_ta) return;
-
-    let cursor_pos = save_pattern_ta.selectionStart;
-    let old_val = sel_tmpl.save_pattern;
-
-    //Insert the selected field at the cursor position
-    sel_tmpl.save_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field}}` +
-      old_val.slice(cursor_pos);
-  }
+  /////OUTPUT TAB SYNC/////
+  /////////////////////////
 
   // Render save pattern updated
   $effect(() => {
-    if (sel_tmpl !== undefined) {
-      sel_tmpl.save_paths[0] = TemplateHelper.ResolveSavePath(
-        sel_tmpl,
-        sel_tmpl.save_pattern,
+    if (s.tmpl !== undefined) {
+      s.tmpl.save_paths[0] = TemplateHelper.ResolveSavePath(
+        s.tmpl,
+        s.tmpl.save_pattern,
         0,
       );
     }
   });
-
-  let sel_add_field_gen = $state("row_number");
-  function GenerateName_AddField() {
-    let pattern_ta =
-      document.querySelector<HTMLTextAreaElement>("#generate_proj_ta");
-    if (!pattern_ta) return;
-
-    let cursor_pos = pattern_ta.selectionStart;
-    let old_val = sel_tmpl.generate_pattern;
-
-    //Insert the selected field at the cursor position
-    sel_tmpl.generate_pattern =
-      old_val.slice(0, cursor_pos) +
-      `{${sel_add_field_gen}}` +
-      old_val.slice(cursor_pos);
-  }
 
   //Generate Comps pattern updated
   $effect(() => {
-    if (sel_tmpl !== undefined) {
-      sel_tmpl.generate_names[0] = TemplateHelper.ResolveCompName(
-        sel_tmpl,
-        sel_tmpl.generate_pattern,
+    if (s.tmpl !== undefined) {
+      s.tmpl.generate_names[0] = TemplateHelper.ResolveCompName(
+        s.tmpl,
+        s.tmpl.generate_pattern,
         0,
       );
     }
   });
-
-  let all_comps = $state<Comp[]>([]);
-  async function GetAllComps(): Promise<void> {
-    const result = await csa.Exec<GetAllCompsResult>("GetAllComps");
-    if (!result.success) {
-      l.error("Failed to get all comps", result.error_obj);
-      return;
-    }
-
-    all_comps = result.comps ?? [];
-    s.proj.tmpls.forEach((tmpl) =>
-      TemplateHelper.UpdateDependantCompNames(tmpl, all_comps),
-    );
-    l.debug(`Got All Comps`, all_comps);
-  }
-
-  let selected_comp = $state<number | "">("");
-  function AddCompToDependents() {
-    if (selected_comp !== "") {
-      let comp = all_comps.find((c) => c.id === selected_comp);
-
-      if (comp) {
-        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
-        TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-        TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-      }
-    }
-  }
-
-  async function AddSelectedCompsToDependents() {
-    const result = await csa.Exec<GetSelectedCompsResult>("GetSelectedComps");
-    l.debug(`Got selected Comps`, result);
-
-    if (!result.success) {
-      l.error("Failed to get selected comps", result.error_obj);
-      return;
-    }
-
-    await GetAllComps();
-
-    for (let comp_info of result.comps ?? []) {
-      let comp = all_comps.find((c) => c.id === comp_info.id);
-
-      if (comp) {
-        //TODO snapshot used because structuredClone doesn't work with the reactive objects, find a better way to do this
-        TemplateHelper.AddDependantComp(sel_tmpl, comp, render_setts_templs);
-      }
-    }
-
-    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-  }
-
-  function DeleteDependentComp(dep_index: number) {
-    TemplateHelper.RemoveDependantComp(sel_tmpl, dep_index);
-    TemplateHelper.CleanupDependantComps(sel_tmpl, all_comps);
-
-    //force Svelte reactivity
-    sel_tmpl.dep_comps = sel_tmpl.dep_comps;
-  }
-
-  let edit_dep_comp_index = $state<number | undefined>();
-  function DepFilePatternModalOpen(dep_index: number) {
-    edit_dep_comp_index = dep_index;
-    m_file_pattern?.Open(dep_index, DepFilePatternModalClosed);
-  }
-
-  function DepFilePatternModalClosed(base_path: string, pattern: string) {
-    if (edit_dep_comp_index === undefined) return;
-    sel_tmpl.dep_config[edit_dep_comp_index].save_pattern = pattern;
-
-    TemplateHelper.ResolveSavePathFirstDeps(sel_tmpl, 0);
-  }
 
   function SetupAlternateSource(col_i: number) {
     show_alt_src_modal = true;
@@ -1383,298 +1178,15 @@
   let alt_src_modal_col = $state<number | undefined>();
   function AlertSrcModalClosed(base_path: string, pattern: string) {
     if (alt_src_modal_col === undefined) return;
-    sel_tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
-    sel_tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
+    s.tmpl.columns[alt_src_modal_col].alt_src_base = base_path;
+    s.tmpl.columns[alt_src_modal_col].alt_src_pattern = pattern;
 
     ColumnHelper.ResolveColumnAltSrcPaths(
-      sel_tmpl.columns[alt_src_modal_col],
-      sel_tmpl.columns,
+      s.tmpl.columns[alt_src_modal_col],
+      s.tmpl.columns,
     );
   }
 
-  /**Returns a copy of the resolved template trimmed to the checked rows, or null (after warning the user) if none are checked.*/
-  function FilterEnabledRows(tmpl: TemplateData): TemplateData | null {
-    const rows = TemplateHelper.EnabledRows(tmpl);
-    if (rows.length === 0) {
-      m_message?.Open("Check at least one row to render.", "No Rows Selected");
-      return null;
-    }
-    if (rows.length === TemplateHelper.RowCount(tmpl)) return tmpl;
-    const copy = structuredClone($state.snapshot(tmpl)) as TemplateData;
-    TemplateHelper.KeepRows(copy, rows);
-    return copy;
-  }
-
-  //User facing render results
-  let render_results = $state<RowRenderResult[]>([]);
-  function BatchRender(row_i: number = -1, start_queue: boolean = true) {
-    l.log("BatchRender called");
-
-    //check if we should 'proceed'
-    if (!proceed) {
-      return;
-    }
-
-    if (
-      !render_setts_templs.render_templs?.includes(
-        sel_tmpl.render_setts_templ,
-      ) ||
-      !render_setts_templs.output_modules_templs?.includes(
-        sel_tmpl.render_out_module_templ,
-      )
-    ) {
-      m_message?.Open(
-        "Select valid Render Settings and Output Module templates in the Output tab before rendering.",
-        "Render Settings Missing",
-      );
-      return;
-    }
-
-    let send_templ;
-    //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined && row_i !== -1) {
-      send_templ = structuredClone($state.snapshot(sel_tmpl));
-
-      for (let col of send_templ.columns) {
-        col.values = [col.values[row_i]];
-      }
-    } else {
-      send_templ = sel_tmpl;
-    }
-
-    TemplateHelper.ResolveCompsNames(send_templ);
-    TemplateHelper.ResolveSavePaths(send_templ);
-    TemplateHelper.ResolveAltSrcPaths(send_templ);
-
-    if (row_i === -1) {
-      const filtered = FilterEnabledRows(send_templ);
-      if (!filtered) return;
-      send_templ = filtered;
-    }
-
-    //checks for dupliate save paths
-    const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
-      send_templ,
-      "render",
-    );
-    if (path_conflicts.length > 0) {
-      const details = path_conflicts
-        .map(
-          (c) =>
-            `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`,
-        )
-        .join("<br>");
-
-      m_message?.Open(
-        `Two or more rows will render files with the same output path. After Effects will not start the queue until this is fixed.<br><br>${details}`,
-        "Duplicate Output Paths Detected",
-      );
-      return;
-    }
-
-    render_results = [];
-
-    let string_templt = JSON.stringify(send_templ);
-    l.debug("String sent to csa:", string_templt);
-
-    csa
-      .Exec<BatchRenderResult>(
-        "BatchRender",
-        string_templt,
-        s.setts.render_comps_folder,
-        start_queue,
-      )
-      .then((result) => {
-        if (!result.success) {
-          l.error("Failed to batch render", result.error_obj);
-          const error_msg = result.error_obj?.message ?? "Unknown render error";
-          m_message?.Open(error_msg, "Error While Batch Rendering");
-
-          if (row_i !== -1) {
-            UpdateStatusFooter(
-              "⚠️ Error While Queuing Row " + row_i,
-              error_msg,
-            );
-          }
-          return;
-        }
-
-        //Some errors happened, log it as a warning (default txt log file level)
-        else if (result.errors !== undefined && result.errors.length > 0) {
-          l.warn(`Batch Render completed with errors`, result.errors);
-          render_results = result.row_results ?? [];
-
-          if (row_i !== -1) {
-            UpdateStatusFooter(
-              "⚠️ Errors While Queuing Row " + row_i,
-              result.errors.map((e) => e.message).join("<br>"),
-            );
-          }
-          return;
-        }
-
-        //All rows queued up successfully
-        else {
-          l.debug(`Batch Render Results`, render_results);
-          render_results = result.row_results ?? [];
-
-          if (row_i !== -1) {
-            UpdateStatusFooter("Render Queued Successfully");
-          }
-          return;
-        }
-      });
-  }
-
-  function BatchGenerate() {
-    TemplateHelper.ResolveCompsNames(sel_tmpl);
-    TemplateHelper.ResolveAltSrcPaths(sel_tmpl);
-
-    const send_templ = FilterEnabledRows(sel_tmpl);
-    if (!send_templ) return;
-
-    let string_templt = JSON.stringify(send_templ);
-    l.debug("BatchGenerate called");
-    l.log("Rendering:", string_templt);
-
-    csa
-      .Exec<BatchGenerateResult>("BatchGenerate", string_templt)
-      .then((result) => {
-        if (!result.success) {
-          l.error("Failed to batch generate", result.error_obj);
-          return;
-        } else {
-          l.debug(`Batch Generate Started`);
-        }
-      });
-  }
-
-  let dep_row_results = $state<RowRenderResult[]>([]);
-  let user_stopped_deps = $state(false);
-  function BatchOneToMany(row_i: number = -1, queue_ame: boolean = false) {
-    l.log("BatchOneToMany called");
-
-    if (!proceed) {
-      return;
-    }
-
-    const conf_issues = sel_tmpl.dep_config.filter((dc) => {
-      return (
-        dc.enabled &&
-        (!render_setts_templs.render_templs?.includes(dc.render_setts_templ) ||
-          !render_setts_templs.output_modules_templs?.includes(
-            dc.render_out_module_templ,
-          ))
-      );
-    });
-    if (conf_issues.length > 0) {
-      l.warn("Configuration issues detected:", conf_issues);
-      let issues_s = "";
-      for (let issue of conf_issues) {
-        issues_s += `<li>${issue.name ?? "Unknown"}</li>`;
-      }
-
-      m_message?.Open(
-        `Select a Render Settings template and an Output Module template for every enabled composition before rendering. Issues detected in:<br><ul>${issues_s}</ul>`,
-        "Render Settings Missing",
-      );
-      return;
-    }
-
-    let send_templ;
-
-    //If just rendering a single row, clone the template and trim it down to that row
-    if (row_i !== undefined && row_i !== -1) {
-      //TODO this is a hack, find a better way to do this
-      send_templ = structuredClone($state.snapshot(sel_tmpl));
-
-      for (let col of send_templ.columns) {
-        col.values = [col.values[row_i]];
-      }
-    } else {
-      send_templ = sel_tmpl;
-    }
-
-    TemplateHelper.UpdateRows(send_templ);
-    TemplateHelper.ResolveCompsNames(send_templ);
-    TemplateHelper.ResolveAltSrcPaths(send_templ);
-    TemplateHelper.ResolveSavePathDeps(send_templ);
-
-    if (row_i === -1) {
-      const filtered = FilterEnabledRows(send_templ);
-      if (!filtered) return;
-      send_templ = filtered;
-    }
-
-    //checks for dupliate save paths
-    const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
-      send_templ,
-      "dependant",
-    );
-    if (dep_path_conflicts.length > 0) {
-      const details = dep_path_conflicts
-        .map((c) => {
-          const comp_label = c.comp_name ? `${c.comp_name}` : "";
-          return `<b>${comp_label}</b> Rows with the same output: ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`;
-        })
-        .join("<br>");
-      m_message?.Open(
-        `Two or more rows resolve to the same output file path. Your files will be overwritten.<br><br>${details}`,
-        "Duplicate Output Paths Detected",
-      );
-      return;
-    }
-
-    let string_templt = JSON.stringify(send_templ);
-    l.debug("OtM String Sent to csa:", string_templt);
-
-    if (row_i !== -1) {
-      UpdateStatusFooter("Queuing Multi-Output Render...");
-    }
-
-    csa
-      .Exec<BatchRenderResult>("BatchRenderDepComps", string_templt, queue_ame)
-      .then((result) => {
-        l.debug(`OtM Render Results`, result);
-
-        if (!result.success) {
-          l.error("Failed to render OtM", result.error_obj);
-          const error_msg =
-            result.error_obj?.message ?? "Unknown Multi-Output render error";
-          m_message?.Open(error_msg, "Error While Rendering Multi-Output");
-          return;
-        }
-
-        //Some rows had errors, but the queing went through
-        else if (result.errors !== undefined && result.errors.length > 0) {
-          l.warn(`OtM Render completed with errors`, result.errors);
-          dep_row_results = result.row_results ?? [];
-
-          if (row_i !== -1) {
-            UpdateStatusFooter(
-              "⚠️ Multi-Output Render completed with errors for Row " + row_i,
-              "Check the log in the Render tab for details.",
-            );
-          }
-        }
-
-        //User stopped the render
-        else if (result.user_stopped) {
-          l.log(`OtM Render stopped by user`);
-          user_stopped_deps = true;
-          dep_row_results = result.row_results ?? [];
-        }
-
-        //All rows rendered successfully
-        else {
-          dep_row_results = result.row_results ?? [];
-
-          if (row_i !== -1) {
-            UpdateStatusFooter("Queued Successfully");
-          }
-        }
-      });
-  }
 </script>
 
 <!-- HEADER -->
@@ -1722,13 +1234,13 @@
       >View</button>
   </nav>
   <main id="main_data">
-    {#if s.proj.sel_tmpl >= 0 && sel_tmpl !== undefined && s.proj.tmpls.length > 0}
+    {#if s.proj.sel_tmpl >= 0 && s.tmpl !== undefined && s.proj.tmpls.length > 0}
       {#if s.setts.data_mode === "table"}
         <table class="dat_table">
           <colgroup>
             <col style="width: 64px;" />
-            {#each sel_tmpl.view_cols as col_i}
-              {@const w = ColWidth(sel_tmpl.columns[col_i])}
+            {#each s.tmpl.view_cols as col_i}
+              {@const w = ColWidth(s.tmpl.columns[col_i])}
               <col style={w ? `width: ${w}px;` : "min-width: 200px;"} />
             {/each}
           </colgroup>
@@ -1745,10 +1257,10 @@
                       (e.target as HTMLInputElement).checked,
                     )} />
               </th>
-              {#each sel_tmpl.view_cols as col_i, view_i}
+              {#each s.tmpl.view_cols as col_i, view_i}
                 <th class="table_header">
-                  {sel_tmpl.columns[col_i].cont_name}
-                  {#if sel_tmpl.columns[col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
+                  {s.tmpl.columns[col_i].cont_name}
+                  {#if s.tmpl.columns[col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
                     <button
                       class="delete_col"
                       data-tooltip="Setup alternate source"
@@ -1774,7 +1286,7 @@
                     <input
                       class="row_opts_check"
                       type="checkbox"
-                      checked={sel_tmpl.row_enabled?.[row_i] !== false}
+                      checked={s.tmpl.row_enabled?.[row_i] !== false}
                       onclick={(e) => e.stopPropagation()}
                       onchange={(e) =>
                         RowCheckChanged(
@@ -1795,18 +1307,18 @@
                       onclick={(e) => PreviewRow(row_i)}><EyeOpen /></button>
                   </div>
                 </td>
-                {#each sel_tmpl.view_cols as td_col_i}
+                {#each s.tmpl.view_cols as td_col_i}
                   <td
                     class={{
                       table_cell:
-                        sel_tmpl.columns[td_col_i].type !==
+                        s.tmpl.columns[td_col_i].type !==
                         ColumnHelper.PropertyValueType.SRC_ALTERNATE,
                     }}>
                     <PropInput
-                      bind:value={sel_tmpl.columns[td_col_i].values[row_i]}
-                      type={sel_tmpl.columns[td_col_i].type}
-                      display={sel_tmpl.columns[td_col_i].display}
-                      menu_params={sel_tmpl.columns[td_col_i].menu_params}
+                      bind:value={s.tmpl.columns[td_col_i].values[row_i]}
+                      type={s.tmpl.columns[td_col_i].type}
+                      display={s.tmpl.columns[td_col_i].display}
+                      menu_params={s.tmpl.columns[td_col_i].menu_params}
                       onchange={() => {
                         PreviewRow(row_i, true);
                       }} />
@@ -1858,12 +1370,12 @@
         </div>
 
         <div class="dets_field_cont">
-          {#each sel_tmpl.view_cols as td_col_i}
+          {#each s.tmpl.view_cols as td_col_i}
             <div class="dets_field">
               <h5>
-                {sel_tmpl.columns[td_col_i].cont_name}
+                {s.tmpl.columns[td_col_i].cont_name}
 
-                {#if sel_tmpl.columns[td_col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
+                {#if s.tmpl.columns[td_col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
                   <button
                     class="delete_col"
                     data-tooltip="Setup alternate source"
@@ -1876,10 +1388,10 @@
               <div class="dets_prop">
                 <PropInput
                   inline={false}
-                  bind:value={sel_tmpl.columns[td_col_i].values[curr_row_i]}
-                  type={sel_tmpl.columns[td_col_i].type}
-                  display={sel_tmpl.columns[td_col_i].display}
-                  menu_params={sel_tmpl.columns[td_col_i].menu_params}
+                  bind:value={s.tmpl.columns[td_col_i].values[curr_row_i]}
+                  type={s.tmpl.columns[td_col_i].type}
+                  display={s.tmpl.columns[td_col_i].display}
+                  menu_params={s.tmpl.columns[td_col_i].menu_params}
                   onchange={() => {
                     PreviewRow(curr_row_i, true);
                   }} />
@@ -1901,413 +1413,13 @@
 
   <ModalEditView bind:this={m_edit_view}></ModalEditView>
 {:else if active_tab === "output"}
-  <!-- OUTPUT -->
-  <main class="output">
-    <span
-      >Render Mode:
-      <Dropdown
-        variant="discrete"
-        labels={["One Per Row", "Multi-Output", "Generate Comps"]}
-        options={["render", "dependant", "generate"]}
-        bind:value={sel_tmpl.out_mode} />
-    </span>
-
-    <!-- MODE: RENDER -->
-    {#if sel_tmpl.out_mode === "render"}
-      <p class="modal-description">
-        Exports a single render per row. When you only need to export a final
-        file for each version.
-      </p>
-
-      <h4>
-        File Name Pattern
-        <button
-          class="info"
-          data-tt-pos="middle-right"
-          data-tt-width="large"
-          data-tooltip="Generates the file name of every export using this pattern."
-          >?</button>
-      </h4>
-
-      <textarea
-        id="save_pattern_ta"
-        spellcheck="false"
-        bind:value={sel_tmpl.save_pattern}></textarea>
-
-      <div class="setting" style="margin-top: 4px;">
-        <button onclick={SelRenderBasePath}>Pick Base Folder</button>
-
-        <Dropdown
-          style={"margin-left: 15px;"}
-          labels={[
-            "Base Folder",
-            "Template Name",
-            "Row Number",
-            "Increment",
-            ...sel_tmpl.columns.map((col) => col.cont_name),
-          ]}
-          options={[
-            "base_folder",
-            "template_name",
-            "row_number",
-            "increment:0000",
-            ...sel_tmpl.columns.map((col) => col.cont_name),
-          ]}
-          title="Add Field..."
-          onselect={() => RenderSave_AddField()}
-          bind:value={sel_add_field} />
-      </div>
-
-      <div class="setting">
-        <span>Preview File Path:</span>
-        <span class="out_prev">{sel_tmpl.save_paths[0]}</span>
-      </div>
-
-      <h4>
-        Render Settings
-        <button
-          class="info"
-          data-tt-pos="middle-right"
-          data-tt-width="x-large"
-          data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
-          >?</button>
-      </h4>
-
-      <div class="setting">
-        <label for="sel_render_setts_templ">Render Settings Template</label>
-
-        <Dropdown
-          labels={visible_render_templates}
-          options={visible_render_templates}
-          bind:value={sel_tmpl.render_setts_templ} />
-      </div>
-
-      <div class="setting">
-        <label for="sel_render_out_module">Output Module Template</label>
-        <Dropdown
-          labels={visible_output_module_labels}
-          options={visible_output_module_templates}
-          bind:value={sel_tmpl.render_out_module_templ} />
-      </div>
-
-      <div class="out_actions_cont">
-        <div class="out_actions">
-          <button class="setting" onclick={() => BatchRender()}
-            ><Play size={18} />Start Batch Render</button>
-
-          <button
-            class="setting"
-            onclick={() => BatchRender(-1, false)}
-            data-tooltip="Useful if you want to send the queue to Media Encoder."
-            data-tt-width="x-large"
-            ><ActivityLog size={18} />Queue Renders</button>
-        </div>
-      </div>
-
-      <!--Results-->
-      {#if render_results.length > 0}
-        <h4>Results</h4>
-        <table class="render_results">
-          <colgroup>
-            <col style="width: 45px;" />
-            <col style="width: 70px;" />
-            <col />
-            <col />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Row</th>
-              <th>Queued</th>
-              <th>Path</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each render_results as row}
-              <tr>
-                <td>{row.row}</td>
-                <td>
-                  {#if row.status == "success"}
-                    <CheckCircled color="green" size={23} />
-                  {:else}
-                    <CrossCircled color="red" size={23} />
-                  {/if}
-                </td>
-                <td
-                  >{row.rendered_path}
-                  <button
-                    onclick={() => OpenRenderedPath(row.rendered_path)}
-                    data-variant="discrete"
-                    style="margin-left: 4px;">
-                    <ExternalLink color="white" size={15} />
-                  </button>
-                </td>
-                <td>{row.error}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      {/if}
-    {:else if sel_tmpl.out_mode === "generate"}
-      <!-- MODE: GENERATE -->
-
-      <p class="modal-description">
-        Creates editable compositions in your project for each row. Use this if
-        you need to share the project with someone without the extension.
-      </p>
-
-      <h4>Composition Name Pattern</h4>
-      <textarea
-        id="generate_proj_ta"
-        spellcheck="false"
-        bind:value={sel_tmpl.generate_pattern}></textarea>
-      <div class="setting" style="margin-top: 4px;">
-        <Dropdown
-          labels={[
-            "Template Name",
-            "Row Number",
-            "Increment",
-            ...sel_tmpl.columns.map((col) => col.cont_name),
-          ]}
-          options={[
-            "template_name",
-            "row_number",
-            "increment:0000",
-            ...sel_tmpl.columns.map((col) => col.cont_name),
-          ]}
-          title="Add Field..."
-          onselect={() => GenerateName_AddField()}
-          bind:value={sel_add_field_gen} />
-      </div>
-
-      <div class="setting">
-        <span>Preview:</span>
-        <span class="out_prev">{sel_tmpl.generate_names[0]}</span>
-      </div>
-
-      <div class="setting">
-        <label for="in_imported_folder">Generated Comps Folder Name</label>
-        <input
-          id="in_gen_folder"
-          type="text"
-          bind:value={sel_tmpl.gen_comps_folder} />
-      </div>
-
-      <div class="out_actions_cont">
-        <div class="out_actions">
-          <button class="setting" onclick={() => BatchGenerate()}
-            ><Play size={18} />Generate Compositions</button>
-        </div>
-      </div>
-    {:else if sel_tmpl.out_mode === "dependant"}
-      <!-- MODE: DEPENDANT -->
-
-      <p class="modal-description">
-        Exports multiple files per row of data. Ideal for creating assets in
-        different formats or from nested compositions.
-      </p>
-
-      <h4>
-        Common Base Folder
-        <button
-          class="info"
-          data-tt-pos="middle-right"
-          data-tt-width="x-large"
-          data-tooltip="All renders will be saved relative to this folder. Use the 'Edit File Pattern' button to set the full save path for each composition."
-          >?</button>
-      </h4>
-
-      <div class="setting">
-        <span>{sel_tmpl.base_path}</span>
-        <div><button onclick={SelRenderBasePath}>Choose Folder...</button></div>
-      </div>
-
-      <h4>
-        Add Composition to Renders
-        <button
-          class="info"
-          data-tt-pos="middle-right"
-          data-tt-width="x-large"
-          data-tooltip="The compositions you select will be rendered for every row of data. You can select any composition in the project, even if is not directly related to the template composition."
-          >?</button>
-      </h4>
-
-      <div class="setting">
-        <Dropdown
-          search_enabled={true}
-          labels={[
-            "Select a Composition",
-            ...all_comps.map((comp) => comp.name),
-          ]}
-          options={["", ...all_comps.map((comp) => comp.id)]}
-          bind:value={selected_comp} />
-
-        <button
-          onclick={() => {
-            AddCompToDependents();
-          }}>Add</button>
-        <button
-          style="margin-left: 12px;"
-          onclick={() => {
-            AddSelectedCompsToDependents();
-          }}>Add Selected</button>
-      </div>
-
-      <!-- Dependant Compositions -->
-      {#each sel_tmpl.dep_comps as dc, dc_i}
-        <details class="out_sub_render">
-          <summary>
-            <input
-              type="checkbox"
-              style="margin: 5px 5px 3px 7px;"
-              bind:checked={sel_tmpl.dep_config[dc_i].enabled} />
-            <h4 style="display: inline;">{dc.name}</h4>
-            <button
-              class="delete_col"
-              data-tooltip="Remove composition from renders"
-              data-tt-pos="middle-right"
-              onclick={() => DeleteDependentComp(dc_i)}><Trash /></button>
-          </summary>
-
-          <div class="out_sub_render_cont">
-            <h5>
-              Render Save Pattern
-              <button
-                class="info"
-                data-tt-pos="middle-right"
-                data-tt-width="x-large"
-                data-tooltip="This pattern determines where the renders are saved and their file names."
-                >?</button>
-            </h5>
-            <div class="setting">
-              <div>
-                {sel_tmpl.dep_config[dc_i].save_pattern}
-                <button
-                  style="vertical-align: middle; margin-left: 8px;"
-                  data-tooltip="Edit the pattern that will determine the save path for this render."
-                  data-tt-pos="middle-right"
-                  data-tt-width="large"
-                  onclick={() => DepFilePatternModalOpen(dc_i)}>
-                  <Pencil1 /> Edit</button>
-              </div>
-
-              <div class="out_prev">
-                <span>Preview:</span>
-                <span
-                  style="text-overflow: ellipsis; max-width: 100%; display: inline-block;"
-                  >{sel_tmpl.dep_config[dc_i].save_path}</span>
-              </div>
-            </div>
-
-            <h5>
-              Render
-              <button
-                class="info"
-                data-tt-pos="middle-right"
-                data-tt-width="x-large"
-                data-tooltip="Go to Edit > Templates to create or edit render settings and output module templates."
-                >?</button>
-            </h5>
-
-            <div class="setting">
-              <label for="sel_render_setts_templ">Render Settings</label>
-              <Dropdown
-                labels={visible_render_templates}
-                options={visible_render_templates}
-                bind:value={sel_tmpl.dep_config[dc_i].render_setts_templ} />
-            </div>
-
-            <div class="setting">
-              <label for="sel_render_out_module">Output Module</label>
-
-              <Dropdown
-                labels={visible_output_module_labels}
-                options={visible_output_module_templates}
-                bind:value={
-                  sel_tmpl.dep_config[dc_i].render_out_module_templ
-                } />
-            </div>
-          </div>
-        </details>
-      {/each}
-
-      <div class="out_actions_cont">
-        <div class="out_actions">
-          <button class="setting" onclick={() => BatchOneToMany()}
-            ><Play size={18} />Start Batch Render</button>
-
-          <!-- <button class="setting" onclick={() => BatchOneToMany(-1, true)}
-            ><ActivityLog size={18} />Queue in Media Encoder</button> -->
-        </div>
-        <div class="OtM_ui_warn">
-          <ExclamationTriangle color="white" size={15} />
-          Using this render mode and rendering in After Effects will block the user
-          interface, press Esc to cancel all renders.
-        </div>
-      </div>
-
-      <!--Results-->
-      {#if dep_row_results.length > 0}
-        <h4>Results</h4>
-        {#if user_stopped_deps}
-          <div class="OtM_stopped_warn">
-            <ExclamationTriangle color="yellow" size={14} />
-            Renders stopped by user.
-          </div>
-        {/if}
-        <table class="render_results">
-          <colgroup>
-            <col style="width: 45px;" />
-            <col style="width: 70px;" />
-            <col />
-            <col />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Row</th>
-              <th>Queued</th>
-              <th>Path</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each dep_row_results as row}
-              <tr>
-                <td>{row.row}</td>
-                <td>
-                  {#if row.status == "success"}
-                    <CheckCircled color="green" size={23} />
-                  {:else if row.status == "warning" || row.status == "stopped"}
-                    <ExclamationTriangle color="yellow" size={21} />
-                  {:else}
-                    <CrossCircled color="red" size={23} />
-                  {/if}
-                </td>
-                <td
-                  >{row.rendered_path}
-                  <button
-                    onclick={() => OpenRenderedPath(row.rendered_path)}
-                    data-variant="discrete"
-                    style="margin-left: 4px;">
-                    <ExternalLink color="white" size={15} />
-                  </button>
-                </td>
-                <td>{row.error}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      {/if}
-    {/if}
-  </main>
-
-  <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
+  <TabOutput />
 {:else if active_tab == "settings"}
   <!-- SETTINGS -->
-  <SettingsPanel {ResetSettings} />
+  <TabSettings {ResetSettings} />
 {/if}
 
-{#if sel_tmpl !== undefined && show_alt_src_modal}
+{#if s.tmpl !== undefined && show_alt_src_modal}
   <ModalAltSrcFilePattern
     bind:show={show_alt_src_modal}
     col_i={alt_src_modal_col ?? 0}
@@ -2345,11 +1457,6 @@
       "nav"
       "main"
       "footer";
-  }
-
-  /* h3, */
-  h4 {
-    margin: 0;
   }
 
   header {
@@ -2566,14 +1673,6 @@
     white-space: nowrap;
   }
 
-  .render_results thead th {
-    padding: 0 5px;
-  }
-
-  .render_results td:nth-of-type(n + 1):nth-of-type(-n + 2) {
-    text-align: center;
-  }
-
   .row_opts {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2596,8 +1695,7 @@
     justify-self: end;
   }
 
-  .delete_row,
-  .delete_col {
+  .delete_row {
     background-color: transparent;
     border: none;
 
@@ -2605,8 +1703,7 @@
 
     vertical-align: middle;
   }
-  .delete_row:hover,
-  .delete_col:hover {
+  .delete_row:hover {
     cursor: pointer;
     background-color: rgba(255, 255, 255, 0.1);
   }
@@ -2630,132 +1727,6 @@
     cursor: pointer;
     padding: 0;
     margin-left: 10px;
-  }
-
-  /*/////OUTPUT/////*/
-  .output textarea {
-    min-height: 1.5em;
-    resize: vertical;
-  }
-
-  .output .setting {
-    margin: 2px 0 9px 0;
-  }
-
-  .output h5 {
-    font-size: 1rem;
-    margin: 13px 0 2px 0;
-    color: rgba(255, 255, 255, 0.7);
-  }
-
-  .output h4 {
-    font-size: 1.1rem;
-    margin: 13px 0 7px 0;
-  }
-
-  .output label,
-  .output span {
-    font-size: 1rem;
-    color: rgba(255, 255, 255, 0.8);
-  }
-
-  .output label {
-    margin: 0 5px 0 0;
-  }
-
-  /* .output h3 {
-    text-align: center;
-  }*/
-
-  .out_actions_cont {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-
-    background-color: rgba(0, 0, 0, 0.15);
-
-    margin: 10px -10px;
-    padding: 10px 10px;
-  }
-
-  .out_actions {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-  }
-
-  .out_actions button {
-    font-weight: bold;
-    font-size: 1.05rem;
-
-    padding: 5px 8px;
-    margin: 0 !important;
-  }
-
-  :global(.out_actions svg) {
-    vertical-align: middle;
-    margin-right: 5px;
-  }
-
-  .out_prev {
-    word-break: break-all;
-    display: flex;
-    overflow: hidden;
-  }
-
-  .out_prev span {
-    display: inline-block;
-    color: var(--color-text-sec);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .out_sub_render {
-    padding: 12px 0 12px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .out_sub_render summary > * {
-    vertical-align: middle;
-  }
-
-  .out_sub_render summary::marker {
-    color: rgb(255 255 255 / 30%);
-  }
-
-  .out_sub_render:hover summary::marker {
-    color: rgb(255 255 255 / 90%);
-  }
-
-  .out_sub_render_cont {
-    margin-left: 5px;
-  }
-
-  .out_sub_render_cont .setting {
-    margin-left: 5px;
-  }
-
-  .OtM_ui_warn {
-    text-align: center;
-    margin: 5px 0 0 0;
-  }
-
-  :global(.OtM_ui_warn svg) {
-    vertical-align: middle;
-    margin-right: 3px;
-  }
-
-  .OtM_stopped_warn {
-    margin: 10px 0;
-    color: var(--color-warning);
-  }
-
-  :global(.OtM_stopped_warn svg) {
-    vertical-align: middle;
-    margin-right: 3px;
   }
 
   .fs_no_tmpls {

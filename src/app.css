@@ -98,6 +98,21 @@ textarea:focus {
   border: solid 1px var(--color-highlight);
 }
 
+/* Borderless icon button. Needs the button prefix to match the specificity of the focus rule above. */
+button.delete_col {
+  background-color: transparent;
+  border: none;
+
+  padding: 3px;
+
+  vertical-align: middle;
+}
+
+button.delete_col:hover {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;

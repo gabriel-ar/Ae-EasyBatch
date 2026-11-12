@@ -7,7 +7,7 @@
 <script lang="ts">
   import * as XLSX from "xlsx";
   import Dropdown from "./Dropdown.svelte";
-  import { csa, l } from "./States.svelte.ts";
+  import { csa, l } from "../lib/States.svelte.ts";
   import { CreateTemplateWorkbook, ValidateSheetName } from "../lib/ExcelWorkbookWriter.ts";
   import { TemplateHelper, type TemplateData } from "../lib/Settings.svelte.ts";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { l } from "./States.svelte.ts";
+  import { l } from "../lib/States.svelte.ts";
 
   //Used to check the license from AeScripts
   //Does nothing on this branch

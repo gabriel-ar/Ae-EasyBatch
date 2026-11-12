@@ -1,6 +1,6 @@
 <script lang="ts">
   import Logger from "../lib/Logger.ts";
-  import { l, s, csa } from "./States.svelte.ts";
+  import { l, s, csa } from "../lib/States.svelte.ts";
   import { SettingsHelper } from "../lib/Settings.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
 
@@ -14,7 +14,7 @@
 
   function SaveJSON() {
     let content = JSON.stringify({ setts: s.setts, proj: s.proj });
-    l.debug("[SettingsTab] SaveJSON called");
+    l.debug("[TabSettings] SaveJSON called");
 
     csa.Eval("ExportFile", content).then((result) => {
       if (result == "null") return;
@@ -22,7 +22,7 @@
   }
 
   function LoadJSON() {
-    l.debug("[SettingsTab] LoadJSON called");
+    l.debug("[TabSettings] LoadJSON called");
     csa.Eval("ImportFile").then((result) => {
       if (result === "null") return;
 
@@ -62,14 +62,14 @@
     </label>
   </div>
 
-  {#if s.proj.sel_tmpl !== -1}
-  <h4>Template Settings ({s.proj.tmpls[s.proj.sel_tmpl].name})</h4>
+  {#if s.tmpl !== undefined}
+  <h4>Template Settings ({s.tmpl.name})</h4>
   <div class="setting">
     <label for="in_imported_folder">Imported Footage Folder</label>
     <input
       id="in_gen_folder"
       type="text"
-  bind:value={s.proj.tmpls[s.proj.sel_tmpl].imported_footage_folder} />
+  bind:value={s.tmpl.imported_footage_folder} />
   </div>
   {/if}
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { l } from "./States.svelte.ts";
+  import { l } from "../lib/States.svelte.ts";
 
   let show = $state(false);
 

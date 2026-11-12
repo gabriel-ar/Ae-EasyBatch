@@ -1,4 +1,4 @@
-import {l} from "../ui/States.svelte.ts";
+import {l} from "./States.svelte.ts";
 
 interface Listener {
   combined: string;

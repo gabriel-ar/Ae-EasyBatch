@@ -43,7 +43,7 @@
 
 <script lang="ts">
   import * as XLSX from "xlsx";
-  import { l, csa } from "./States.svelte.ts";
+  import { l, csa } from "../lib/States.svelte.ts";
   import { TemplateHelper, type TemplateData, type ImportSource } from "../lib/Settings.svelte.ts";
   import { SaveMappedTemplateValuesToSheet } from "../lib/ExcelWorkbookWriter.ts";
   import { ParseCSVSource, SaveMappedCSVValues } from "../lib/CSVSource.ts";

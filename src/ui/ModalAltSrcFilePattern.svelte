@@ -4,7 +4,7 @@
    */
 
   import { onMount } from "svelte";
-  import { l, s, csa } from "./States.svelte.ts";
+  import { l, s, csa } from "../lib/States.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
   import { ColumnHelper } from "../lib/Settings.svelte.ts";
     import { CheckCircled, ExclamationTriangle } from "radix-icons-svelte";
@@ -21,11 +21,10 @@
   let pattern = $state("");
   let base_path = $state("");
 
-  const tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
 
   onMount(() => {
-    pattern = tmpl.columns[col_i].alt_src_pattern;
-    base_path = tmpl.columns[col_i].alt_src_base;
+    pattern = s.tmpl.columns[col_i].alt_src_pattern;
+    base_path = s.tmpl.columns[col_i].alt_src_base;
   });
 
   function AddField() {
@@ -73,12 +72,12 @@
   });
 
   function UpdatePreview(dummy, dummy2) {
-    let col = tmpl.columns[col_i];
+    let col = s.tmpl.columns[col_i];
 
     col.alt_src_pattern = pattern;
     col.alt_src_base = base_path;
 
-    preview = ColumnHelper.ResolveAltSrcPath(col, 0, tmpl.columns);
+    preview = ColumnHelper.ResolveAltSrcPath(col, 0, s.tmpl.columns);
 
     if (file_exists_to) clearTimeout(file_exists_to);
     file_exists_to = setTimeout(FileExists, 1000);
@@ -154,13 +153,13 @@
               "<b>Base Folder</b>",
               "<b>Row Number</b>",
               "<b>Increment</b>",
-              ...tmpl.columns.map((col) => col.cont_name),
+              ...s.tmpl.columns.map((col) => col.cont_name),
             ]}
             options={[
               "base_folder",
               "row_number",
               "increment:0000",
-              ...tmpl.columns.map((col) => col.cont_name),
+              ...s.tmpl.columns.map((col) => col.cont_name),
             ]}
             title="Add Field..."
             onselect={() => AddField()} />

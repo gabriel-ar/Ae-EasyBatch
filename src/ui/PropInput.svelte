@@ -1,6 +1,6 @@
 <script>
   import { ColumnHelper } from "../lib/Settings.svelte.ts";
-  import { l } from "./States.svelte.ts";
+  import { l } from "../lib/States.svelte.ts";
   import EyeDropper from "../assets/EyeDropper.svelte";
   import CSAdapter from "../lib/CSAdapter.ts";
   import { File } from "radix-icons-svelte";
