@@ -18,6 +18,8 @@
   let sheet_name = $state("");
   let current_tmpl: TemplateData | undefined;
   let on_result: ((result: ExportResult) => void) | undefined;
+
+  //Only Excel has sheet names, so only then is the name validated
   let sheet_error = $derived(format === "xlsx" ? ValidateSheetName(sheet_name) : null);
 
   export function Open(tmpl: TemplateData, callback: (result: ExportResult) => void) {
@@ -36,24 +38,31 @@
 
   function Confirm() {
     if (sheet_error) return;
+
+    //Closing clears the state, so the values are copied first
     const tmpl = current_tmpl;
     const callback = on_result;
     const type = format;
     const sheet = sheet_name;
     if (!tmpl || !callback) throw new Error("Export was opened without a template or callback.");
+
     Close();
     void Export(tmpl, type, sheet, callback);
   }
 
+  /**Asks where to save, then writes the template's data as a new CSV or Excel file.*/
   async function Export(tmpl: TemplateData, type: ExportFormat, sheet: string, callback: (result: ExportResult) => void) {
     let result: ExportResult;
     try {
       const chosen = await csa.SaveFileDialog(false, `Export ${type.toUpperCase()} Data`, "", [type], `data.${type}`);
       if (!chosen) return;
+
+      //Add the extension when it was left out, but refuse a different one
       const path_util = cep_node.require("path");
       const ext = path_util.extname(chosen).toLowerCase();
       if (ext && ext !== `.${type}`) throw new Error(`Choose a .${type} filename.`);
       const path = ext ? chosen : `${chosen}.${type}`;
+
       const fs = cep_node.require("fs");
       if (type === "csv") {
         fs.writeFileSync(path, TemplateHelper.MakeCSV(tmpl), "utf8");
@@ -61,11 +70,13 @@
         const workbook = CreateTemplateWorkbook(tmpl.columns, TemplateHelper.AsRows(tmpl), sheet);
         fs.writeFileSync(path, XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
       }
+
       result = { success: true, title: `Exported ${type.toUpperCase()} Data` };
     } catch (error) {
       l.error("Failed to export data", error);
       result = { success: false, error: error instanceof Error ? error.message : String(error) };
     }
+
     callback(result);
   }
 </script>

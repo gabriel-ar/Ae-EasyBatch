@@ -11,7 +11,7 @@
     title: string;
     stats: ImportStats;
     warnings: string[];
-    source: { type: "csv" | "excel"; path: string };
+    source: { type: "csv" | "excel" | "google"; path: string; name?: string };
   };
 
   type ImportFailureResult = {
@@ -47,7 +47,9 @@
   import { TemplateHelper, type TemplateData, type ImportSource } from "../lib/Settings.svelte.ts";
   import { SaveMappedTemplateValuesToSheet } from "../lib/ExcelWorkbookWriter.ts";
   import { ParseCSVSource, SaveMappedCSVValues } from "../lib/CSVSource.ts";
+  import { google_sheets, SpreadsheetId, SpreadsheetUrl, ReadSheet, PrepareSheetUpdates } from "../lib/GoogleSheets.ts";
   import Dropdown from "./Dropdown.svelte";
+
   type MatchState = "auto" | "manual" | "unmapped";
 
   type MappingRow = {
@@ -59,12 +61,20 @@
 
   let show = $state(false);
 
+  //Which Google step is waiting for the user's browser or for Google, if any
+  let google_wait = $state<"import" | "prepare-save" | "save" | null>(null);
+  let loading_sheet = $state(false);
+
+  //Counters that let async work detect it was superseded or cancelled, and drop its result
+  let sheet_request = 0;
+  let operation = 0;
+
   let workbook = $state<XLSX.WorkBook | undefined>(undefined);
   let selected_sheet = $state("");
   let excel_name = $state("");
   let excel_relative_path = $state("");
   let source_path = $state("");
-  let source_type = $state<"csv" | "excel">("excel");
+  let source_type = $state<"csv" | "excel" | "google">("excel");
 
   let current_tmpl = $state<TemplateData | undefined>(undefined);
   let sheet_options = $state<string[]>([]);
@@ -80,6 +90,7 @@
   let saved_import = $state<ImportSource | undefined>(undefined);
   let is_reimport = $state(false);
 
+  /**Lowercases and strips punctuation so "First_Name" and "first name" compare equal.*/
   function Normalize(value: string): string {
     return (value ?? "")
       .toLowerCase()
@@ -89,6 +100,7 @@
       .replace(/[^a-z0-9 ]/g, "");
   }
 
+  /**Finds the source column for a template property: exact name first, then ignoring case, then ignoring punctuation.*/
   function AutoMatchHeader(template_prop: string, headers: string[]): string {
     if (headers.includes(template_prop)) return template_prop;
 
@@ -101,6 +113,7 @@
     return normalized ?? "";
   }
 
+  /**Creates one mapping row per template property, prefilled from the saved import when there is one.*/
   function BuildRows(tmpl: TemplateData, headers: string[], sheet_name: string) {
     mapping_options = ["", ...headers];
     mapping_labels = ["Do not import", ...headers];
@@ -109,7 +122,7 @@
       const auto = AutoMatchHeader(col.cont_name, headers);
       let mapped = auto;
 
-      // Prefill from the last import: columns found by name, and explicit "do not import" on the same sheet.
+      //Prefill from the last import: columns found by name, and explicit "do not import" on the same sheet.
       if (saved_import) {
         const saved_col = saved_import.mapping?.[col.cont_name];
         if (saved_col && headers.includes(saved_col)) {
@@ -132,6 +145,7 @@
     return csa.EvalDirectAsync("app.project.file !== null ? app.project.file.parent.fsName : null") as Promise<string | null>;
   }
 
+  /**Returns the path as saved in the project: relative to the project folder, or absolute if the project is not saved yet.*/
   async function ResolveRelativePath(absolute_path: string): Promise<string> {
     const project_folder = await GetProjectFolder();
     if (!project_folder || project_folder === "null" || project_folder === "undefined") {
@@ -169,10 +183,12 @@
 
   function ExcelBookType(path: string): XLSX.BookType {
     const extension = cep_node.require("path").extname(path).toLowerCase();
+
     if (extension === ".xls" || extension === ".xlsm") return extension.slice(1) as XLSX.BookType;
     return "xlsx";
   }
 
+  /**Writes through a temporary file, so a failure never leaves the user's file half written.*/
   function WriteFileToPath(output: unknown, path: string) {
     const fs = cep_node.require("fs");
     const path_util = cep_node.require("path");
@@ -189,6 +205,7 @@
     }
   }
 
+  /**Reads one Excel sheet: the first row becomes the headers and the remaining rows are the data.*/
   function BuildSheetData(sheet_name: string) {
     if (!workbook || !current_tmpl) return;
 
@@ -224,8 +241,8 @@
   function BuildCSVData(path: string) {
     const fs = cep_node.require("fs");
     const csv = ParseCSVSource(fs.readFileSync(path, "utf8"));
-    sheet_headers = csv.rows[csv.headerIndex].map((header) => header.trim());
-    sheet_rows = csv.dataIndices.map((index) => csv.rows[index]);
+    sheet_headers = csv.rows[csv.header_index].map((header) => header.trim());
+    sheet_rows = csv.data_indices.map((index) => csv.rows[index]);
     if (!current_tmpl) throw new Error("No template is selected.");
     BuildRows(current_tmpl, sheet_headers, "");
   }
@@ -258,6 +275,11 @@
   }
 
   function ResetState() {
+    //Invalidates any async work still running for the previous import
+    operation++;
+    sheet_request++;
+    loading_sheet = false;
+    google_wait = null;
     workbook = undefined;
     selected_sheet = "";
     excel_name = "";
@@ -285,6 +307,7 @@
     );
   }
 
+  /**Reports the result to the app and closes the dialog.*/
   function FinalizeImport(result: ImportResult) {
     on_result?.(result);
     Close();
@@ -292,10 +315,12 @@
 
   export function Close() {
     show = false;
+    google_sheets.CancelAuthorization();
     ResetState();
   }
 
-  export async function Open(
+  /**Opens the file dialog, then the mapping dialog for the chosen CSV or Excel file.*/
+  export async function OpenFile(
     tmpl: TemplateData,
     imported_callback: ((result: ImportResult) => void) | undefined = undefined,
   ) {
@@ -304,7 +329,6 @@
 
     current_tmpl = tmpl;
     on_result = imported_callback;
-
     try {
       const picked_path = await PickSourcePath();
       if (!picked_path) return;
@@ -318,6 +342,35 @@
     }
   }
 
+  /**Lets the user pick a spreadsheet in their browser, then opens the mapping dialog for it.*/
+  export async function OpenGoogleSheets(
+    tmpl: TemplateData,
+    imported_callback: ((result: ImportResult) => void) | undefined = undefined,
+  ) {
+    show = false;
+    ResetState();
+
+    current_tmpl = tmpl;
+    on_result = imported_callback;
+    const current_operation = operation;
+    google_wait = "import";
+    try {
+      const id = await google_sheets.Pick();
+      if (current_operation !== operation) return;
+      await LoadGoogleSource(SpreadsheetUrl(id), undefined, current_operation);
+    } catch (e) {
+      if (current_operation !== operation) return;
+      l.error("[Import] Failed to load Google sheet", e);
+      FinalizeImport({
+        success: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      if (current_operation === operation) google_wait = null;
+    }
+  }
+
+  /**Opens the mapping dialog for a known local file, such as a recent source.*/
   export async function OpenPath(
     tmpl: TemplateData,
     path: string,
@@ -325,6 +378,7 @@
   ) {
     show = false;
     ResetState();
+
     current_tmpl = tmpl;
     on_result = imported_callback;
     try {
@@ -335,16 +389,94 @@
     }
   }
 
+  /**Opens the mapping dialog for a known spreadsheet, such as a recent source.*/
+  export async function OpenGoogle(
+    tmpl: TemplateData,
+    path: string,
+    imported_callback: ((result: ImportResult) => void) | undefined = undefined,
+  ) {
+    show = false;
+    ResetState();
+
+    current_tmpl = tmpl;
+    on_result = imported_callback;
+    const current_operation = operation;
+    google_wait = "import";
+    try {
+      await LoadGoogleSource(path, undefined, current_operation);
+    } catch (e) {
+      if (current_operation !== operation) return;
+      l.error("[Import] Failed to load Google sheet", e);
+      FinalizeImport({ success: false, error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      if (current_operation === operation) google_wait = null;
+    }
+  }
+
+  /**Loads the rows of one Google sheet and builds the mapping rows. Ignored if a newer request started meanwhile.*/
+  async function BuildGoogleSheet(sheet: string) {
+    if (!current_tmpl) throw new Error("No template is selected.");
+
+    const request = ++sheet_request;
+    loading_sheet = true;
+
+    let values: unknown[][];
+    try {
+      values = await google_sheets.Values(SpreadsheetId(source_path), sheet);
+    } catch (error) {
+      if (request !== sheet_request) return;
+      throw error;
+    }
+    if (request !== sheet_request) return;
+
+    const parsed = ReadSheet(values);
+    sheet_headers = parsed.headers;
+    sheet_rows = parsed.rows;
+
+    BuildRows(current_tmpl, sheet_headers, sheet);
+    loading_sheet = false;
+  }
+
+  async function LoadGoogleSource(path: string, saved?: ImportSource, current_operation = operation) {
+    const id = SpreadsheetId(path);
+    source_type = "google";
+    source_path = path;
+    excel_relative_path = path;
+
+    //Reuse the saved mapping when this is the template's current spreadsheet
+    const previous = current_tmpl?.import_file_lasts.active_source;
+    saved_import = saved ?? (previous?.type === "google" && previous.path === path ? previous : undefined);
+
+    const metadata = await google_sheets.Metadata(id);
+    if (current_operation !== operation) return;
+
+    excel_name = metadata.name;
+    sheet_options = metadata.sheets;
+    if (sheet_options.length === 0) throw new Error("The Google spreadsheet does not contain any sheets.");
+    if (saved_import?.sheet && !sheet_options.includes(saved_import.sheet)) {
+      throw new Error(`The previously selected Google sheet "${saved_import.sheet}" could not be found.`);
+    }
+
+    selected_sheet = saved_import?.sheet && sheet_options.includes(saved_import.sheet) ? saved_import.sheet : sheet_options[0];
+    await BuildGoogleSheet(selected_sheet);
+    if (current_operation !== operation) return;
+
+    show = true;
+  }
+
   async function LoadSource(path: string, saved?: ImportSource) {
     const path_util = cep_node.require("path");
     const extension = path_util.extname(path).toLowerCase();
     if (![".csv", ".xlsx", ".xls", ".xlsm"].includes(extension)) {
       throw new Error("Select a CSV, XLSX, XLS, or XLSM file.");
     }
+
     source_type = extension === ".csv" ? "csv" : "excel";
     source_path = path;
     excel_relative_path = await ResolveRelativePath(path);
     excel_name = path_util.basename(path);
+
+    //Reuse the saved mapping when this is the template's current file
     const previous = current_tmpl?.import_file_lasts.active_source;
     if (!saved && previous && previous.type === source_type &&
         path_util.normalize(previous.path) === path_util.normalize(excel_relative_path)) {
@@ -358,12 +490,15 @@
       workbook = LoadWorkbookFromPath(path);
       sheet_options = workbook.SheetNames ?? [];
       if (sheet_options.length === 0) throw new Error("The Excel file does not contain any sheets.");
+
       selected_sheet = saved?.sheet && sheet_options.includes(saved.sheet) ? saved.sheet : sheet_options[0];
       BuildSheetData(selected_sheet);
     }
+
     show = true;
   }
 
+  /**Reopens the mapping dialog for the template's current source, with its saved mapping.*/
   export async function ReImportLast(
     tmpl: TemplateData,
     imported_callback: ((result: ImportResult) => void) | undefined = undefined,
@@ -373,6 +508,7 @@
 
     current_tmpl = tmpl;
     on_result = imported_callback;
+    const current_operation = operation;
 
     try {
       const saved = tmpl.import_file_lasts?.active_source;
@@ -380,44 +516,76 @@
         throw new Error("No source has been imported for this template yet.");
       }
 
-      const absolute_path = await ResolveAbsolutePath(saved.path);
       is_reimport = true;
-      await LoadSource(absolute_path, saved);
+      if (saved.type === "google") {
+        google_wait = "import";
+        await LoadGoogleSource(saved.path, saved, current_operation);
+      } else {
+        const absolute_path = await ResolveAbsolutePath(saved.path);
+        await LoadSource(absolute_path, saved);
+      }
     } catch (e) {
+      if (current_operation !== operation) return;
       l.error("[Import] Re-import failed", e);
       FinalizeImport({
         success: false,
         error: e instanceof Error ? e.message : String(e),
       });
+    } finally {
+      if (current_operation === operation) google_wait = null;
     }
   }
 
+  /**Writes the template values back into the template's current source (CSV, Excel file or Google sheet).*/
   export async function SaveToOpenedFile(
     tmpl: TemplateData,
     saved_callback: ((result: ImportSaveResult) => void) | undefined = undefined,
   ) {
+    const current_operation = operation;
     try {
       const saved = tmpl.import_file_lasts?.active_source;
       if (!saved || !saved.path) {
         throw new Error("No source has been imported for this template yet.");
       }
 
-      const absolute_path = await ResolveAbsolutePath(saved.path);
       let stats;
-      if (saved.type === "csv") {
+      if (saved.type === "google") {
+        google_wait = "prepare-save";
+        if (!saved.sheet) throw new Error("The saved Google Sheets source has no sheet.");
+        const id = SpreadsheetId(saved.path);
+
+        //Read the sheet again, with and without formulas, so formula cells are never overwritten
+        const values = await google_sheets.Values(id, saved.sheet);
+        if (current_operation !== operation) return;
+        const formulas = await google_sheets.Values(id, saved.sheet, true);
+        if (current_operation !== operation) return;
+
+        const updates = PrepareSheetUpdates(saved.sheet, values, formulas, saved.mapping, tmpl.columns);
+
+        //Once the update is sent it can no longer be cancelled
+        google_wait = "save";
+        await google_sheets.Update(id, updates.data);
+        stats = updates.stats;
+      } else if (saved.type === "csv") {
+        const absolute_path = await ResolveAbsolutePath(saved.path);
         const content = cep_node.require("fs").readFileSync(absolute_path, "utf8");
         const result = SaveMappedCSVValues(content, saved.mapping, tmpl.columns);
+
         WriteFileToPath(result.content, absolute_path);
         stats = result.stats;
       } else {
+        const absolute_path = await ResolveAbsolutePath(saved.path);
         if (!saved.sheet) throw new Error("The saved Excel source has no sheet.");
+
         const workbook_to_save = LoadWorkbookFromPath(absolute_path);
         stats = SaveMappedTemplateValuesToSheet(
           workbook_to_save, saved.sheet, saved.mapping ?? {}, tmpl.columns,
         );
-        const bookType = ExcelBookType(absolute_path);
+
+        //Keep the file's own format, and its macros when it is an .xlsm
+        const book_type = ExcelBookType(absolute_path);
         const output = XLSX.write(workbook_to_save, {
-          type: "buffer", bookType, bookVBA: bookType === "xlsm",
+          type: "buffer", bookType: book_type, bookVBA: book_type === "xlsm",
         });
         WriteFileToPath(output, absolute_path);
       }
@@ -428,21 +596,35 @@
         stats,
       });
     } catch (e) {
+      if (current_operation !== operation) return;
       l.error("[Import] Save to opened file failed", e);
       saved_callback?.({
         success: false,
         error: e instanceof Error ? e.message : String(e),
       });
+    } finally {
+      if (current_operation === operation) google_wait = null;
     }
   }
 
-  function OnSheetSelect(sheet_name: string) {
+  async function OnSheetSelect(sheet_name: string) {
     selected_sheet = sheet_name;
-    BuildSheetData(sheet_name);
+
+    if (source_type === "google") {
+      try {
+        await BuildGoogleSheet(sheet_name);
+      } catch (e) {
+        l.error("[Import] Failed to load Google sheet", e);
+        FinalizeImport({ success: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    } else {
+      BuildSheetData(sheet_name);
+    }
   }
 
+  /**Applies the mapped values to the template and remembers the source and mapping for re-import and save.*/
   function ConfirmImport() {
-    if (!current_tmpl || (source_type === "excel" && selected_sheet === "") || sheet_headers.length === 0) return;
+    if (loading_sheet || !current_tmpl || (source_type !== "csv" && selected_sheet === "") || sheet_headers.length === 0) return;
 
     const mapping = MappingObject();
     TemplateHelper.ApplyImportedRows(current_tmpl, sheet_headers, sheet_rows, mapping);
@@ -450,12 +632,14 @@
     current_tmpl.import_file_lasts.active_source = {
       type: source_type,
       path: excel_relative_path,
-      sheet: source_type === "excel" ? selected_sheet : null,
+      ...(source_type === "google" ? { name: excel_name } : {}),
+      sheet: source_type !== "csv" ? selected_sheet : null,
       mapping,
     };
+
     FinalizeImport({
       success: true,
-      title: `${is_reimport ? "Re-imported" : "Imported"} ${source_type === "excel" ? "Excel" : "CSV"} Data`,
+      title: `${is_reimport ? "Re-imported" : "Imported"} ${source_type === "excel" ? "Excel" : source_type === "google" ? "Google Sheets" : "CSV"} Data`,
       stats: {
         rows: sheet_rows.length,
         mapped: MappedCount(),
@@ -463,26 +647,37 @@
         sheet: selected_sheet,
       },
       warnings: [],
-      source: { type: source_type, path: source_path },
+      source: { type: source_type, path: source_path, ...(source_type === "google" ? { name: excel_name } : {}) },
     });
   }
 </script>
 
+{#if google_wait}
+  <div class="modal">
+    <div class="wrapper">
+      <h3>{google_wait === "import" ? "Opening Google Sheets" : "Saving to Google Sheets"}</h3>
+      <p>Waiting for Google. If prompted, complete authorization in your browser.</p>
+      {#if google_wait !== "save"}<button onclick={Close}>Cancel</button>{/if}
+    </div>
+  </div>
+{/if}
+
 {#if show}
   <div class="modal">
     <div class="wrapper import_excel_dialog">
-      <h3>{is_reimport ? "Re-import" : "Import"} {source_type === "excel" ? "Excel" : "CSV"} Data</h3>
+      <h3>{is_reimport ? "Re-import" : "Import"} {source_type === "excel" ? "Excel" : source_type === "google" ? "Google Sheets" : "CSV"} Data</h3>
 
       <div class="summary">
         <span><b>File:</b> {excel_name}</span>
       </div>
 
-      {#if source_type === "excel"}<div class="sheet_picker">
+      {#if source_type !== "csv"}<div class="sheet_picker">
         <span>Sheet</span>
         <Dropdown
           bind:value={selected_sheet}
           options={sheet_options}
           labels={sheet_options}
+          html_labels={false}
           search_enabled={sheet_options.length > 8}
           style="min-width: 220px;"
           style_list="max-height: 220px; overflow-y: auto;"
@@ -522,6 +717,7 @@
                     bind:value={row.mapped_col}
                     options={mapping_options}
                     labels={mapping_labels}
+                    html_labels={false}
                     search_enabled={sheet_headers.length > 8}
                     style="width: 100%;"
                     style_list="max-height: 220px; overflow-y: auto;"
@@ -544,7 +740,7 @@
 
       <div class="actions">
         <button data-variant="discrete" onclick={Close}>Cancel</button>
-        <button onclick={ConfirmImport} disabled={sheet_headers.length === 0}>Confirm Import</button>
+        <button onclick={ConfirmImport} disabled={loading_sheet || sheet_headers.length === 0}>Confirm Import</button>
       </div>
     </div>
   </div>

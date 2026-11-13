@@ -11,30 +11,38 @@ export type ExcelWorkbookSaveStats = {
   missing_columns: string[];
 };
 
+/**Returns why the name is not a valid Excel sheet name, or null when it is valid.*/
 export function ValidateSheetName(name: string): string | null {
   if (!name.trim()) return "Enter a sheet name.";
   if (name.length > 31) return "Sheet names cannot exceed 31 characters.";
+
   if (/[\\/?*[\]:\x00-\x1f]/.test(name)) {
     return "Sheet names cannot contain \\ / ? * [ ] : or control characters.";
   }
+
   if (name.startsWith("'") || name.endsWith("'")) {
     return "Sheet names cannot begin or end with an apostrophe.";
   }
+
   return null;
 }
 
+/**Creates a workbook with one sheet: the column names as headers, followed by the row values.*/
 export function CreateTemplateWorkbook(columns: ExcelWritableColumn[], rows: unknown[][], sheet_name: string): XLSX.WorkBook {
   const error = ValidateSheetName(sheet_name);
   if (error) throw new Error(error);
+
   const headers = columns.map((column) => column.cont_name);
   const values = rows.map((row) =>
     row.map((value) => value !== null && typeof value === "object" ? JSON.stringify(value) : value));
+
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headers, ...values]), sheet_name);
   return workbook;
 }
 
-function CellValue(value: unknown): { t: XLSX.ExcelDataType; v?: XLSX.CellValue } {
+/**Converts a template value to a cell. Empty values become empty cells; objects are stored as JSON text.*/
+function CellValue(value: unknown): { t: XLSX.ExcelDataType; v?: XLSX.CellObject["v"] } {
   if (value === null || value === undefined || value === "") {
     return { t: "z" };
   }
@@ -54,6 +62,10 @@ function CellValue(value: unknown): { t: XLSX.ExcelDataType; v?: XLSX.CellValue 
   return { t: "s", v: JSON.stringify(value) };
 }
 
+/**
+ * Writes the mapped template values into an open sheet, leaving other columns and formula cells untouched.
+ * Rows beyond the sheet's last populated row are appended.
+ */
 export function SaveMappedTemplateValuesToSheet(
   workbook: XLSX.WorkBook,
   sheet_name: string,
@@ -64,8 +76,9 @@ export function SaveMappedTemplateValuesToSheet(
   if (!sheet) {
     throw new Error(`The saved sheet could not be found: ${sheet_name}`);
   }
-
   if (!sheet["!ref"]) throw new Error("The saved sheet is empty.");
+
+  //Rows with data, as positions in the sheet (blank rows are skipped, like when importing)
   const range = XLSX.utils.decode_range(sheet["!ref"]);
   const populated_rows: number[] = [];
   for (let row = range.s.r; row <= range.e.r; row++) {
@@ -75,11 +88,15 @@ export function SaveMappedTemplateValuesToSheet(
     });
     if (values.length > 0) populated_rows.push(row);
   }
+
+  //The first populated row holds the headers; the rest are data rows
   const header_row = populated_rows.shift();
   if (header_row === undefined) throw new Error("The saved sheet does not contain a header row.");
+
   const header_indices = new Map<string, number[]>();
   for (let col_index = range.s.c; col_index <= range.e.c; col_index++) {
     const cell = sheet[XLSX.utils.encode_cell({ r: header_row, c: col_index })];
+
     if (cell?.v !== undefined && cell.v !== null) {
       const header = String(cell.v).trim();
       header_indices.set(header, [...(header_indices.get(header) ?? []), col_index]);
@@ -106,9 +123,12 @@ export function SaveMappedTemplateValuesToSheet(
       missing_columns.push(source_col);
       continue;
     }
+
+    //Writing into a repeated header would be a guess, so we refuse
     if (matches.length !== 1 || written_headers.has(source_col)) {
       throw new Error(`Cannot save updates: the Excel column "${source_col}" is ambiguous.`);
     }
+
     written_headers.add(source_col);
     const sheet_col_index = matches[0];
 
@@ -116,6 +136,7 @@ export function SaveMappedTemplateValuesToSheet(
       if (populated_rows[row_index] === undefined) {
         populated_rows[row_index] = ++last_written_row;
       }
+
       const physical_row = populated_rows[row_index];
       const cell_address = XLSX.utils.encode_cell({ r: physical_row, c: sheet_col_index });
       const existing_cell = sheet[cell_address];
@@ -125,9 +146,11 @@ export function SaveMappedTemplateValuesToSheet(
         continue;
       }
 
+      //The cached display text (w) would show the old value, so it is dropped
       const next_cell = { ...existing_cell, ...CellValue(template_col.values[row_index]) };
       delete next_cell.w;
       sheet[cell_address] = next_cell;
+
       written_cells++;
       last_written_row = Math.max(last_written_row, physical_row);
     }

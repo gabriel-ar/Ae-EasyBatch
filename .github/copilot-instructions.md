@@ -58,6 +58,12 @@ npm run build  # Creates dist/index.html with bundled JS/CSS
 
 ## Project-Specific Conventions
 
+### Code Style
+- Variables, parameters, object properties and non-exported constants use `snake_case` (e.g., `sheet_name`, `header_index`); functions, methods, classes and types use `PascalCase` (e.g., `LoadSource`, `ImportSource`). Keep third-party option names as they are (e.g., `bookType`).
+- Use 2-space indentation. Separate logical steps with a blank line, and keep related statements together.
+- Comment only what is not self-explanatory, briefly: `//Short note` before a snippet, and `/**Short summary*/` before a function whose purpose or side effects are not obvious.
+- Build-time configuration (e.g., Google credentials) goes in the git-ignored `.env.local`, with a blank template in `.env.example`.
+
 ### UI Component Organization
 - Keep individual UI components directly in `src/ui/`; create a subfolder when it groups multiple closely related files.
 - Name related components with a shared subject prefix so they sort together, e.g. `DataExport.svelte` and `DataImport.svelte`.

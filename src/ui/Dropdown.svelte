@@ -12,6 +12,7 @@
     style_list = "",
     search_enabled = false,
     aria_labelledby = undefined,
+    html_labels = true,
     onselect = (option, index) => {},
   } = $props();
 
@@ -92,7 +93,7 @@
     bind:value={search_term}
     oninput={OnSearchInput} />
   <button class="dropbtn" aria-labelledby={aria_labelledby}
-    >{@html sel_label}<ChevronDown
+    >{#if html_labels}{@html sel_label}{:else}{sel_label}{/if}<ChevronDown
       style="vertical-align:middle; margin-left: 5px;" />
   </button>
 
@@ -102,7 +103,7 @@
     {/if}
     {#each show_options as option, opt_i}
       <button onclick={(e) => Selected(e, option, opt_i)}
-        >{@html show_labels[opt_i]}</button>
+        >{#if html_labels}{@html show_labels[opt_i]}{:else}{show_labels[opt_i]}{/if}</button>
     {/each}
   </div>
 </div>

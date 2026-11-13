@@ -385,7 +385,7 @@
     $state.snapshot(s.proj);
   });
 
-  let save_timeout: ReturnType<typeof setTimeout> | undefined;
+  let save_timeout: number | undefined;
   let last_type = "";
   function DebouceSaveSettings(what = "all") {
     if (save_timeout !== undefined) {
@@ -398,7 +398,7 @@
       last_type = what;
     }
 
-    save_timeout = setTimeout(SaveSettings, 2000, what);
+    save_timeout = window.setTimeout(SaveSettings, 2000, what);
   }
 
   async function SaveSettings(
@@ -556,9 +556,17 @@
 
     //File Actions
     ac.AddListener(
-      "import_data",
+      "import_file",
       () => {
-        OpenDataImporter();
+        OpenFileImporter();
+      },
+      "",
+    );
+
+    ac.AddListener(
+      "import_google",
+      () => {
+        OpenGoogleImporter();
       },
       "",
     );
@@ -938,7 +946,11 @@
     if (action.startsWith("recent_source:")) {
       const source = recent_sources[Number(action.slice("recent_source:".length))];
       if (source && s.tmpl) {
-        m_import_data?.OpenPath(s.tmpl, source.path, HandleImportResult);
+        if (source.type === "google") {
+          m_import_data?.OpenGoogle(s.tmpl, source.path, HandleImportResult);
+        } else {
+          m_import_data?.OpenPath(s.tmpl, source.path, HandleImportResult);
+        }
       }
       return;
     }
@@ -987,10 +999,18 @@
     }
   }
 
-  function OpenDataImporter() {
+  function OpenFileImporter() {
     if (s.tmpl === undefined) return;
 
-    m_import_data?.Open(s.tmpl, (result: ImportResult) => {
+    m_import_data?.OpenFile(s.tmpl, (result: ImportResult) => {
+      HandleImportResult(result);
+    });
+  }
+
+  function OpenGoogleImporter() {
+    if (s.tmpl === undefined) return;
+
+    m_import_data?.OpenGoogleSheets(s.tmpl, (result: ImportResult) => {
       HandleImportResult(result);
     });
   }
@@ -1012,7 +1032,7 @@
   }
 
   function HandleImportResult(result: ImportResult) {
-    if (!result.success) {
+    if (result.success === false) {
       m_message?.Open(EscapeHTML(result.error), "Import Error");
       return;
     }
@@ -1039,7 +1059,7 @@
   }
 
   function HandleSaveResult(result: ImportSaveResult) {
-    if (!result.success) {
+    if (result.success === false) {
       m_message?.Open(EscapeHTML(result.error), "Save Updates Error");
       return;
     }
@@ -1066,15 +1086,17 @@
   }
 
   function GetActiveImportPath(): string {
-    const source_path = s.tmpl?.import_file_lasts?.active_source?.path;
+    const source = s.tmpl?.import_file_lasts?.active_source;
+    const source_path = source?.path;
     if (!source_path) return "";
+    if (source?.type === "google") return source_path;
     const path = cep_node.require("path");
     if (path.isAbsolute(source_path) || !loaded_project_path) return source_path;
     return path.join(path.dirname(loaded_project_path), source_path);
   }
 
   function HandleExportResult(result: ExportResult) {
-    if (!result.success) {
+    if (result.success === false) {
       m_message?.Open(EscapeHTML(result.error), "Export Error");
       return;
     }
@@ -1430,6 +1452,7 @@
   bind:this={menu}
   onselect={MenuItemSelected}
   active_source_path={GetActiveImportPath()}
+  active_source_name={s.tmpl?.import_file_lasts?.active_source?.name}
   {recent_sources}></Menu>
 <ModalMessage bind:this={m_message}></ModalMessage>
 <ModalProceed bind:this={m_proceed} bind:proceed></ModalProceed>

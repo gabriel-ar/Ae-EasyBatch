@@ -26,10 +26,12 @@
   let {
     onselect = (option: string) => {},
     active_source_path = "",
+    active_source_name = undefined,
     recent_sources = [],
   }: {
     onselect?: (option: string) => void;
     active_source_path?: string;
+    active_source_name?: string;
     recent_sources?: RecentSource[];
   } = $props();
 
@@ -150,7 +152,7 @@
       {:else if mode === "file"}
         {#if active_source_path !== ""}
           <div class="c_divider">Opened File</div>
-          <span class="c_filename" title={active_source_path}>{active_source_path.split(/[\\/]/).pop()}</span>
+          <span class="c_filename" title={active_source_path}>{active_source_name || active_source_path.split(/[\\/]/).pop()}</span>
           <button
             class="c_item"
             onclick={() => Selected("reimport_data")}
@@ -169,21 +171,27 @@
         {/if}
         <button
           class="c_item"
-          onclick={() => Selected("import_data")}
+          onclick={() => Selected("import_file")}
           data-tooltip="Import data from a CSV or Excel file"
           data-tt-pos="right"
-          ><Enter />Import Data</button>
+          ><Enter />Import File</button>
+        <button
+          class="c_item"
+          onclick={() => Selected("import_google")}
+          data-tooltip="Import data from a Google spreadsheet"
+          data-tt-pos="right"
+          ><Enter />Import Google Sheets</button>
         <button
           class="c_item"
           onclick={() => Selected("export_data")}
-          data-tooltip="Export data to a new file"
+          data-tooltip="Export data to a new CSV or Excel file"
           data-tt-pos="right"
-          ><Exit />Export Data</button>
+          ><Exit />Export File</button>
         {#if recent_sources.length > 0}
           <div class="c_divider">Recent Sources</div>
           {#each recent_sources as source, index}
             <button class="c_item c_recent" title={source.path} onclick={() => Selected(`recent_source:${index}`)}>
-              {source.path.split(/[\\/]/).pop()} <span class="c_shortcut">{source.type === "csv" ? "CSV" : "Excel"}</span>
+              {source.name || source.path.split(/[\\/]/).pop()} <span class="c_shortcut">{source.type === "csv" ? "CSV" : source.type === "google" ? "Google Sheets" : "Excel"}</span>
             </button>
           {/each}
         {/if}

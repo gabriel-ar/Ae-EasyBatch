@@ -5,7 +5,7 @@ The `Data` tab is where you will edit the versions of your template. Each proper
 ![Screenshot of the Data tab menu](assets/data-hl-menu.png)
 
 ### What Is a Row? (Green)
-Each row is a version of your template. You can add, remove, and edit rows as needed. You can also import rows from an Excel or CSV file. EasyBatch supports the same property types as Essential Graphics. In the simplest render setup, each row becomes a separate render.
+Each row is a version of your template. You can add, remove, and edit rows as needed. You can also import rows from an Excel or CSV file or a Google spreadsheet. EasyBatch supports the same property types as Essential Graphics. In the simplest render setup, each row becomes a separate render.
 
 ### Top Bar Menus (Yellow)
 !!! tip "Use Shortcuts"
@@ -14,13 +14,15 @@ Each row is a version of your template. You can add, remove, and edit rows as ne
 #### File
 ![Screenshot of the File menu](assets/data-hl-menu-file.png)
 
-Use **Import Data** to open a CSV or Excel file (`.xlsx`, `.xls`, or `.xlsm`). Choose the Excel sheet, if applicable, then review the automatic property-to-column matches and adjust them before confirming. Unmapped properties keep their existing values where possible.
+Use **Import File** to choose a CSV or Excel file (`.xlsx`, `.xls`, or `.xlsm`), or **Import Google Sheets** to sign in and choose a Google spreadsheet in your browser. Select a sheet, if applicable, then review the automatic property-to-column matches and adjust them before confirming. Unmapped properties keep their existing values where possible.
 
-After an import, **Re-import** (Alt/Option+R) reloads the active source with its saved mapping, and **Save Updates** (Alt/Option+S) writes the mapped values back to that source. These actions use the last source imported into the selected template. Saving preserves other columns and does not overwrite Excel formula cells or CSV cells starting with `=`. Existing rows beyond the template's current row count are not deleted. If a mapped header is duplicated or multiple properties map to the same header, saving is refused to avoid an ambiguous update.
+After an import, **Re-import** (Alt/Option+R) reloads the active source with its saved mapping, and **Save Updates** (Alt/Option+S) writes the mapped values back to that source. These actions use the last source imported into the selected template. Saving preserves other columns and does not overwrite Excel or Google Sheets formula cells or CSV cells starting with `=`. Existing rows beyond the template's current row count are not deleted. If a mapped header is duplicated or multiple properties map to the same header, saving is refused to avoid an ambiguous update.
 
-**Export Data** is always available for the selected template and creates a separate CSV or `.xlsx` file. Choose the export method before selecting the destination. For Excel, the sheet name defaults to the template name and can be edited; it must meet Excel's sheet-naming rules. Exporting does not change the active import source. Exporting a sample is a useful way to see the expected column names and value formats.
+Google access is limited to files you choose for EasyBatch; shared spreadsheets can be opened if your Google account has access. Saving updates requires edit permission. Authorization is held only in memory, so you must authorize again after closing the extension or when the access token expires. Updates are not synchronized automatically. Avoid editing the spreadsheet concurrently with a save: another editor can change cells between EasyBatch reading and updating them.
 
-The **Recent Sources** section lists up to ten successfully imported files across templates and projects on this computer. Select one to reopen the mapping dialog. The list stores local file paths in the extension's local browser storage; it does not transfer files to other machines. The active source and its mapping are stored with the project, normally using a path relative to the project folder. Files imported before a project is saved use an absolute path.
+**Export File** is always available for the selected template and creates a separate CSV or `.xlsx` file. Choose the export method before selecting the destination. For Excel, the sheet name defaults to the template name and can be edited; it must meet Excel's sheet-naming rules. Exporting does not change the active import source. Exporting a sample is a useful way to see the expected column names and value formats.
+
+The **Recent Sources** section lists up to ten successfully imported sources across templates and projects on this computer. Select one to reopen the mapping dialog. The list stores local file paths or spreadsheet links and names in the extension's local browser storage; it does not store Google tokens there. The active source and its mapping are stored with the project. Local files normally use a path relative to the project folder; files imported before a project is saved use an absolute path.
 
 #### Edit
 ![Screenshot of the Edit menu](assets/data-hl-menu-edit.png)

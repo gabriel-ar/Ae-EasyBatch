@@ -19,8 +19,9 @@ export interface ProjData {
 }
 
 export interface ImportSource {
-  type: "csv" | "excel";
+  type: "csv" | "excel" | "google";
   path: string;
+  name?: string;
   sheet: string | null;
   mapping: Record<string, string | null>;
 }
@@ -685,7 +686,6 @@ export class TemplateHelper {
       }
 
       tmpl_col.values = data_rows.map((data_row) => {
-        if (data_row[col_i] === undefined) return null;
         return ColumnHelper.ValidateValue(data_row[col_i], tmpl_col.type);
       });
     });
@@ -831,11 +831,16 @@ export class ColumnHelper {
           value = value.toString();
         } else if (typeof value !== "string") {
           value = "";
+        }else if (value === undefined){
+          value = "";
         }
         break;
 
       case this.PropertyValueType.OneD:
-        if (value === undefined || typeof value !== "number") {
+        if (value === undefined || value === null) {
+          value = 0;
+        }else
+        if (typeof value !== "number") {
           try {
             value = parseFloat(value);
           } catch (e) {
@@ -855,6 +860,9 @@ export class ColumnHelper {
         break;
 
       case this.PropertyValueType.COLOR:
+        if (value === undefined || value === null) {
+          value = [0, 0, 0, 1];
+        }else
         if (typeof value === "string" && !value.includes(",") && !value.includes("[")) {
           value = ColumnHelper.HexToColorArray(value);
         } else {

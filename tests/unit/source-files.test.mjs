@@ -23,13 +23,13 @@ test("CSV updates preserve unmapped columns, blank lines, formula cells, BOM and
     written_cells: 2, formula_cells_skipped: 1, missing_columns: [],
   });
   const parsed = ParseCSVSource(result.content);
-  assert.deepEqual(parsed.dataIndices.map((i) => parsed.rows[i]), [
+  assert.deepEqual(parsed.data_indices.map((i) => parsed.rows[i]), [
     ["new", "keep"], ["=1+1", "untouched"], ["third"],
   ]);
 });
 
 test("CSV handles single-column files and refuses malformed or ambiguous updates", () => {
-  assert.deepEqual(ParseCSVSource("Name\nfirst\n").dataIndices, [1]);
+  assert.deepEqual(ParseCSVSource("Name\nfirst\n").data_indices, [1]);
   assert.throws(() => ParseCSVSource('Name\n"unterminated'), /parse CSV/);
   assert.throws(() => SaveMappedCSVValues("Name,Name\none,two", { prop: "Name" }, [
     { cont_name: "prop", values: ["new"] },
@@ -115,6 +115,12 @@ test("recent sources are persisted, ordered, deduplicated and limited to ten", (
   assert.equal(list.filter((item) => item.path === "file2").length, 1);
   assert.deepEqual(JSON.parse(store.get("easybatch.recentSources")), list);
   assert.equal(store.get("easybatch.otherSetting"), JSON.stringify({ enabled: true }));
+  const sheet = { type: "google", path: "https://docs.google.com/spreadsheets/d/AbC_123/edit", name: "Team Sheet" };
+  LocalSettings.RememberRecentSource(sheet);
+  assert.deepEqual(LocalSettings.LoadRecentSources()[0], sheet);
+  LocalSettings.RememberRecentSource({ ...sheet, name: "Renamed" });
+  assert.equal(LocalSettings.LoadRecentSources().filter((item) => item.path === sheet.path).length, 1);
+  assert.equal(LocalSettings.LoadRecentSources()[0].name, "Renamed");
 });
 
 test("local recent sources retain validation, platform deduplication and storage errors", () => {

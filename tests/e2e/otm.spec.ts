@@ -1386,8 +1386,9 @@ test.describe('Excel Import', async () => {
         await bar_btn!.tap();
 
         const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
-        expect(await menu!.$('button::-p-text(Import Data)'), 'has Import Data').toBeTruthy();
-        expect(await menu!.$('button::-p-text(Export Data)'), 'has Export Data').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Import File)'), 'has Import File').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Import Google Sheets)'), 'has Import Google Sheets').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Export File)'), 'has Export File').toBeTruthy();
 
         await (await page.$('.c_menu_bg'))!.tap();
         expect(await page.$('.c_menu'), 'menu closed').toBeNull();
@@ -1398,7 +1399,7 @@ test.describe('Excel Import', async () => {
         for (const [label, extension] of [['CSV', 'csv'], ['Excel', 'xlsx']]) {
             const destination = path.join(EXCEL_DIR, `exported-data.${extension}`);
             await StubSaveFileDialog(destination);
-            await BarMenuAction('File', 'Export Data');
+            await BarMenuAction('File', 'Export File');
             await page.waitForSelector('.export_data_dialog', { timeout: 3000 });
             expect(await con.DropdownSelect('.export_data_dialog .dropdown', label)).toBeTruthy();
             if (extension === 'xlsx') {
@@ -1425,7 +1426,7 @@ test.describe('Excel Import', async () => {
     test('should import, save and re-import CSV and show it in recent sources', async () => {
         fs.writeFileSync(CSV_PATH, 'reptext,Extra\r\nCSV Original,keep\r\n', 'utf8');
         await StubOpenFileDialog(CSV_PATH);
-        await BarMenuAction('File', 'Import Data');
+        await BarMenuAction('File', 'Import File');
         await page.waitForSelector('.import_excel_dialog h3::-p-text(Import CSV Data)', { timeout: 5000 });
         await ConfirmExcelDialog();
         await WaitForFooter('Imported CSV Data');
@@ -1456,7 +1457,7 @@ test.describe('Excel Import', async () => {
 
     test('should do nothing when the file dialog is cancelled', async () => {
         await StubOpenFileDialog(null);
-        await BarMenuAction('File', 'Import Data');
+        await BarMenuAction('File', 'Import File');
 
         await new Promise(r => setTimeout(r, 800));
         expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
@@ -1465,7 +1466,7 @@ test.describe('Excel Import', async () => {
 
     test('should report an error when the selected file does not exist', async () => {
         await StubOpenFileDialog(path.join(EXCEL_DIR, 'does-not-exist.xlsx'));
-        await BarMenuAction('File', 'Import Data');
+        await BarMenuAction('File', 'Import File');
 
         const body = await DismissMessageModal('Import Error');
         expect(body, 'error explains the problem').toContain('path');
@@ -1474,7 +1475,7 @@ test.describe('Excel Import', async () => {
 
     test('should open the import dialog on the first sheet', async () => {
         await StubOpenFileDialog(EXCEL_PATH);
-        await BarMenuAction('File', 'Import Data');
+        await BarMenuAction('File', 'Import File');
 
         const title = await page.waitForSelector('.import_excel_dialog h3', { timeout: 5000 });
         expect(await title!.evaluate(el => el.textContent?.trim()), 'dialog title').toBe('Import Excel Data');
