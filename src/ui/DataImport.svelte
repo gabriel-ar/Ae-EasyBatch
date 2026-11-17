@@ -656,7 +656,7 @@
   <div class="modal">
     <div class="wrapper">
       <h3>{google_wait === "import" ? "Opening Google Sheets" : "Saving to Google Sheets"}</h3>
-      <p>Waiting for Google. If prompted, complete authorization in your browser.</p>
+      <p>Waiting for Google or secure storage. Complete any browser or system permission prompts.</p>
       {#if google_wait !== "save"}<button onclick={Close}>Cancel</button>{/if}
     </div>
   </div>

@@ -225,7 +225,7 @@ class CSAdapter {
    */
   GetSystemPath(pathType) {
     var path = decodeURI(this.a_cep.getSystemPath(pathType));
-    return path.replace("file:///", "").replace("file://", "");
+    return path.replace(/^file:\/\/\/(?=[a-zA-Z]:\/)/, "").replace(/^file:\/\//, "");
   };
 
   

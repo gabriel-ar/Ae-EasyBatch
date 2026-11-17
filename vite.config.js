@@ -2,6 +2,7 @@ import { build, defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { viteSingleFile } from "vite-plugin-singlefile"
 import copy from 'rollup-plugin-copy'
+import { BuildNativeStore } from './tools/build-native-store.mjs'
 
 //For custom extensions
 import { readFileSync } from 'fs'
@@ -32,6 +33,13 @@ export default defineConfig(({ command, mode }) => {
     },
     plugins: [
       svelte(),
+      {
+        name: 'native-secret-store',
+        //Build output is created after Vite empties outDir.
+        ...(command === 'build'
+          ? { writeBundle() { BuildNativeStore(outDir); } }
+          : { buildStart() { BuildNativeStore(outDir); } }),
+      },
       copy({
         
         targets: [
@@ -58,7 +66,7 @@ export default defineConfig(({ command, mode }) => {
           ] : []),
           // Copy host files (ExtendScript files)
           {
-            src: ['src/host/host.jsx', 'src/host/json2.js'],
+            src: ['src/host/host.jsx', 'src/host/json2.js', 'src/host/SecretStore.jsx'],
             dest: `${outDir}/host`
           },
 

@@ -9,6 +9,7 @@ Internal use functions are prefixed with an underscore `_`.
 */
 
 //@include "json2.js"
+//@include "SecretStore.jsx"
 //script EasyBatch
 
 /**Because random bugs happens that are difficult to track */

@@ -68,6 +68,11 @@ export interface Result {
   errors?: { message: string; type: string; row?: number }[];
 }
 
+export interface SecretStoreResult {
+  status: number;
+  value?: string;
+}
+
 /** Result for getting settings */
 export interface GetSettsResult extends Result {
   proj_data: ProjData;

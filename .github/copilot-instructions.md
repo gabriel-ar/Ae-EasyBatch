@@ -58,6 +58,12 @@ npm run build  # Creates dist/index.html with bundled JS/CSS
 
 ## Project-Specific Conventions
 
+### Agent Changes
+- Do not update README or user documentation unless explicitly requested. Keep durable implementation notes in these instructions, briefly.
+- macOS secrets use `src/native/SecretStore.m` (`SecItem` APIs) through `CSAdapter.Eval` and `host/SecretStore.jsx`, never the CLI. Service `com.setreports.easybatch.native` deliberately excludes old CLI-trusted entries; reconnect Google once. Native failures must surface, never fall back to plaintext/CLI.
+- Vite builds a universal native bundle on macOS with Xcode tools; restart dev after native/host edits and reload the panel. `EASYBATCH_SIGN_IDENTITY` selects a signing identity (default ad-hoc, development only). Windows has no persistent backend. Mac releases must be built/signed on macOS.
+- Keychain access trusts the AE host, not EasyBatch alone. AE restart, locked-Keychain prompts, other AE versions, and distribution notarization still require manual validation.
+
 ### Code Style
 - Variables, parameters, object properties and non-exported constants use `snake_case` (e.g., `sheet_name`, `header_index`); functions, methods, classes and types use `PascalCase` (e.g., `LoadSource`, `ImportSource`). Keep third-party option names as they are (e.g., `bookType`).
 - Use 2-space indentation. Separate logical steps with a blank line, and keep related statements together.

@@ -11,7 +11,7 @@
     "symlink:windows": "node ./tools/debug_create_symlink.mjs --platform=windows",
     "symlink:macos": "node ./tools/debug_create_symlink.mjs --platform=macos",
     "package": "node ./tools/package.mjs",
-    "test:unit": "node --test tests/unit/source-files.test.mjs tests/unit/import-dialog.test.mjs",
+    "test:unit": "node --test tests/unit/source-files.test.mjs tests/unit/import-dialog.test.mjs tests/unit/secret-store.test.mjs tests/unit/google-auth.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

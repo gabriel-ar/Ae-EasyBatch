@@ -1,6 +1,7 @@
 import { csa, l } from "./States.svelte.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Buffer } from "node:buffer";
+import { CreateSecretStore, type SecretStore } from "./SecretStore.ts";
 
 //Both come from the git-ignored .env.local at build time. Google's desktop token endpoint requires
 //the secret even with PKCE, but treats it as non-confidential.
@@ -13,6 +14,12 @@ const sheets_mime = "application/vnd.google-apps.spreadsheet";
 
 type JsonObject = Record<string, unknown>;
 type GoogleOperation = "token" | "metadata" | "values" | "batchUpdate";
+
+class GoogleRequestError extends Error {
+  constructor(message: string, public readonly code: string) {
+    super(message);
+  }
+}
 
 /**Reduces a Google error response to a known error code for the log. Never includes free text.*/
 function GoogleErrorSummary(json: JsonObject): { code: string; detail?: string } {
@@ -110,7 +117,7 @@ async function RequestJson(url: string, method: string, headers: Record<string, 
   if (!response.ok) {
     l.warn("[GoogleSheets] Request failed", { operation, status: response.status, elapsed_ms: Date.now() - started, error: GoogleErrorSummary(json) });
     const description = operation === "token" ? "authorization token exchange" : "Sheets request";
-    throw new Error(`Google ${description} failed: ${RequestError(json, response.status, headers, body)}`);
+    throw new GoogleRequestError(`Google ${description} failed: ${RequestError(json, response.status, headers, body)}`, GoogleErrorSummary(json).code);
   }
 
   l.debug("[GoogleSheets] Request completed", { operation, status: response.status, elapsed_ms: Date.now() - started });
@@ -123,12 +130,39 @@ function EncodeBase64Url(buffer: Buffer): string {
 
 /**
  * Talks to Google Sheets. The user signs in and picks a spreadsheet in their browser; the access token
- * is kept in memory only, so it is gone when the extension closes.
+ * stays in memory. On macOS, refresh tokens are stored separately in Keychain.
  */
 export class GoogleSheetsClient {
-  private access_token = "";
-  private expires_at = 0;
+  private access_tokens = new Map<string, { value: string; expires_at: number }>();
+  private refreshes = new Map<string, Promise<void>>();
   private authorization_in_progress = false;
+  private secret_store: SecretStore | null | undefined;
+
+  constructor(secret_store?: SecretStore | null) {
+    this.secret_store = secret_store;
+  }
+
+  private Store(): SecretStore | null {
+    if (this.secret_store === undefined) {
+      this.secret_store = CreateSecretStore();
+    }
+    return this.secret_store;
+  }
+
+  private TokenKey(file_id: string): string {
+    return `google-sheets:${client_id}:${file_id}`;
+  }
+
+  private ParseAccessToken(tokens: JsonObject): { value: string; expires_at: number } {
+    if (typeof tokens.access_token !== "string" || !tokens.access_token ||
+      typeof tokens.expires_in !== "number" || !Number.isFinite(tokens.expires_in) || tokens.expires_in <= 0) {
+      throw new Error("Google did not return a valid access token.");
+    }
+    return {
+      value: tokens.access_token,
+      expires_at: Date.now() + Math.max(0, tokens.expires_in - 60) * 1000,
+    };
+  }
 
   //Incremented on cancel, so an authorization that finishes later knows it was cancelled
   private authorization_version = 0;
@@ -221,6 +255,7 @@ export class GoogleSheetsClient {
           const params = new URLSearchParams({
             client_id, redirect_uri: redirect, response_type: "code",
             scope: oauth_scope, state, code_challenge: challenge, code_challenge_method: "S256",
+            ...(this.Store() ? { access_type: "offline" } : {}),
           });
 
           //These parameters make Google show the file picker as part of the consent
@@ -265,13 +300,17 @@ export class GoogleSheetsClient {
       }, "token", body);
 
       if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
-      if (typeof tokens.access_token !== "string" || typeof tokens.expires_in !== "number") {
-        throw new Error("Google did not return a valid access token.");
+      const access_token = this.ParseAccessToken(tokens);
+      const selected_file = callback.picked ?? file_id;
+      if (!selected_file) throw new Error("No Google spreadsheet was selected.");
+      const store = this.Store();
+      if (store && typeof tokens.refresh_token === "string" && tokens.refresh_token) {
+        stage = "saving-credentials";
+        await store.Set(this.TokenKey(selected_file), tokens.refresh_token);
       }
 
-      //Expire a minute early so a request never starts with a token about to lapse
-      this.access_token = tokens.access_token;
-      this.expires_at = Date.now() + Math.max(0, tokens.expires_in - 60) * 1000;
+      if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
+      this.access_tokens.set(selected_file, access_token);
       return callback.picked;
     } catch (error) {
       l.warn("[GoogleSheets] Authorization failed", { stage, cancelled: version !== this.authorization_version, reason: error instanceof Error ? error.message : String(error) });
@@ -288,12 +327,64 @@ export class GoogleSheetsClient {
     return picked;
   }
 
-  /**Calls the Sheets API, asking the user to sign in again if there is no valid token.*/
+  private async Refresh(file_id: string): Promise<void> {
+    const version = this.authorization_version;
+    const store = this.Store();
+    const refresh_token = await store?.Get(this.TokenKey(file_id));
+    if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
+    if (!refresh_token || !store) {
+      await this.Authorize(true, file_id);
+      return;
+    }
+
+    let tokens: JsonObject;
+    try {
+      const body = new URLSearchParams({
+        client_id, client_secret, refresh_token, grant_type: "refresh_token",
+      }).toString();
+      tokens = await RequestJson("https://oauth2.googleapis.com/token", "POST", {
+        "Content-Type": "application/x-www-form-urlencoded",
+      }, "token", body);
+    } catch (error) {
+      if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
+      if (!(error instanceof GoogleRequestError) || error.code !== "invalid_grant") throw error;
+      await store.Delete(this.TokenKey(file_id));
+      if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
+      await this.Authorize(true, file_id);
+      return;
+    }
+
+    if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
+    const access_token = this.ParseAccessToken(tokens);
+    if (typeof tokens.refresh_token === "string" && tokens.refresh_token) {
+      await store.Set(this.TokenKey(file_id), tokens.refresh_token);
+    }
+    if (version !== this.authorization_version) throw new Error("Google authorization was cancelled.");
+    this.access_tokens.set(file_id, access_token);
+  }
+
+  /**Uses cached access first, then Keychain, opening the browser only when authorization is needed.*/
   private async Request(path: string, file_id: string, operation: GoogleOperation, method = "GET", data?: unknown): Promise<JsonObject> {
-    if (!this.access_token || Date.now() >= this.expires_at) await this.Authorize(true, file_id);
+    if (!/^[a-zA-Z0-9_-]+$/.test(file_id)) throw new Error("Invalid Google spreadsheet id.");
+    if (!client_id || !client_secret) throw new Error("Google credentials are not configured.");
+    const cached = this.access_tokens.get(file_id);
+    if (!cached || Date.now() >= cached.expires_at) {
+      let refresh = this.refreshes.get(file_id);
+      if (!refresh) {
+        refresh = this.Refresh(file_id);
+        this.refreshes.set(file_id, refresh);
+      }
+      try {
+        await refresh;
+      } finally {
+        if (this.refreshes.get(file_id) === refresh) this.refreshes.delete(file_id);
+      }
+    }
+    const access_token = this.access_tokens.get(file_id);
+    if (!access_token) throw new Error("Google authorization did not return an access token.");
     const body = data === undefined ? undefined : JSON.stringify(data);
     return RequestJson(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(file_id)}${path}`, method, {
-      Authorization: `Bearer ${this.access_token}`,
+      Authorization: `Bearer ${access_token.value}`,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     }, operation, body);
   }
