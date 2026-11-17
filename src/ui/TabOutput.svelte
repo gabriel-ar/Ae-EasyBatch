@@ -23,6 +23,7 @@
   } from "../lib/Output.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
   import ModalFilePattern from "./ModalDepFilePattern.svelte";
+  import SavePatternPresets from "./SavePatternPresets.svelte";
 
   let m_file_pattern = $state<ModalFilePattern>();
 
@@ -181,15 +182,18 @@
       file for each version.
     </p>
 
-    <h4>
-      File Name Pattern
-      <button
-        class="info"
-        data-tt-pos="middle-right"
-        data-tt-width="large"
-        data-tooltip="Generates the file name of every export using this pattern."
-        >?</button>
-    </h4>
+    <div class="section_header">
+      <h4>
+        File Name Pattern
+        <button
+          class="info"
+          data-tt-pos="middle-right"
+          data-tt-width="large"
+          data-tooltip="Generates the file name of every export using this pattern."
+          >?</button>
+      </h4>
+      <SavePatternPresets bind:pattern={s.tmpl.save_pattern} />
+    </div>
 
     <textarea
       id="save_pattern_ta"
@@ -609,6 +613,18 @@
   .output h4 {
     font-size: 1.1rem;
     margin: 13px 0 7px 0;
+  }
+
+  .output .section_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin: 13px 0 7px 0;
+  }
+
+  .output .section_header h4 {
+    margin: 0;
   }
 
   .output label,
