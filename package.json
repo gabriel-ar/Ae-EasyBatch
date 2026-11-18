@@ -26,10 +26,10 @@
     "archiver": "^8.0.0",
     "prettier": "^3.9.10",
     "prettier-plugin-svelte": "^4.1.1",
-    "puppeteer-core": "23.11.1",
+    "puppeteer-core": "25.18.1",
     "rollup-plugin-copy": "3.5.0",
     "svelte": "5.55.7",
-    "vite": "7.3.5",
+    "vite": "7.3.8",
     "vite-plugin-singlefile": "2.3.0"
   },
   "dependencies": {
