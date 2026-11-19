@@ -49,7 +49,7 @@ These are the editing options for the selected row.
 ![Screenshot of the row options](assets/data-hl-row-opts.png)
 
 - **Row index:** Displays the row number. You can use this number to name your renders.
-- **Row menu:** Click to open the Edit menu, the same menu that opens from the top bar or when you right-click the row.
+- **Row Menu:** Click to open the Edit menu, the same menu that opens from the top bar or when you right-click the row.
 - **Preview button:** Previews your template with the row's data.
 
 ## Editing Properties

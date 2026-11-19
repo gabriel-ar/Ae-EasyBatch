@@ -246,7 +246,7 @@
       {/each}
     </select>
   {:else}
-    <!-- propertyParameters unavailable on this AE version — fall back to number -->
+    <!-- propertyParameters unavailable on this AE version - fall back to number -->
     {@render slider("X")}
     {@render number_input()}
   {/if}

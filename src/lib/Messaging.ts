@@ -102,7 +102,7 @@ export type HostTemplateData = Pick<TemplateData, 'comp' | 'comp_id' | 'name' | 
 };
 
 export interface GetTmplsResult extends Result {
-  /** Array of partial templates as scanned from AE — merged with stored settings on the client */
+  /** Array of partial templates as scanned from AE - merged with stored settings on the client */
   tmpls?: HostTemplateData[];
 }
 
@@ -134,7 +134,10 @@ export type RowRenderResult ={
   /** Row number */
   row: number;
   /**Status */
-  status: 'success' | 'error' | 'warning'| 'stopped';
+  status: 'success' | 'error' | 'warning' | 'stopped' | 'pending' | 'queued' | 'rendering' | 'rendered';
+  comp_id?: number;
+  comp_name?: string;
+  queue_index?: number;
   /** If successful, the path to the rendered file */
   rendered_path?: string;
   /** If not successful, the error message (user facing) */
@@ -147,6 +150,26 @@ export interface BatchRenderResult extends Result {
   row_results?: RowRenderResult[];
 
   user_stopped?: boolean;
+}
+
+export interface RenderQueueStatusResult extends Result {
+  rendering: boolean;
+  items: {
+    index: number;
+    comp_id: number;
+    status: "queued" | "rendering" | "paused" | "rendered" | "error" | "stopped" | "unqueued" | "needs_output";
+    path: string;
+  }[];
+}
+
+export interface RenderProgress {
+  project_path: string | null;
+  comp_id: number;
+  row_count: number;
+  rows: number[];
+  current: number;
+  state: "rendering" | "paused_now" | "stopped" | "error" | "completed";
+  results: RowRenderResult[];
 }
 
 /** Result for saving settings */

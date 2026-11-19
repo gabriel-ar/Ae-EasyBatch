@@ -71,36 +71,14 @@ To edit these templates, click `Edit` > `Templates` in the After Effects menu ba
 When you are ready, click `Start Batch Render`.
 
 ## Render Mode: Multi Output
-This is the most complex mode. Instead of creating a reference of your template composition and changing its Essential Properties, the extension modifies the properties of your original composition.
-
-This is useful if you want to export more than one composition per row. For example, several compositions could have properties linked to your main template. Because this mode changes the properties in the template itself, you can export compositions that reference the main template with those properties applied.
+Use **Multi-Output** to export several versions from each row, such as a full-screen graphic and a scorebug. If both compositions are linked to your main template, they can use the same row of data. This mode changes the values in your original template composition.
 
 ![Screenshot of the available patterns](assets/export-multi.png){width="500"}
-
-For the previous example, the extension performs these actions:
-```mermaid
-stateDiagram-v2
-    direction LR
-    [*] --> ReplaceProperties
-    ReplaceProperties: Replace properties directly in "Goal Takeover"
-    ReplaceProperties --> Comp1
-    ReplaceProperties --> Comp2
-    Comp1: GoalTakeover_Broadcast
-    Comp1: Linked properties updated
-    Comp2: GoalTakeover_Scorebug_L
-    Comp2: Linked properties updated
-    Comp1 --> RenderComposition
-    Comp2 --> RenderComposition
-    RenderComposition: Render Compositions
-    RenderComposition --> NextRow
-    NextRow: Move to next row of data
-    NextRow --> ReplaceProperties
-```
 
 ### Render Compositions (Purple)
 These are the compositions that the extension renders in this mode. You can add any composition in the project, including the Template Composition.
 
-To add a composition, click the dropdown (orange) below `Add Compositions to Renders`, then select a composition. You can type to search. After selecting a composition, click `Add`. Alternatively, select one or more compositions in the Project panel, then click `Add Selected` and they will be added to the list of compositions to be rendered.
+To add a composition, click the dropdown (orange) below `Compositions to Renders`, then select a composition. You can type to search. After selecting a composition, click `Add`. Alternatively, select one or more compositions in the Project panel, then click `Add Selected` and they will be added to the list of compositions to be rendered.
 
 #### Disable Render
 At some point, you may not need to render all the compositions you added. Use the checkboxes to prevent them from rendering.
@@ -125,13 +103,23 @@ The render settings work the same way as in `One Per Row` mode. Each export can 
 ##### Output Module: Single Frame as PNG
 This is a special mode provided by the extension that lets you save the composition as a single-frame PNG. Compared with using a preset, the main advantage is that this mode does not attach sequence numbers to the exported file, which is otherwise unavoidable.
 
-In this mode, the render is not queued. Therefore, if all your compositions are being exported as Single Frame PNG, After Effects may appear to be idle even though the frames are being exported.
+Single-frame PNGs don't appear in the After Effects Render Queue. Check **Results** in EasyBatch to see when they're ready.
 
 !!! warning "32 bit projects"
     This mode may not work properly in 32-bit projects.
 
 ### Render
-When you are ready, click `Batch One to Many`.
+Check the rows you want to export, then click **Start Batch Render**. While the batch is running, only the **Output** tab is available. The progress bar shows how many exports have finished, and **Results** shows the status of each export.
+
+If another render is running or paused in the After Effects Render Queue, finish or stop it there before starting a new batch.
+
+In **Results**, click a row to see its compositions, export statuses, and file paths. Use **Collapse All** to close every open row. A row is **Completed** only when all its exports finish. A clock marks a pending export. Hover over a shortened path to see it in full, or click **Open Containing Folder** to find it in Finder or File Explorer.
+
+- **Pause Now** pauses the current render. **Continue** picks up where it left off.
+- **Stop Batch** cancels the current render, even when paused, and clears the After Effects Render Queue and the batch's progress. Files that already finished are kept. Click **Start Batch Render** to render from the first checked row again.
+- If an export fails, EasyBatch asks whether to continue or stop. Files that already finished are kept.
+
+If you reopen the panel with an unfinished batch, select the same template and click **Continue**. If you've added or removed rows and **Continue** is no longer available, click **Stop Batch**, check the rows you want, and start a new batch.
     
 ## Render Mode: Generate Comps
 This mode generates one composition per row and replaces its properties with the corresponding row data. Use it when you need to modify the resulting compositions without access to EasyBatch.

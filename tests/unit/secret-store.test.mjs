@@ -1,6 +1,8 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
+import { posix, win32 } from "node:path";
 import vm from "node:vm";
 import { createServer } from "vite";
 
@@ -160,6 +162,47 @@ test("CEP file paths retain the macOS root while preserving Windows drive paths"
       assert.equal(new CSAdapter().GetSystemPath("extension"), expected);
     } finally {
       delete globalThis.window;
+    }
+  }
+});
+
+test("the output folder opens in the OS without calling After Effects", async () => {
+  for (const [platform, path, output, project, program, folder] of [
+    ["darwin", posix, "renders/long name.mov", "/projects/graphics.aep", "/usr/bin/open", "/projects/renders"],
+    ["win32", win32, "C:/Output/Broadcast/clip.mov", null, "explorer.exe", "C:\\Output\\Broadcast"],
+  ]) {
+    const calls = [];
+    globalThis.window = { __adobe_cep__: { evalScript: () => assert.fail("Should not call After Effects") } };
+    globalThis.cep_node = {
+      require(name) {
+        return {
+          path,
+          os: { platform: () => platform },
+          fs: { statSync: (target) => {
+            assert.equal(target, folder);
+            return { isDirectory: () => true };
+          } },
+          child_process: { spawn: (...args) => {
+            calls.push(args);
+            const opener = new EventEmitter();
+            queueMicrotask(() => {
+              opener.emit("spawn");
+              opener.emit("close", platform === "win32" ? 1 : 0);
+            });
+            return opener;
+          } },
+        }[name];
+      },
+    };
+    try {
+      const adapter = new CSAdapter();
+      await adapter.OpenOutputFolder(output, project);
+      assert.deepEqual(calls, [[program, [folder], { stdio: "ignore" }]]);
+      await assert.rejects(adapter.OpenOutputFolder("renders/clip.mov", null), /Save the After Effects project/);
+      assert.equal(calls.length, 1);
+    } finally {
+      delete globalThis.window;
+      delete globalThis.cep_node;
     }
   }
 });

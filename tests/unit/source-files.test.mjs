@@ -1,6 +1,8 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
 import * as XLSX from "xlsx";
 import { createServer } from "vite";
 
@@ -12,6 +14,168 @@ after(() => server.close());
 const { ParseCSVSource, SaveMappedCSVValues } = await server.ssrLoadModule("/src/lib/CSVSource.ts");
 const { CreateTemplateWorkbook, SaveMappedTemplateValuesToSheet, ValidateSheetName } = await server.ssrLoadModule("/src/lib/ExcelWorkbookWriter.ts");
 const { LocalSettings } = await server.ssrLoadModule("/src/lib/LocalSettings.ts");
+
+test("render progress persists row position, selection and results without changing other settings", () => {
+  const store = new Map([["other", "keep"]]);
+  globalThis.localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, value),
+    removeItem: (key) => store.delete(key),
+  };
+  assert.equal(LocalSettings.LoadRenderProgress(), null);
+  const progress = {
+    project_path: "/project.aep", comp_id: 2, row_count: 7, rows: [1, 4], current: 1,
+    state: "stopped", results: [{ row: 1, comp_id: 3, status: "rendered" }],
+  };
+  LocalSettings.SaveRenderProgress(progress);
+  assert.deepEqual(LocalSettings.LoadRenderProgress(), progress);
+  assert.equal(store.get("other"), "keep");
+  store.set("easybatch.renderProgress", JSON.stringify({ ...progress, current: 3 }));
+  assert.throws(() => LocalSettings.LoadRenderProgress(), /invalid/);
+  store.set("easybatch.renderProgress", JSON.stringify({ ...progress, rows: [1, 7] }));
+  assert.throws(() => LocalSettings.LoadRenderProgress(), /invalid/);
+  store.set("easybatch.renderProgress", JSON.stringify({ ...progress, results: [null] }));
+  assert.throws(() => LocalSettings.LoadRenderProgress(), /invalid/);
+  globalThis.localStorage.setItem = () => { throw new Error("storage unavailable"); };
+  assert.throws(() => LocalSettings.SaveRenderProgress(progress), /storage unavailable/);
+  LocalSettings.ClearRenderProgress();
+  assert.equal(LocalSettings.LoadRenderProgress(), null);
+  assert.equal(store.get("other"), "keep");
+});
+
+function RenderHarness({ png = false, property_error = false, output_error = false, paused_stop_bug = false } = {}) {
+  const queue = [];
+  const applied = [];
+  const saved = [];
+  const controls = [];
+  let paused = false;
+  const status = { QUEUED: 1, RENDERING: 2, WILL_CONTINUE: 3, DONE: 4, ERR_STOPPED: 5, USER_STOPPED: 6, NEEDS_OUTPUT: 7 };
+  const project = {
+    file: null,
+    itemByID: (id) => ({ id, saveFrameToPng: (_, file) => saved.push(file.fsName) }),
+    renderQueue: {
+      rendering: false,
+      get numItems() { return queue.length; },
+      item: (i) => queue[i - 1],
+      renderAsync() {
+        if (paused_stop_bug && paused) throw new Error("render() may not be called while rendering is paused.");
+        controls.push("start");
+      },
+      pauseRendering(pause) {
+        paused = pause;
+        controls.push(pause ? "pause" : "continue");
+      },
+      stopRendering() {
+        this.rendering = false;
+        controls.push("stop");
+      },
+    },
+  };
+  const context = vm.createContext({
+    app: { project }, RQItemStatus: status,
+    File: function (path) { this.fsName = path; this.exists = false; },
+  });
+  vm.runInContext(readFileSync(new URL("../../src/host/host.jsx", import.meta.url), "utf8"), context);
+  context._EscapeArgs = () => {};
+  context._SetupTemplatePreviewComp = () => ({ layers: { add: () => ({}) } });
+  context._ApplyTemplProps = (_, tmpl, row, originals) => {
+    applied.push([tmpl.columns[0].values[row], originals]);
+    return property_error ? [{ message: "Invalid property" }] : [];
+  };
+  context._CreateSubfolders = () => {};
+  context._QueueComp = (comp, path) => {
+    const item = {
+      comp, status: status.QUEUED,
+      outputModule: () => ({ file: { fsName: path + ".mov", exists: false } }),
+      remove() { queue.splice(queue.indexOf(item), 1); },
+    };
+    queue.push(item);
+    if (output_error) throw new Error("Invalid output preset");
+    return item;
+  };
+  const tmpl = {
+    comp_id: 1, columns: [{ values: ["first", "second"] }],
+    dep_comps: [{ id: 2, name: "Wide" }, { id: 3, name: "Tall" }],
+    dep_config: [2, 3].map((id) => ({
+      enabled: true, save_paths: [`/out/${id}-first`, `/out/${id}-second`],
+      render_setts_templ: "Best Settings",
+      render_out_module_templ: png ? "EB_Single_Frame_PNG" : "Video",
+    })),
+  };
+  return {
+    context, queue, applied, saved, controls, status, project,
+    render: (row) => JSON.parse(context.BatchRenderDepComps(JSON.stringify({
+      ...tmpl,
+      columns: tmpl.columns.map((col) => ({ ...col, values: [col.values[row]] })),
+      dep_config: tmpl.dep_config.map((config) => ({ ...config, save_paths: [config.save_paths[row]] })),
+    }), false)),
+    inspect: () => JSON.parse(context.GetRenderQueueStatus()),
+  };
+}
+
+test("host renders only the requested row and queue inspection never advances it", () => {
+  const h = RenderHarness();
+  const result = h.render(1);
+  assert.equal(result.success, true);
+  assert.deepEqual(h.applied, [["second", true]]);
+  assert.deepEqual(h.controls, ["start"]);
+  assert.deepEqual(result.row_results.map((item) => [item.row, item.queue_index, item.status]), [
+    [0, 1, "queued"], [0, 2, "queued"],
+  ]);
+  assert.equal(result.row_results[0].rendered_path, "/out/2-second.mov");
+  h.queue[0].status = h.status.DONE;
+  h.queue[1].status = h.status.USER_STOPPED;
+  assert.deepEqual(h.inspect().items.map((item) => item.status), ["rendered", "stopped"]);
+  assert.deepEqual(h.controls, ["start"]);
+  h.project.renderQueue.rendering = true;
+  assert.equal(h.render(0).success, false);
+  assert.equal(h.applied.length, 1);
+});
+
+test("PNG outputs finish synchronously without queue items; property/output failures remain explicit", () => {
+  const png = RenderHarness({ png: true });
+  assert.deepEqual(png.render(1).row_results.map((item) => item.status), ["rendered", "rendered"]);
+  assert.deepEqual(png.saved, ["/out/2-second.png", "/out/3-second.png"]);
+  assert.deepEqual(png.controls, []);
+  const properties = RenderHarness({ property_error: true });
+  assert.match(properties.render(0).error_obj.message, /Invalid property/);
+  assert.equal(properties.queue.length, 0);
+  const output = RenderHarness({ output_error: true });
+  assert.deepEqual(output.render(0).row_results.map((item) => item.status), ["error", "error"]);
+  assert.equal(output.queue.length, 0, "partially configured queue items are removed");
+});
+
+test("queue controls directly pause, resume and stop AE without owning batch state", () => {
+  const h = RenderHarness();
+  for (const action of ["pause", "continue", "stop"]) {
+    assert.equal(JSON.parse(h.context.ControlRenderQueue(action)).success, true);
+  }
+  assert.deepEqual(h.controls, ["pause", "continue", "stop"]);
+  assert.equal(JSON.parse(h.context.ControlRenderQueue("invalid")).success, false);
+});
+
+test("stop reset only clears an idle queue and releases a hidden pause so the next batch can start", () => {
+  const h = RenderHarness({ paused_stop_bug: true });
+  assert.equal(h.render(1).success, true);
+  h.project.renderQueue.rendering = true;
+  assert.equal(JSON.parse(h.context.ControlRenderQueue("pause")).success, true);
+  h.queue[0].status = h.status.DONE;
+  assert.equal(JSON.parse(h.context.ControlRenderQueue("reset_after_stop")).success, false);
+  assert.equal(h.inspect().items.length, 2);
+  assert.equal(JSON.parse(h.context.ControlRenderQueue("stop")).success, true);
+  assert.equal(JSON.parse(h.context.ControlRenderQueue("reset_after_stop")).success, true);
+  assert.equal(h.inspect().items.length, 0);
+  assert.equal(h.render(0).success, true);
+  assert.deepEqual(h.controls, ["start", "pause", "stop", "continue", "start"]);
+});
+
+test("starting a row on an idle but paused renderer retries without preparing the row twice", () => {
+  const h = RenderHarness({ paused_stop_bug: true });
+  assert.equal(JSON.parse(h.context.ControlRenderQueue("pause")).success, true);
+  assert.equal(h.render(0).success, true);
+  assert.deepEqual(h.controls, ["pause", "continue", "start"]);
+  assert.deepEqual(h.applied, [["first", true]]);
+});
 
 test("CSV updates preserve unmapped columns, blank lines, formula cells, BOM and delimiters", () => {
   const content = "\uFEFFName;Other\r\nOld;keep\r\n\r\n=1+1;untouched\r\n";

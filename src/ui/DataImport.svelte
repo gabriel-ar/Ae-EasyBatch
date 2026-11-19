@@ -116,7 +116,7 @@
   /**Creates one mapping row per template property, prefilled from the saved import when there is one.*/
   function BuildRows(tmpl: TemplateData, headers: string[], sheet_name: string) {
     mapping_options = ["", ...headers];
-    mapping_labels = ["Do not import", ...headers];
+    mapping_labels = ["Do Not Import", ...headers];
 
     rows = tmpl.columns.map((col) => {
       const auto = AutoMatchHeader(col.cont_name, headers);

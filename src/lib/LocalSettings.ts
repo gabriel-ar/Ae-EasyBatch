@@ -1,3 +1,5 @@
+import type { RenderProgress } from "./Messaging";
+
 export type RecentSource = {
   type: "csv" | "excel" | "google";
   path: string;
@@ -12,9 +14,33 @@ export type SavePatternPreset = {
 const recent_sources_key = "easybatch.recentSources";
 const recent_sources_limit = 10;
 const save_pattern_presets_key = "easybatch.savePatternPresets";
+const render_progress_key = "easybatch.renderProgress";
 
 /**Settings kept on this computer (browser storage) instead of in the project, shared by every project.*/
 export class LocalSettings {
+  static LoadRenderProgress(): RenderProgress | null {
+    const stored = localStorage.getItem(render_progress_key);
+    if (!stored) return null;
+    const progress: Omit<RenderProgress, "state"> & { state: RenderProgress["state"] | "pausing" | "paused" } = JSON.parse(stored);
+    if (!Array.isArray(progress?.rows) || !Array.isArray(progress.results) ||
+      !Number.isInteger(progress.current) || progress.current < 0 || progress.current > progress.rows.length ||
+      progress.rows.some((row) => !Number.isInteger(row) || row < 0 || row >= progress.row_count) ||
+      progress.results.some((item) => item == null)) {
+      throw new Error("The saved render progress is invalid.");
+    }
+    const state = progress.state === "pausing" ? "rendering" :
+      progress.state === "paused" ? "paused_now" : progress.state;
+    return {...progress, state};
+  }
+
+  static SaveRenderProgress(progress: RenderProgress): void {
+    localStorage.setItem(render_progress_key, JSON.stringify(progress));
+  }
+
+  static ClearRenderProgress(): void {
+    localStorage.removeItem(render_progress_key);
+  }
+
   static LoadRecentSources(): RecentSource[] {
     const stored = localStorage.getItem(recent_sources_key);
     if (!stored) return [];

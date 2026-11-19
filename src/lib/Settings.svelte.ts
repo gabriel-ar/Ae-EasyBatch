@@ -934,7 +934,7 @@ export class ColumnHelper {
 
 export type Comp = {
   name: string;
-  /** AE CompItem.id — always a number from the host */
+  /** AE CompItem.id - always a number from the host */
   id: number;
 }
 
@@ -942,7 +942,7 @@ export type Comp = {
  * Settings for the dependant compositions
  */
 export type DepCompSetts = {
-  /** AE CompItem.id — always a number from the host */
+  /** AE CompItem.id - always a number from the host */
   id: number;
   name: string;
   enabled: boolean;

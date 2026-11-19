@@ -38,7 +38,7 @@ npm run dev  # Starts Vite dev server on localhost:5173
 
 - `public/dev.html` redirects to `localhost:5173` for hot reload of UI changes
 - `CSXS/manifest.xml` MainPath is auto-updated by Vite config
-- **Reload host.jsx changes**: Reload extension (Window > Extensions > EasyBatch) OR use VS Code ExtendScript Debugger to launch script
+- **Reload host.jsx changes**: Restart `npm run dev` to refresh `dist/host/`, then reopen EasyBatch (Window > Extensions > EasyBatch). UI hot reload alone does not update the ExtendScript already loaded by After Effects.
 - **Reload manifest changes**: Restart After Effects completely
 
 ### Debugging
@@ -64,6 +64,10 @@ npm run build  # Creates dist/index.html with bundled JS/CSS
 - Vite builds a universal native bundle on macOS with Xcode tools; restart dev after native/host edits and reload the panel. `EASYBATCH_SIGN_IDENTITY` selects a signing identity (default ad-hoc, development only). Windows has no persistent backend. Mac releases must be built/signed on macOS.
 - Keychain access trusts the AE host, not EasyBatch alone. AE restart, locked-Keychain prompts, other AE versions, and distribution notarization still require manual validation.
 
+### User Documentation
+- Write for the artists and other end users who use EasyBatch. Use plain language and the labels they see in the panel.
+- Cover only what users can see, do, or need to know: steps, choices, results, and what to do when something goes wrong. Keep implementation details such as polling, internal data flow, and storage out of user-facing docs.
+
 ### Code Style
 - Variables, parameters, object properties and non-exported constants use `snake_case` (e.g., `sheet_name`, `header_index`); functions, methods, classes and types use `PascalCase` (e.g., `LoadSource`, `ImportSource`). Keep third-party option names as they are (e.g., `bookType`).
 - Use 2-space indentation. Separate logical steps with a blank line, and keep related statements together.
@@ -71,6 +75,7 @@ npm run build  # Creates dist/index.html with bundled JS/CSS
 - Build-time configuration (e.g., Google credentials) goes in the git-ignored `.env.local`, with a blank template in `.env.example`.
 
 ### UI Component Organization
+- Use Title Case for app-authored button labels, menu actions, and short labels for icon buttons (e.g., **Collapse All**, **Open Containing Folder**). Lowercase short articles, conjunctions, and prepositions unless they start or end the label. Preserve the original capitalization of names from users and After Effects.
 - Keep individual UI components directly in `src/ui/`; create a subfolder when it groups multiple closely related files.
 - Name related components with a shared subject prefix so they sort together, e.g. `DataExport.svelte` and `DataImport.svelte`.
 - Keep component-specific behavior and types in the component; use shared modules for logic or types used across features. Let `App.svelte` coordinate components and present results.

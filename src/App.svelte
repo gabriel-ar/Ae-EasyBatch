@@ -40,6 +40,7 @@
     ProjectPathResult,  
     PreviewRowResult,
     GetCurrentValuesResults,
+    RenderQueueStatusResult,
   } from "./lib/Messaging";
 
   import PropInput from "./ui/PropInput.svelte";
@@ -54,7 +55,7 @@
   import AddBefore from "./assets/AddBefore.svelte";
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import {l, s, csa} from "./lib/States.svelte.ts";
-  import { output_hooks, GetAllComps, RenderRow } from "./lib/Output.svelte.ts";
+  import { output_hooks, GetAllComps, RenderRow, out, RestoreDepRender, StopDepPolling } from "./lib/Output.svelte.ts";
   import ModalProceed from "./ui/ModalProceed.svelte";
   import DataImport, { type ImportResult, type ImportSaveResult } from "./ui/DataImport.svelte";
   import DataExport, { type ExportResult } from "./ui/DataExport.svelte";
@@ -162,6 +163,12 @@
     output_hooks.Message = (msg, title) => m_message?.Open(msg, title);
     output_hooks.Footer = UpdateStatusFooter;
     output_hooks.CanProceed = () => proceed;
+    output_hooks.ContinueAfterError = (message) => new Promise((resolve) => {
+      m_message?.Open(EscapeHTML(message), "Multi-Output Render Error", [
+        {label: "Continue", callback: () => resolve(true)},
+        {label: "Stop Batch", callback: () => resolve(false)},
+      ]);
+    });
 
     m_proceed?.ShouldProceed();
 
@@ -176,7 +183,10 @@
         window_returns = 0;
       }
     };
+    return StopDepPolling;
   });
+
+  $effect(() => { ac.pause = out.dep_running || out.dep_busy; });
 
   async function StartupSequence() {
     l.debug("StartupSequence started");
@@ -184,10 +194,12 @@
     //fail in silence
     //errors are handled in the functions called within
     try {
-      let n_tmpls = await GetTemplates();
+      const queue = await csa.Exec<RenderQueueStatusResult>("GetRenderQueueStatus");
+      if (!queue.success) throw new Error(queue.error_obj?.message ?? "Could not read the render queue.");
+      let n_tmpls = queue.rendering ? null : await GetTemplates();
 
       //if no templates, return and show message
-      no_tmpls = n_tmpls.length == 0;
+      no_tmpls = n_tmpls !== null && n_tmpls.length == 0;
       if (no_tmpls) return;
 
       let {l_proj, l_setts} = await GetSettings();
@@ -197,7 +209,7 @@
       s.render_setts_templs = await GetRenderSettsTempls();
 
       //for templates that where changed with the extension closed
-      SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
+      if (n_tmpls) SettingsHelper.UpdateTemplates(l_proj, n_tmpls);
 
       s.proj = l_proj;
       s.setts = l_setts;
@@ -206,6 +218,7 @@
       if (s.proj.sel_tmpl == -1) {
         s.proj.sel_tmpl = 0;
       }
+      RestoreDepRender(loaded_project_path);
     } catch (e) {
       l.warn("StartupSequence error:", e);
     }
@@ -505,6 +518,7 @@
   }
 
   async function F_Reload() {
+    if (out.dep_running || out.dep_busy) return;
     let n_tmpls: any[] = await GetTemplates().catch((e) => {
       l.error("F_Reload GetTemplates error:", e);
       return [];
@@ -767,9 +781,14 @@
   }
 
   let active_tab = $state<string | null>(null);
+  const rendering = $derived(out.dep_running || out.dep_busy);
+  const visible_tab = $derived(rendering ? Tabs.Output : s.setts.active_tab);
+  $effect(() => {
+    if (out.dep_running) s.setts.active_tab = Tabs.Output;
+  });
   //Tab changed
   $effect(() => {
-    if (active_tab === "data" && s.setts.active_tab !== "data") {
+    if (active_tab === "data" && visible_tab !== "data") {
       //Save the scroll position of the data tab when leaving it, so we can restore it when coming back
       const main_data = document.querySelector("#main_data");
       if (main_data) {
@@ -778,7 +797,7 @@
       console.debug("Saved scroll position:", last_scroll_top);
     }
 
-    if (s.setts.active_tab === "data" && active_tab !== "data") {
+    if (visible_tab === "data" && active_tab !== "data") {
       has_opened_viewer = false;
 
       //Restore the scroll position of the data tab when coming back to it
@@ -790,7 +809,7 @@
       });
     }
 
-    active_tab = s.setts.active_tab;
+    active_tab = visible_tab;
   });
 
   /////DATA TAB/////
@@ -1213,31 +1232,33 @@
 
 <!-- HEADER -->
 <header>
-  <div class="header_template">
+  <fieldset class="header_template" disabled={rendering}>
     <label for="sel_comp">Template</label>
     <Dropdown
       options={s.proj.tmpls.map((templ) => s.proj.tmpls.indexOf(templ))}
       labels={s.proj.tmpls.map((templ) => templ.name)}
       bind:value={s.proj.sel_tmpl} />
-  </div>
+  </fieldset>
 
   <div class="header_tabs">
     <button
-      class:curr_tab={s.setts.active_tab === "data"}
+      class:curr_tab={visible_tab === "data"}
+      disabled={rendering}
       onclick={() => (s.setts.active_tab = Tabs.Data)}>Data</button>
     <button
-      class:curr_tab={s.setts.active_tab === "output"}
+      class:curr_tab={visible_tab === "output"}
       onclick={() => {
         s.setts.active_tab = Tabs.Output;
         GetAllComps();
       }}>Output</button>
     <button
-      class:curr_tab={s.setts.active_tab === "settings"}
+      class:curr_tab={visible_tab === "settings"}
+      disabled={rendering}
       onclick={() => (s.setts.active_tab = Tabs.Settings)}>Settings</button>
   </div>
 
   <div class="header_reload">
-    <button onclick={F_Reload} class="delete_col"><Update /></button>
+    <button disabled={out.dep_running || out.dep_busy} onclick={F_Reload} class="delete_col"><Update /></button>
     <button
       class="delete_col"
       onclick={(e) => menu?.Open(e.pageX, e.pageY, MenuItemSelected, "help")}
@@ -1285,7 +1306,7 @@
                   {#if s.tmpl.columns[col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
                     <button
                       class="delete_col"
-                      data-tooltip="Setup alternate source"
+                      data-tooltip="Set Up Alternate Source"
                       data-tt-pos="bottom"
                       onclick={() => {
                         SetupAlternateSource(col_i);
@@ -1318,7 +1339,7 @@
                     <span class="row_opts_num">{row_i + 1}</span>
                     <button
                       class="delete_row row_opts_menu"
-                      data-tooltip="Row menu"
+                      data-tooltip="Row Menu"
                       data-tt-pos="middle-right"
                       onclick={(e) => OpenRowMenu(e, row_i)}
                       ><HamburgerMenu /></button>
@@ -1400,7 +1421,7 @@
                 {#if s.tmpl.columns[td_col_i].type == ColumnHelper.PropertyValueType.SRC_ALTERNATE}
                   <button
                     class="delete_col"
-                    data-tooltip="Setup alternate source"
+                    data-tooltip="Set Up Alternate Source"
                     data-tt-pos="middle-right"
                     onclick={() => {
                       SetupAlternateSource(td_col_i);
@@ -1499,6 +1520,10 @@
     display: flex;
     gap: 7px;
 
+    margin: 0;
+    border: 0;
+    border-bottom: 2px solid var(--color-divider);
+    min-width: 0;
     padding: 10px 10px;
   }
 

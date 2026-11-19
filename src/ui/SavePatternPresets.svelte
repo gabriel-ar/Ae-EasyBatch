@@ -90,8 +90,8 @@
       }} />
     <button
       data-tooltip={presets.some((p) => p.name === preset_name.trim())
-        ? "Overwrite preset"
-        : "Save preset"}
+        ? "Overwrite Preset"
+        : "Save Preset"}
       data-tt-pos="middle-left"
       disabled={preset_name.trim() === ""}
       onclick={SavePreset}><Check /></button>
@@ -105,7 +105,7 @@
       options={presets.map((p) => p.name)}
       labels={presets.map((p) => p.name)}
       html_labels={false}
-      title={sel_preset === "" ? "Select preset" : null}
+      title={sel_preset === "" ? "Select Preset" : null}
       style_list="right: 0; max-height: 250px; overflow-y: auto;"
       onselect={(name: string) => ApplyPreset(name)} />
     <button

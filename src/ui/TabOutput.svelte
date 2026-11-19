@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import {
     Play,
     ActivityLog,
     CheckCircled,
+    Clock,
     CrossCircled,
     ExternalLink,
     ExclamationTriangle,
@@ -11,7 +13,7 @@
     Pencil1,
   } from "radix-icons-svelte";
   import { TemplateHelper } from "../lib/Settings.svelte.ts";
-  import type { GetSelectedCompsResult } from "../lib/Messaging";
+  import type { GetSelectedCompsResult, RenderProgress, RowRenderResult } from "../lib/Messaging";
   import { l, s, csa } from "../lib/States.svelte.ts";
   import {
     out,
@@ -20,12 +22,67 @@
     BatchRender,
     BatchGenerate,
     BatchOneToMany,
+    PauseDepRender,
+    StopDepRender,
+    ContinueDepRender,
+    CanContinueDepRender,
+    HasUnfinishedDepRender,
   } from "../lib/Output.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
   import ModalFilePattern from "./ModalDepFilePattern.svelte";
   import SavePatternPresets from "./SavePatternPresets.svelte";
 
   let m_file_pattern = $state<ModalFilePattern>();
+  const dep_progress = $derived(out.dep_progress);
+  const unfinished_batch = $derived(HasUnfinishedDepRender());
+  const rendered_count = $derived(out.dep_row_results.filter((item) => item.status === "rendered").length);
+  const failed_count = $derived(out.dep_row_results.filter((item) => item.status === "error").length);
+  const progress_labels: Record<RenderProgress["state"], string> = {
+    rendering: "Rendering",
+    paused_now: "Paused in After Effects",
+    stopped: "Stopped",
+    error: "Render interrupted",
+    completed: "Completed",
+  };
+  const result_labels: Record<RowRenderResult["status"], string> = {
+    success: "Queued",
+    error: "Failed",
+    warning: "Warning",
+    stopped: "Stopped",
+    pending: "Pending",
+    queued: "Queued",
+    rendering: "Rendering",
+    rendered: "Rendered",
+  };
+
+  function GroupResults(results: RowRenderResult[]) {
+    const groups = new Map<number, RowRenderResult[]>();
+    for (const result of results) {
+      const group = groups.get(result.row);
+      if (group) group.push(result);
+      else groups.set(result.row, [result]);
+    }
+    return [...groups];
+  }
+
+  function RowStatus(results: RowRenderResult[]) {
+    if (results.every((item) => item.status === "rendered")) return "Completed";
+    if (results.some((item) => item.status === "rendering")) {
+      return dep_progress?.state === "paused_now" ? "Paused" : "Rendering";
+    }
+    if (results.some((item) => item.status === "queued" || item.status === "success")) return "Queued";
+    if (results.some((item) => item.status === "stopped")) return "Stopped";
+    if (results.some((item) => item.status === "error")) return "Failed";
+    if (results.some((item) => item.status === "warning")) return "Warning";
+    return "Pending";
+  }
+
+  function BlockRenderEdits(event: Event) {
+    if ((!out.dep_running && !out.dep_busy) || !(event.target instanceof Element)) return;
+    if (event.target.closest(".out_actions_cont, .render_results")) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   //Fill in the default templates the first time the tab is shown for a template
   onMount(() => {
@@ -50,14 +107,13 @@
     }
   });
 
-  function OpenRenderedPath(path?: string) {
-    if (!path) return;
-    csa
-      .OpenPath(path)
-      .then((ok) => {
-        if (!ok) output_hooks.Footer("Could not open: " + path);
-      })
-      .catch((e) => l.error("Failed to open rendered path", e));
+  async function OpenOutputFolder(path: string) {
+    try {
+      await csa.OpenOutputFolder(path, out.project_path);
+    } catch (error) {
+      l.error("Could not open output folder", error);
+      output_hooks.Footer("Could not open the output folder. Check that the folder exists.");
+    }
   }
 
   /**
@@ -165,7 +221,74 @@
   }
 </script>
 
-<main class="output">
+{#snippet result_path(path?: string)}
+  {#if path}
+    <div class="result_path">
+      <span class="result_path_text" dir="rtl" title={path}><bdi dir="ltr">{path}</bdi></span>
+      <button onclick={() => OpenOutputFolder(path)} data-variant="discrete" title="Open Containing Folder" aria-label="Open Containing Folder">
+        <ExternalLink color="white" size={15} />
+      </button>
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet results_list(results: RowRenderResult[], stopped = false)}
+  {@const groups = GroupResults(results)}
+  {@const expanded_rows = new SvelteSet<number>()}
+  {@const any_expanded = groups.some(([row]) => expanded_rows.has(row))}
+  <div class="render_results">
+    <div class="section_header">
+      <h4>Results</h4>
+      <button type="button" data-variant="discrete" disabled={!any_expanded}
+        onclick={() => expanded_rows.clear()}>Collapse All</button>
+    </div>
+    {#if stopped}
+      <div class="OtM_stopped_warn">
+        <ExclamationTriangle color="yellow" size={14} />
+        Renders stopped by user.
+      </div>
+    {/if}
+    {#each groups as [row, outputs] (row)}
+      <details class="result_row" bind:open={() => expanded_rows.has(row), (open) => {
+        if (open) expanded_rows.add(row);
+        else expanded_rows.delete(row);
+      }}>
+        <summary>
+          <strong>Row {row + 1}</strong>
+          <span class="result_row_status">{RowStatus(outputs)}</span>
+        </summary>
+        <ul class="result_outputs">
+          {#each outputs as output}
+            <li class="result_output">
+              <span class="result_status" role="img" aria-label={result_labels[output.status]} title={result_labels[output.status]}>
+                {#if output.status === "rendered"}
+                  <CheckCircled color="green" size={15} />
+                {:else if output.status === "warning" || output.status === "stopped"}
+                  <ExclamationTriangle color="yellow" size={15} />
+                {:else if output.status === "error"}
+                  <CrossCircled color="red" size={15} />
+                {:else if output.status === "rendering"}
+                  <Play size={15} />
+                {:else if output.status === "queued" || output.status === "success"}
+                  <ActivityLog size={15} />
+                {:else}
+                  <Clock size={15} />
+                {/if}
+              </span>
+              <div class="result_body">
+                <strong>{output.comp_name ?? "Output"}</strong>
+                {@render result_path(output.rendered_path)}
+                {#if output.error}<div class="result_error">{output.error}</div>{/if}
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </details>
+    {/each}
+  </div>
+{/snippet}
+
+<main class="output" onclickcapture={BlockRenderEdits} onkeydowncapture={BlockRenderEdits} onpastecapture={BlockRenderEdits}>
   <span
     >Render Mode:
     <Dropdown
@@ -272,47 +395,7 @@
 
     <!--Results-->
     {#if out.render_results.length > 0}
-      <h4>Results</h4>
-      <table class="render_results">
-        <colgroup>
-          <col style="width: 45px;" />
-          <col style="width: 70px;" />
-          <col />
-          <col />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Row</th>
-            <th>Queued</th>
-            <th>Path</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each out.render_results as row}
-            <tr>
-              <td>{row.row}</td>
-              <td>
-                {#if row.status == "success"}
-                  <CheckCircled color="green" size={23} />
-                {:else}
-                  <CrossCircled color="red" size={23} />
-                {/if}
-              </td>
-              <td
-                >{row.rendered_path}
-                <button
-                  onclick={() => OpenRenderedPath(row.rendered_path)}
-                  data-variant="discrete"
-                  style="margin-left: 4px;">
-                  <ExternalLink color="white" size={15} />
-                </button>
-              </td>
-              <td>{row.error}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+      {@render results_list(out.render_results)}
     {/if}
   {:else if s.tmpl.out_mode === "generate"}
     <!-- MODE: GENERATE -->
@@ -389,7 +472,7 @@
     </div>
 
     <h4>
-      Add Composition to Renders
+      Compositions to Render
       <button
         class="info"
         data-tt-pos="middle-right"
@@ -430,7 +513,7 @@
           <h4 style="display: inline;">{dc.name}</h4>
           <button
             class="delete_col"
-            data-tooltip="Remove composition from renders"
+            data-tooltip="Remove Composition from Renders"
             data-tt-pos="middle-right"
             onclick={() => DeleteDependentComp(dc_i)}><Trash /></button>
         </summary>
@@ -499,70 +582,40 @@
 
     <div class="out_actions_cont">
       <div class="out_actions">
-        <button class="setting" onclick={() => BatchOneToMany()}
-          ><Play size={18} />Start Batch Render</button>
+        {#if !out.dep_running && !unfinished_batch}
+          <button disabled={out.dep_busy} class="setting" onclick={() => BatchOneToMany()}
+            ><Play size={18} />Start Batch Render</button>
+        {:else if out.dep_running}
+          <button disabled={out.dep_busy} onclick={PauseDepRender}>Pause</button>
+        {:else if CanContinueDepRender()}
+          <button disabled={out.dep_busy} onclick={ContinueDepRender}>Continue</button>
+        {/if}
+        {#if out.dep_running || unfinished_batch}
+          <button disabled={out.dep_busy} onclick={StopDepRender}>Stop Batch</button>
+        {/if}
 
         <!-- <button class="setting" onclick={() => BatchOneToMany(-1, true)}
           ><ActivityLog size={18} />Queue in Media Encoder</button> -->
       </div>
-      <div class="OtM_ui_warn">
-        <ExclamationTriangle color="white" size={15} />
-        Using this render mode and rendering in After Effects will block the user
-        interface, press Esc to cancel all renders.
-      </div>
+      {#if dep_progress && dep_progress.comp_id === s.tmpl.comp_id}
+        <div class="dep_progress" data-state={dep_progress.state}>
+          <div role="status">
+            {progress_labels[dep_progress.state]}
+            {#if dep_progress.state === "completed" && failed_count} with errors{/if}
+            - {rendered_count}/{out.dep_row_results.length} outputs rendered
+            {#if failed_count} · {failed_count} failed{/if}
+          </div>
+          <progress aria-label="Rendered outputs" value={rendered_count} max={out.dep_row_results.length || 1}></progress>
+          {#if dep_progress.row_count !== TemplateHelper.RowCount(s.tmpl)}
+            <p>The row count changed. Stop the batch, then select the rows you want and start a new batch.</p>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <!--Results-->
-    {#if out.dep_row_results.length > 0}
-      <h4>Results</h4>
-      {#if out.user_stopped_deps}
-        <div class="OtM_stopped_warn">
-          <ExclamationTriangle color="yellow" size={14} />
-          Renders stopped by user.
-        </div>
-      {/if}
-      <table class="render_results">
-        <colgroup>
-          <col style="width: 45px;" />
-          <col style="width: 70px;" />
-          <col />
-          <col />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Row</th>
-            <th>Queued</th>
-            <th>Path</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each out.dep_row_results as row}
-            <tr>
-              <td>{row.row}</td>
-              <td>
-                {#if row.status == "success"}
-                  <CheckCircled color="green" size={23} />
-                {:else if row.status == "warning" || row.status == "stopped"}
-                  <ExclamationTriangle color="yellow" size={21} />
-                {:else}
-                  <CrossCircled color="red" size={23} />
-                {/if}
-              </td>
-              <td
-                >{row.rendered_path}
-                <button
-                  onclick={() => OpenRenderedPath(row.rendered_path)}
-                  data-variant="discrete"
-                  style="margin-left: 4px;">
-                  <ExternalLink color="white" size={15} />
-                </button>
-              </td>
-              <td>{row.error}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    {#if out.dep_row_results.length > 0 && dep_progress?.comp_id === s.tmpl.comp_id}
+      {@render results_list(out.dep_row_results, out.user_stopped_deps)}
     {/if}
   {/if}
 </main>
@@ -570,29 +623,68 @@
 <ModalFilePattern bind:this={m_file_pattern}></ModalFilePattern>
 
 <style>
-  /* Results tables */
-  .render_results,
-  .render_results th,
-  .render_results td {
-    border-collapse: collapse;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+  .dep_progress { margin-top: 8px; }
+
+  .dep_progress progress {
+    width: 100%;
+    margin-top: 4px;
   }
 
-  .render_results td {
-    padding: 0 8px;
+  .output { min-width: 0; }
+
+  .result_row {
+    border: 1px solid var(--color-border-p0);
+    border-radius: var(--radius-form);
+    margin-bottom: 4px;
   }
 
-  .render_results tr:hover {
-    background-color: rgba(255, 255, 255, 0.02);
+  .result_row summary {
+    cursor: pointer;
+    padding: 5px 8px;
   }
 
-  .render_results thead th {
-    padding: 0 5px;
+  .result_row summary:hover,
+  .result_row[open] summary {
+    background-color: var(--color-p1);
   }
 
-  .render_results td:nth-of-type(n + 1):nth-of-type(-n + 2) {
-    text-align: center;
+  .result_row_status { margin-left: 8px; }
+
+  .result_outputs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
+
+  .result_output {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 6px 8px;
+  }
+
+  .result_output + .result_output { border-top: 1px solid var(--color-border-p0); }
+  .result_status { display: flex; padding-top: 3px; }
+  .result_body { overflow-wrap: anywhere; }
+  .result_error { color: var(--color-text-sec); }
+
+  .result_path {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .result_path_text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result_path button { flex: none; }
 
   /*/////OUTPUT/////*/
   .output textarea {
@@ -710,16 +802,6 @@
 
   .out_sub_render_cont .setting {
     margin-left: 5px;
-  }
-
-  .OtM_ui_warn {
-    text-align: center;
-    margin: 5px 0 0 0;
-  }
-
-  :global(.OtM_ui_warn svg) {
-    vertical-align: middle;
-    margin-right: 3px;
   }
 
   .OtM_stopped_warn {

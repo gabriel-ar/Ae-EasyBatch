@@ -57,7 +57,7 @@ function GetTemplates() {
       ) {
         /**
          * Extract the controllers from the template / called columns in the app
-         * Host only populates cont_name, type, values — the client merges with saved ColumnData.
+         * Host only populates cont_name, type, values - the client merges with saved ColumnData.
          * @type {HostColumnData[]}
          */
         var cols = [];
@@ -644,7 +644,7 @@ function _ResolveFootageItem(path, proj_folder) {
 
   //Check if the footage item exists in the project
   //Replace the <b> tag used to indicate the file was manually selected
-  // Note: split/join used instead of replaceAll — ExtendScript targets ES3
+  // Note: split/join used instead of replaceAll - ExtendScript targets ES3
   var clean_path = path.split("\\\\").join("/").split("<b>").join("").split("</b>").join("");
   var import_file = new File(clean_path);
 
@@ -674,7 +674,7 @@ function _ResolveFootageItem(path, proj_folder) {
  * Replaces the values in the Essential Properties of a layer
  * with the values on the corresponding row of the template.
  * @param {AVLayer} layer
- * @param {TemplateData} template
+ * @param {Pick<TemplateData, "columns" | "imported_footage_folder">} template
  * @param {number} row_i
  * @param {boolean} [replace_orgs] Instead of replacing the values of the Ess. Props. in the layer, will replace the values of the original properties in the master composition.
  * @param {PropertyGroup} [e_props] Property group to iterate (used for recursion).
@@ -1292,7 +1292,7 @@ function _ClearRenderQueue() {
 
 /**
  * Retrieves the available render settings and output module templates from After Effects.
- * Temporarily adds a dummy item to the render queue in order to read the template lists.
+ * Uses an existing queue item, or adds a temporary item if the queue is empty.
  * @returns {string} Stringified JSON of `RenderSettsResults` object
  */
 function GetRenderTemplates() {
@@ -1305,15 +1305,16 @@ function GetRenderTemplates() {
   result.default_render_templ = 0;
 
   try {
-    //Setup the render the render composition and send it to the render queue
-    var render_comp = _SetupTemplatePreviewComp();
-    var rq_item = app.project.renderQueue.items.add(render_comp);
-    result.render_templs = rq_item.templates;
-    result.output_modules_templs = rq_item.outputModule(1).templates;
-    result.output_modules_templs.push("EB_Single_Frame_PNG");
-
-    //Delete the render queue item
-    rq_item.remove();
+    var queue = app.project.renderQueue;
+    var temporary = queue.numItems === 0;
+    var rq_item = temporary ? queue.items.add(_SetupTemplatePreviewComp()) : queue.item(1);
+    try {
+      result.render_templs = rq_item.templates;
+      result.output_modules_templs = rq_item.outputModule(1).templates;
+      result.output_modules_templs.push("EB_Single_Frame_PNG");
+    } finally {
+      if (temporary) rq_item.remove();
+    }
 
     // Default OM Index
     for (var i = 28; i <= 60; i++) {
@@ -1575,197 +1576,144 @@ function _CreateSubfolders(path) {
 
 ///DEPENDANT COMPOSITIONS///
 
-/** @type {BatchRenderResult} */
-var dep_result;
-
-/** @type {{rqi: RenderQueueItem, row_result: RowRenderResult}[]} */
-var queued_items;
-
 /**
- * Renders all dependent compositions for each row in the template (One-to-Many mode).
- * Renders synchronously, blocking the AE UI until complete.
- * @param {string} str_template - Stringified JSON of `TemplateData` object
- * @returns {string} Stringified JSON of `BatchRenderResult` object
+ * Applies one row to the original properties and starts all its dependent outputs.
+ * @param {string} str_template - Template settings and values for a single row
+ * @param {boolean} send_to_ame
  */
 function BatchRenderDepComps(str_template, send_to_ame) {
   _EscapeArgs(arguments);
-
-  dep_result = { success: false, row_results: [] };
-  queued_items = [];
+  /** @type {BatchRenderResult} */
+  var result = { success: false, row_results: [] };
 
   try {
+    if (app.project.renderQueue.rendering) throw new Error("The render queue is still active.");
     _SetGlobalCurrentPath();
-
-    /** @type {TemplateData} */
+    /** @type {Pick<TemplateData, "comp_id" | "columns" | "imported_footage_folder" | "dep_comps" | "dep_config">} */
     var tmpl = JSON.parse(str_template);
-
-    //Add the template composition to the render comp as a layer
-    //to get essential properties and though those access the original properties
-    var prev_comp = _SetupTemplatePreviewComp(true);
-
-    //Find the composition referenced by the template in the project
     var templ_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.comp_id));
-
-    if (templ_comp === undefined)
-      throw new Error("@BatchRender: Template composition not found");
-
-    //Add the template composition to the render comp as a layer to find the essential properties
+    if (!templ_comp) throw new Error("Template composition not found.");
+    var prev_comp = _SetupTemplatePreviewComp(true);
     var props_layer = prev_comp.layers.add(templ_comp);
-
-    //Clean the render queue
-    for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
-      app.project.renderQueue.item(i).remove();
+    var errors = _ApplyTemplProps(props_layer, tmpl, 0, true);
+    if (errors.length) {
+      var messages = [];
+      for (var e = 0; e < errors.length; e++) messages.push(errors[e].message);
+      throw new Error("Could not apply row properties: " + messages.join("; "));
     }
 
-    // Start rendering the dependent compositions
-    RenderDeps(tmpl, props_layer, send_to_ame);
+    _ClearRenderQueue();
+    for (var i = 0; i < tmpl.dep_comps.length; i++) {
+      var dep_config = tmpl.dep_config[i];
+      if (!dep_config.enabled) continue;
+      /** @type {RowRenderResult} */
+      var row_result = {
+        row: 0, comp_id: tmpl.dep_comps[i].id, comp_name: tmpl.dep_comps[i].name,
+        status: "queued", rendered_path: dep_config.save_paths[0]
+      };
+      result.row_results.push(row_result);
+      var before_count = app.project.renderQueue.numItems;
+      try {
+        var dep_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.dep_comps[i].id));
+        if (!dep_comp) throw new Error("Output composition not found.");
+        if (dep_config.render_out_module_templ === "EB_Single_Frame_PNG") {
+          _CreateSubfolders(dep_config.save_paths[0]);
+          var file = new File(dep_config.save_paths[0] + ".png");
+          dep_comp.saveFrameToPng(0, file);
+          row_result.status = "rendered";
+          row_result.rendered_path = file.fsName;
+        } else {
+          var rq_item = _QueueComp(dep_comp, dep_config.save_paths[0],
+            dep_config.render_setts_templ, dep_config.render_out_module_templ);
+          var output_file = rq_item.outputModule(1).file;
+          if (output_file.exists && !output_file.remove()) {
+            throw new Error("Could not replace output: " + output_file.fsName);
+          }
+          row_result.queue_index = app.project.renderQueue.numItems;
+          row_result.rendered_path = output_file.fsName;
+        }
+      } catch (error) {
+        while (app.project.renderQueue.numItems > before_count) {
+          app.project.renderQueue.item(app.project.renderQueue.numItems).remove();
+        }
+        row_result.status = "error";
+        row_result.error = error.message;
+      }
+    }
+    if (!result.row_results.length) throw new Error("Enable at least one output composition.");
+    if (app.project.renderQueue.numItems > 0) {
+      if (send_to_ame) {
+        app.project.renderQueue.queueInAME(false);
+        _ClearRenderQueue();
+      } else {
+        _StartDepRenderQueue(app.project.renderQueue);
+      }
+    }
+    result.success = true;
+  } catch (error) {
+    result.error_obj = {
+      message: error.message, source: "host.jsx @ BatchRenderDepComps"
+    };
+  }
+  return JSON.stringify(result);
+}
 
-    dep_result.success = true;
-    return JSON.stringify(dep_result);
-  } catch (e) {
-    dep_result.success = false;
-    dep_result.error_obj = e;
-    dep_result.error_obj.source = "host.jsx @ BatchRenderDepComps";
-    return JSON.stringify(dep_result);
+/**Returns queue facts only; the UI decides whether to render another row.*/
+function GetRenderQueueStatus() {
+  try {
+    var items = [];
+    for (var i = 1; i <= app.project.renderQueue.numItems; i++) {
+      var item = app.project.renderQueue.item(i);
+      var status = "unqueued";
+      switch (item.status) {
+        case RQItemStatus.QUEUED: status = "queued"; break;
+        case RQItemStatus.RENDERING: status = "rendering"; break;
+        case RQItemStatus.WILL_CONTINUE: status = "paused"; break;
+        case RQItemStatus.DONE: status = "rendered"; break;
+        case RQItemStatus.ERR_STOPPED: status = "error"; break;
+        case RQItemStatus.USER_STOPPED: status = "stopped"; break;
+        case RQItemStatus.NEEDS_OUTPUT: status = "needs_output"; break;
+      }
+      items.push({index: i, comp_id: item.comp.id, status: status,
+        path: item.outputModule(1).file ? item.outputModule(1).file.fsName : ""});
+    }
+    return JSON.stringify({success: true, rendering: app.project.renderQueue.rendering, items: items});
+  } catch (error) {
+    return JSON.stringify({success: false, error_obj: {message: error.message, source: "host.jsx @ GetRenderQueueStatus"}});
   }
 }
 
-
-/**
- * Renders the dependent compositions
- * @param {TemplateData} tmpl
- */
-function RenderDeps(tmpl, props_layer, send_to_ame) {
-
-  //Loop through the rows and set the values of the template
-  for (var dep_render_row = 0; dep_render_row < tmpl.columns[0].values.length; dep_render_row++) {
-
-    var cleanup = [];
-
-    try {
-      var p_err = _ApplyTemplProps(props_layer, tmpl, dep_render_row, true);
-
-      //Convert errors to a string
-      var prop_error_str = null;
-      if (p_err.length > 0) {
-
-        prop_error_str = "";
-        for (var i_err = 0; i_err < p_err.length; i_err++) {
-          prop_error_str += p_err[i_err].message + " in column " + p_err[i_err].column + "; ";
-        }
-      }
-
-      //Add the dependent compositions to the render queue
-      for (var i = 0; i < tmpl.dep_comps.length; i++) {
-
-        if (!send_to_ame && ShouldCancelRenderDeps()) {
-          dep_result.user_stopped = true;
-          return;
-        }
-
-        //Find the configuration of the dep composition to get the render settin  gs and the path
-        /**@type {DepCompSetts} */
-        var dep_config = tmpl.dep_config[i];
-
-        //If disabled, skip
-        if (!dep_config.enabled) continue;
-
-        var dep_comp = /** @type {CompItem} */ (app.project.itemByID(tmpl.dep_comps[i].id));
-
-        /** @type {RowRenderResult} */
-        var row_result;
-
-        //Check if the render is a single frame
-        if (dep_config.render_out_module_templ === "EB_Single_Frame_PNG") {
-          _CreateSubfolders(dep_config.save_paths[dep_render_row]);
-          var file = new File(dep_config.save_paths[dep_render_row] + ".png");
-          dep_comp.saveFrameToPng(0, file);
-
-          row_result = {
-            row: dep_render_row,
-            status: prop_error_str === null ? 'success' : 'warning',
-            rendered_path: file.fsName,
-            error: prop_error_str
-          };
-
-        } else {
-          var rq_item = _QueueComp(
-            dep_comp,
-            dep_config.save_paths[dep_render_row],
-            dep_config.render_setts_templ,
-            dep_config.render_out_module_templ
-          );
-
-          cleanup.push(rq_item);
-
-          /** @type {RowRenderResult} */
-          row_result = {
-            row: dep_render_row,
-            status: prop_error_str === null ? 'success' : 'warning',
-            rendered_path: dep_config.save_paths[dep_render_row],
-            error: prop_error_str
-          };
-        }
-
-        queued_items.push({
-          rqi: rq_item,
-          row_result: row_result
-        });
-
-        //Store result for UI
-        dep_result.row_results.push(row_result);
-
-      }//Loop dep comps
-
-    } catch (e) {
-      dep_result.row_results.push({
-        row: dep_render_row,
-        status: 'error',
-        error: e.message
-      });
-    }
-
-    // Delete existing rendered files before queuing
-    for (var i = 0; i < cleanup.length; i++) {
-      var existing_file = new File(cleanup[i].outputModule(1).file.fullName);
-      if (existing_file.exists) {
-      existing_file.remove();
-      }
-    }
-
-    if (app.project.renderQueue.numItems > 0){
-      if(send_to_ame) {
-      app.project.renderQueue.queueInAME(false);
-
-      //delete all items in the render queue since the render won't start in Ae
-      for (var i = app.project.renderQueue.numItems; i >= 1; i--) {
-        app.project.renderQueue.item(i).remove();
-      }
-
-      }else{
-      app.project.renderQueue.render();
-      }
-    }
-  } //loop template rows
-} 
-
-/**
- * Checks if any of the queued render items has been stopped by the user,
- * in which case the whole process should be stopped to avoid rendering unwanted files.
- * @returns {boolean}
- */
-function ShouldCancelRenderDeps() {
-  for (var i = 0; i < queued_items.length; i++) {
-    if (queued_items[i] !== undefined 
-      && queued_items[i].rqi !== undefined
-      && queued_items[i].rqi.status === RQItemStatus.USER_STOPPED) {
-      queued_items[i].row_result.status = 'stopped';
-      queued_items[i].row_result.error = 'Render stopped by user';
-      queued_items = [];
-      return true;
-    }
+/**@param {RenderQueue} queue*/
+function _StartDepRenderQueue(queue) {
+  try {
+    queue.renderAsync();
+  } catch (error) {
+    //An idle queue can still retain After Effects' native pause flag.
+    if (queue.rendering || !/render\(\) may not be called while rendering is paused/i.test(error.message)) throw error;
+    queue.pauseRendering(false);
+    if (!queue.rendering) queue.renderAsync();
   }
-  return false;
+}
+
+/**@param {string} action*/
+function ControlRenderQueue(action) {
+  _EscapeArgs(arguments);
+  try {
+    var queue = app.project.renderQueue;
+    if (action === "pause") queue.pauseRendering(true);
+    else if (action === "continue") queue.pauseRendering(false);
+    else if (action === "stop") queue.stopRendering();
+    else if (action === "reset_after_stop") {
+      if (queue.rendering) throw new Error("After Effects is still rendering.");
+      queue.pauseRendering(false);
+      if (queue.rendering) throw new Error("After Effects resumed rendering before the batch could be reset.");
+      _ClearRenderQueue();
+    } else if (action === "start") _StartDepRenderQueue(queue);
+    else throw new Error("Unknown render queue action: " + action);
+    return JSON.stringify({success: true});
+  } catch (error) {
+    return JSON.stringify({success: false, error_obj: {message: error.message, source: "host.jsx @ ControlRenderQueue"}});
+  }
 }
 
 ////////////
@@ -2036,7 +1984,7 @@ function Test_CheckRenderResult(render_path) {
     );
     var raw_text = source_text_prop.value.text;
 
-    // The expression output is "r,g,b,a" — wrap in brackets for JSON.parse
+    // The expression output is "r,g,b,a" - wrap in brackets for JSON.parse
     var color = JSON.parse("[" + raw_text + "]");
 
     response.color = /** @type {[number, number, number, number]} */ (color);
