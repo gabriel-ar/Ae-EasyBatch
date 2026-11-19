@@ -67,7 +67,11 @@ const { default: ActionCoordinator } = await import("../../src/lib/ActionCoordin
 const { template, menuProps } = await import("./import-harness.svelte.ts");
 const { SettingsHelper, TemplateHelper } = await import("../../src/lib/Settings.svelte.ts");
 const { l } = await import("../../src/lib/States.svelte.ts");
-const { google_sheets, GoogleSheetsClient, ReadSheet, PrepareSheetUpdates, SpreadsheetUrl, SpreadsheetId } = await import("../../src/lib/GoogleSheets.ts");
+const { google_sheets, GoogleSheetsClient: GoogleSheetsClientBase, ReadSheet, PrepareSheetUpdates, SpreadsheetUrl, SpreadsheetId } = await import("../../src/lib/GoogleSheets.ts");
+//Session-only authorization keeps these tests independent of the host OS secret store
+class GoogleSheetsClient extends GoogleSheetsClientBase {
+  constructor() { super(null); }
+}
 const importer = mount(Importer, { target: document.getElementById("app") });
 const menu = mount(Menu, { target: document.getElementById("menu"), props: menuProps });
 const exporter = mount(Exporter, { target: document.getElementById("export") });

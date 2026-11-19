@@ -28,6 +28,10 @@ export default defineConfig(({ command, mode }) => {
       target: 'es2018',
       outDir
     },
+    //A concurrent `build:check` writes a native DLL here, which the dev watcher cannot open while it is being linked
+    server: {
+      watch: { ignored: ['**/dist-check/**'] }
+    },
     define: {
       '_VERSION_': JSON.stringify(version)
     },
@@ -35,10 +39,10 @@ export default defineConfig(({ command, mode }) => {
       svelte(),
       {
         name: 'native-secret-store',
-        //Build output is created after Vite empties outDir.
+        //Build output is created after Vite empties outDir. The dev server only needs this machine's architecture.
         ...(command === 'build'
           ? { writeBundle() { BuildNativeStore(outDir); } }
-          : { buildStart() { BuildNativeStore(outDir); } }),
+          : { buildStart() { BuildNativeStore(outDir, { all_architectures: false }); } }),
       },
       copy({
         

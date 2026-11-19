@@ -130,7 +130,7 @@ function EncodeBase64Url(buffer: Buffer): string {
 
 /**
  * Talks to Google Sheets. The user signs in and picks a spreadsheet in their browser; the access token
- * stays in memory. On macOS, refresh tokens are stored separately in Keychain.
+ * stays in memory. On macOS and Windows, refresh tokens are stored separately in the OS secret store.
  */
 export class GoogleSheetsClient {
   private access_tokens = new Map<string, { value: string; expires_at: number }>();
@@ -363,7 +363,7 @@ export class GoogleSheetsClient {
     this.access_tokens.set(file_id, access_token);
   }
 
-  /**Uses cached access first, then Keychain, opening the browser only when authorization is needed.*/
+  /**Uses cached access first, then the OS secret store, opening the browser only when authorization is needed.*/
   private async Request(path: string, file_id: string, operation: GoogleOperation, method = "GET", data?: unknown): Promise<JsonObject> {
     if (!/^[a-zA-Z0-9_-]+$/.test(file_id)) throw new Error("Invalid Google spreadsheet id.");
     if (!client_id || !client_secret) throw new Error("Google credentials are not configured.");

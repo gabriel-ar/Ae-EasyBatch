@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 import { createServer } from "vite";
 
 const server = await createServer({
-  configFile: false, server: { middlewareMode: true }, logLevel: "error",
+  configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, logLevel: "error",
   optimizeDeps: { noDiscovery: true, include: [] },
 });
 after(() => server.close());

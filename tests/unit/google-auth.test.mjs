@@ -15,7 +15,7 @@ const state = {
 };
 globalThis.google_auth_test_state = state;
 const server = await createServer({
-  configFile: false, envDir: false, server: { middlewareMode: true, hmr: false }, logLevel: "error",
+  configFile: false, envDir: false, server: { middlewareMode: true, hmr: false, ws: false }, logLevel: "error",
   optimizeDeps: { noDiscovery: true, include: [] },
   define: {
     "import.meta.env.VITE_GOOGLE_CLIENT_ID": JSON.stringify("test-client"),

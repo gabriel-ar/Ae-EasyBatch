@@ -1,9 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
+import net from "node:net";
 import { createServer } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { chromium } from "@playwright/test";
+
+/**Vite treats port 0 as unset and falls back to 5173, where the live dev panel reconnects and would load this test build.*/
+async function FreePort() {
+  const probe = net.createServer();
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
 
 test("import menu and CSV/Excel dialog workflows work together", async () => {
   const server = await createServer({
@@ -16,7 +26,7 @@ test("import menu and CSV/Excel dialog workflows work together", async () => {
     },
     plugins: [svelte()],
     optimizeDeps: { entries: ["tests/unit/import-harness.html"] },
-    server: { host: "127.0.0.1", port: 0 },
+    server: { host: "127.0.0.1", port: await FreePort(), strictPort: true, hmr: false },
     logLevel: "error",
   });
   let browser;
