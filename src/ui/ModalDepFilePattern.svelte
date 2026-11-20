@@ -1,7 +1,8 @@
 <script lang="ts">
   import { TemplateHelper } from "../lib/Settings.svelte.ts";
-  import { l, s, csa } from "./States.svelte.ts";
+  import { l, s, csa } from "../lib/States.svelte.ts";
   import Dropdown from "./Dropdown.svelte";
+  import SavePatternPresets from "./SavePatternPresets.svelte";
 
   type OnCloseFunc = (base_path: string, pattern: string) => void;
 
@@ -9,8 +10,7 @@
   let pick_base = $state(false);
   let sel_add_field = $state("base_path");
 
-  let tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
-  let dc_index = $state<number>();
+  let dc_index = $state<number>(0);
 
   let onclose: OnCloseFunc;
 
@@ -19,7 +19,7 @@
     on_close_callback: OnCloseFunc,
     pick_base: boolean = false,
   ) {
-    l.debug("[ModalDepFile] Open called with template:", tmpl);
+    l.debug("[ModalDepFile] Open called with template:", s.tmpl);
 
     dc_index = dep_index;
     pick_base = pick_base;
@@ -29,23 +29,21 @@
   }
 
   function AddField() {
-    /**@type {HTMLTextAreaElement}*/
-    let save_pattern_ta: HTMLTextAreaElement =
-      document.querySelector("#file_pattern_ta");
+    let save_pattern_ta =
+      document.querySelector<HTMLTextAreaElement>("#file_pattern_ta");
+    if (save_pattern_ta === null) return;
 
     let cursor_pos = save_pattern_ta.selectionStart;
-    let old_val = tmpl.dep_config[dc_index].save_pattern;
+    let old_val = s.tmpl.dep_config[dc_index].save_pattern;
 
     //Insert the selected field at the cursor position
-    tmpl.dep_config[dc_index].save_pattern =
+    s.tmpl.dep_config[dc_index].save_pattern =
       old_val.slice(0, cursor_pos) +
       `{${sel_add_field}}` +
       old_val.slice(cursor_pos);
-
-    tmpl = tmpl;
     l.debug(
       "[ModalDepFile] AddField called with pattern:",
-      tmpl.dep_config[dc_index].save_pattern,
+      s.tmpl.dep_config[dc_index].save_pattern,
     );
   }
 
@@ -57,8 +55,8 @@
   }
 
   function UpdatePreview() {
-    TemplateHelper.ResolveSavePathFirstDeps(tmpl, 0);
-    tmpl.dep_config = tmpl.dep_config;
+    TemplateHelper.ResolveSavePathFirstDeps(s.tmpl, 0);
+    s.tmpl.dep_config = s.tmpl.dep_config;
   }
 
   /**
@@ -66,23 +64,29 @@
    */
   function SelectBasePath() {
 
-    csa.OpenSelectFolder(tmpl.base_path).then((result) => {
+    csa.OpenSelectFolder(s.tmpl.base_path).then((result) => {
       if (result === null) return;
 
-      tmpl.base_path = result;
+      s.tmpl.base_path = result;
     });
   }
 
   export function CloseDialog() {
     show = false;
-    onclose(tmpl.base_path, tmpl.dep_config[dc_index].save_pattern);
+    onclose(s.tmpl.base_path, s.tmpl.dep_config[dc_index].save_pattern);
   }
 </script>
 
-{#if show && tmpl !== undefined}
+{#if show && s.tmpl !== undefined}
   <div class="modal">
     <div class="wrapper">
-      <h4>Render Save Path Pattern</h4>
+      <div class="modal-header">
+        <h4>Render Save Path Pattern</h4>
+
+        <SavePatternPresets
+          bind:pattern={s.tmpl.dep_config[dc_index].save_pattern}
+          onapply={UpdatePreview} />
+      </div>
       <div class="modal-description">
         Define the pattern used to resolve where to save the rendered files.
       </div>
@@ -93,7 +97,7 @@
           id="file_pattern_ta"
           spellcheck="false"
           onkeyup={DebounceUpdatePreview}
-          bind:value={tmpl.dep_config[dc_index].save_pattern}></textarea>
+          bind:value={s.tmpl.dep_config[dc_index].save_pattern}></textarea>
         <div>
           {#if pick_base}
             <button onclick={SelectBasePath} style="margin-right: 15px;"
@@ -108,7 +112,7 @@
               "<b>Composition</b>",
               "<b>Row Number</b>",
               "<b>Increment</b>",
-              ...tmpl.columns.map((col) => col.cont_name),
+              ...s.tmpl.columns.map((col) => col.cont_name),
             ]}
             options={[
               "base_folder",
@@ -116,7 +120,7 @@
               "comp_name",
               "row_number",
               "increment:0000",
-              ...tmpl.columns.map((col) => col.cont_name),
+              ...s.tmpl.columns.map((col) => col.cont_name),
             ]}
             title="Add Field..."
             onselect={() => AddField()}
@@ -126,7 +130,7 @@
 
       <div style="margin-bottom: 10px;">
         <span>Preview:</span>
-        <span class="out_prev">{tmpl.dep_config[dc_index].save_path}</span>
+        <span class="out_prev">{s.tmpl.dep_config[dc_index].save_path}</span>
       </div>
       <div class="modal-actions">
         <button onclick={CloseDialog}>Close</button>
@@ -137,6 +141,18 @@
   <style>
     .out_prev {
       word-break: break-all;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 0.5rem;
+    }
+
+    :global(.modal .wrapper .modal-header h4) {
+      margin: 0;
     }
   </style>
 {/if}

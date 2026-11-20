@@ -105,27 +105,40 @@ class CSAdapter {
     cep.util.openURLInDefaultBrowser(url);
   }
 
-  /**
-   * Opens a file with the OS default application. Relative paths are resolved against the project folder.
-   * If the file doesn't exist, opens its parent folder instead.
-   * @returns true if something was opened.
-   */
-  async OpenPath(path: string): Promise<boolean> {
-    if (!path) return false;
-    const node_path = cep_node.require("path");
-    let abs = path;
-    if (!node_path.isAbsolute(path) && !/^[a-zA-Z]:[\\/]/.test(path)) {
-      const proj_folder = await this.EvalDirectAsync(`app.project.file.parent.fsName`) as string;
-      abs = node_path.resolve(proj_folder, path);
+  /**Opens the output's containing folder without executing an After Effects script.*/
+  async OpenOutputFolder(output_path: string, project_path: string | null): Promise<void> {
+    const node_path: typeof import("path") = cep_node.require("path");
+    const os: typeof import("os") = cep_node.require("os");
+    const fs: typeof import("fs") = cep_node.require("fs");
+    const { spawn }: typeof import("child_process") = cep_node.require("child_process");
+    const platform = os.platform();
+    if (platform !== "darwin" && platform !== "win32") {
+      throw new Error("Opening output folders is not supported on this platform.");
     }
-    abs = node_path.normalize(abs);
 
-    const stat = cep.fs.stat(abs);
-    const target = stat.err === 0 ? abs : node_path.dirname(abs);
-    const res = await this.EvalDirectAsync(
-      `(function(){ var f = new File(decodeURIComponent("${encodeURIComponent(target)}")); if (!f.exists) { f = new Folder(f.fsName); } return f.exists && f.execute(); })()`
-    );
-    return res === true || res === "true";
+    let absolute_path = output_path;
+    if (!node_path.isAbsolute(output_path)) {
+      if (!project_path || !node_path.isAbsolute(project_path)) {
+        throw new Error("Save the After Effects project before opening a relative output path.");
+      }
+      absolute_path = node_path.resolve(node_path.dirname(project_path), output_path);
+    }
+    const folder = node_path.dirname(node_path.normalize(absolute_path));
+    if (!fs.statSync(folder).isDirectory()) throw new Error("The output folder is not a directory.");
+
+    await new Promise<void>((resolve, reject) => {
+      const opener = spawn(platform === "darwin" ? "/usr/bin/open" : "explorer.exe", [folder], { stdio: "ignore" });
+      opener.once("error", reject);
+      if (platform === "win32") {
+        //Explorer can hand off to an existing window and exit with a nonzero code.
+        opener.once("spawn", resolve);
+      } else {
+        opener.once("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error("Finder could not open the output folder."));
+        });
+      }
+    });
   }
 
   /**
@@ -225,7 +238,7 @@ class CSAdapter {
    */
   GetSystemPath(pathType) {
     var path = decodeURI(this.a_cep.getSystemPath(pathType));
-    return path.replace("file:///", "").replace("file://", "");
+    return path.replace(/^file:\/\/\/(?=[a-zA-Z]:\/)/, "").replace(/^file:\/\//, "");
   };
 
   

@@ -766,7 +766,7 @@ test.describe('View Menu', async () => {
         await nextBtn!.tap();
         expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'on row 2').toBe('2');
 
-        // Try to go to next row — should stay on row 2
+        // Try to go to next row - should stay on row 2
         await nextBtn!.tap();
         expect(await rowInput!.evaluate(el => (el as HTMLInputElement).value), 'still on row 2 (last row)').toBe('2');
     });
@@ -1013,7 +1013,7 @@ test.describe('Add Property to Template', async () => {
     });
 
     test('should have the correct default value for the new column', async () => {
-        // The new column should be the last one — find its index
+        // The new column should be the last one - find its index
         const headerTexts = await page.$$eval('.dat_table thead th', ths =>
             ths.map(th => th.textContent?.trim() ?? '')
         );
@@ -1025,7 +1025,7 @@ test.describe('Add Property to Template', async () => {
         // Column index in the DOM is 1-based (nth-child), and headerTexts is 0-based
         const colNum = newColIndex + 1;
 
-        // The new property is a color — read its default value for both rows
+        // The new property is a color - read its default value for both rows
         const row1Color = await GetCell(page, CellType.Color, 1, colNum);
         expect(row1Color, 'row 1 new column default value').toBe('faff00');
 
@@ -1142,7 +1142,7 @@ test.describe('OtM Render', async () => {
     let renderedPaths: string[] = [];
 
     test('start renders', async () => {
-        test.setTimeout(40_000);
+        test.setTimeout(330_000);
 
         // 0. Clean the renders folder so we start from a known empty state
         const rendersFolder = path.join(await GetProjectFilePath(), '/renders/');
@@ -1158,21 +1158,33 @@ test.describe('OtM Render', async () => {
         expect(renderBtn, 'has Start Batch Render button').toBeTruthy();
         await renderBtn!.tap();
 
-        // 1. Wait for BatchRender to return — the results table appears as soon as
-        //    the render queue has been populated (before actual encoding starts)
-        const resultsTable = await page.waitForSelector('table.render_results', { timeout: 30_000 });
-        expect(resultsTable, 'render results table appeared').toBeTruthy();
+        const results = await page.waitForSelector('.render_results .result_row', { timeout: 30_000 });
+        expect(results, 'render results appeared').toBeTruthy();
 
-        // 2. Collect the intended output paths from the DOM before the render starts
+        const summaries = await page.$$('.render_results .result_row summary');
+        expect(summaries.length).toBeGreaterThan(2);
+        const collapse_all = await page.$('.render_results .section_header button');
+        expect(await collapse_all!.evaluate(button => button.textContent?.trim())).toBe('Collapse All');
+        expect(await collapse_all!.evaluate(button => button.hasAttribute('disabled'))).toBe(true);
+        await summaries[0].tap();
+        await summaries[1].tap();
+        await page.waitForFunction(() =>
+            document.querySelectorAll('.render_results .result_row[open]').length === 2 &&
+            !document.querySelector('.render_results .section_header button')?.hasAttribute('disabled'),
+        );
+        await collapse_all!.tap();
+        await page.waitForFunction(() => !document.querySelector('.render_results .result_row[open]'));
+        expect(await collapse_all!.evaluate(button => button.hasAttribute('disabled'))).toBe(true);
+
+        await WaitForRenderQueue(300_000);
+
+        // Completed paths include the extension resolved by the output module.
         renderedPaths = await page.$$eval(
-            'table.render_results tbody tr td:nth-child(3)',
-            tds => tds.map(td => td.textContent?.trim()).filter(Boolean) as string[]
+            '.render_results .result_path_text',
+            paths => paths.map(path => path.getAttribute('title')).filter(Boolean) as string[]
         );
         expect(renderedPaths.length, 'render results table has rows with paths').toBeGreaterThan(0);
         console.log('Expected output paths:', renderedPaths);
-
-        // 3. Poll the AE render queue until encoding finishes
-        await WaitForRenderQueue(300_000);
 
     });
 
@@ -1181,7 +1193,7 @@ test.describe('OtM Render', async () => {
         let all_found = true;
         // 4. Verify each output file was actually written to disk
         for (const p of renderedPaths) {
-            const fullPath = path.join(await GetProjectFilePath(), p + ".mov");
+            const fullPath = path.isAbsolute(p) ? p : path.join(await GetProjectFilePath(), p);
 
             let exists = fs.existsSync(fullPath);
             let size = exists ? fs.statSync(fullPath).size : 0;
@@ -1236,6 +1248,7 @@ test.describe('OtM Render', async () => {
 
 const EXCEL_DIR = path.join(process.cwd(), 'tests/projects/generated');
 const EXCEL_PATH = path.join(EXCEL_DIR, 'test-data.xlsx');
+const CSV_PATH = path.join(EXCEL_DIR, 'test-data.csv');
 
 // "reptext" matches by case, "Slider Value" has to be mapped by hand and
 // "Other Prop" (when the template has it) has no column at all.
@@ -1289,6 +1302,20 @@ async function StubOpenFileDialog(file_path: string | null) {
 async function RestoreOpenFileDialog() {
     await con.CsaEval(
         `if (typeof $.global.__eb_orig_OpenFileDialog !== "undefined") { OpenFileDialog = $.global.__eb_orig_OpenFileDialog; } "ok"`,
+    );
+}
+
+async function StubSaveFileDialog(file_path: string) {
+    const ret = `new File("${file_path.replaceAll('\\', '\\\\')}").fsName`;
+    await con.CsaEval(
+        `if (typeof $.global.__eb_orig_SaveFileDialog === "undefined") { $.global.__eb_orig_SaveFileDialog = SaveFileDialog; }` +
+        `SaveFileDialog = function () { return ${ret}; }; "ok"`,
+    );
+}
+
+async function RestoreSaveFileDialog() {
+    await con.CsaEval(
+        `if (typeof $.global.__eb_orig_SaveFileDialog !== "undefined") { SaveFileDialog = $.global.__eb_orig_SaveFileDialog; } "ok"`,
     );
 }
 
@@ -1357,29 +1384,92 @@ test.describe('Excel Import', async () => {
 
     test.afterAll(async () => {
         await RestoreOpenFileDialog();
+        await RestoreSaveFileDialog();
 
         // A failed test can leave the dialog open, which would block every later suite
         const cancel = await page.$('.import_excel_dialog .actions button::-p-text(Cancel)');
         if (cancel) await cancel.tap();
     });
 
-    test('should show the Excel actions in the File menu', async () => {
+    test('should show unified import and export actions in the File menu', async () => {
         await GoToDataTable();
 
         const bar_btn = await page.$('nav button::-p-text(File)');
         await bar_btn!.tap();
 
         const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
-        expect(await menu!.$('button::-p-text(Import Excel Data)'), 'has Import Excel Data').toBeTruthy();
-        expect(await menu!.$('button::-p-text(Import CSV Data)'), 'has Import CSV Data').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Import File)'), 'has Import File').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Import Google Sheets)'), 'has Import Google Sheets').toBeTruthy();
+        expect(await menu!.$('button::-p-text(Export File)'), 'has Export File').toBeTruthy();
 
         await (await page.$('.c_menu_bg'))!.tap();
         expect(await page.$('.c_menu'), 'menu closed').toBeNull();
     });
 
+    test('should export new CSV and Excel files without changing the active source', async () => {
+        const previous = (await GetSelectedTemplate()).import_file_lasts.active_source;
+        for (const [label, extension] of [['CSV', 'csv'], ['Excel', 'xlsx']]) {
+            const destination = path.join(EXCEL_DIR, `exported-data.${extension}`);
+            await StubSaveFileDialog(destination);
+            await BarMenuAction('File', 'Export File');
+            await page.waitForSelector('.export_data_dialog', { timeout: 3000 });
+            expect(await con.DropdownSelect('.export_data_dialog .dropdown', label)).toBeTruthy();
+            if (extension === 'xlsx') {
+                const sheetName = await page.$('.export_data_dialog input#export-sheet-name');
+                expect(await sheetName!.evaluate((input: HTMLInputElement) => input.value)).toBe((await GetSelectedTemplate()).name);
+                await sheetName!.click({ clickCount: 3 });
+                await sheetName!.type('Custom Sheet');
+            }
+            const button = await page.$('.export_data_dialog .actions button::-p-text(Export)');
+            await button!.tap();
+            await WaitForFooter(`Exported ${extension.toUpperCase()} Data`);
+            expect(fs.existsSync(destination)).toBe(true);
+            if (extension === 'xlsx') {
+                const workbook = XLSX.read(fs.readFileSync(destination), { type: 'buffer' });
+                expect(workbook.SheetNames).toEqual(['Custom Sheet']);
+                expect(workbook.Sheets['Custom Sheet'].A1.v).toBe('RepText');
+            } else {
+                expect(fs.readFileSync(destination, 'utf8')).toContain('RepText');
+            }
+        }
+        expect((await GetSelectedTemplate()).import_file_lasts.active_source).toEqual(previous);
+    });
+
+    test('should import, save and re-import CSV and show it in recent sources', async () => {
+        fs.writeFileSync(CSV_PATH, 'reptext,Extra\r\nCSV Original,keep\r\n', 'utf8');
+        await StubOpenFileDialog(CSV_PATH);
+        await BarMenuAction('File', 'Import File');
+        await page.waitForSelector('.import_excel_dialog h3::-p-text(Import CSV Data)', { timeout: 5000 });
+        await ConfirmExcelDialog();
+        await WaitForFooter('Imported CSV Data');
+        expect((await GetSelectedTemplate()).import_file_lasts.active_source.type).toBe('csv');
+        expect(await GetCell(page, CellType.Text, 1, 2)).toBe('CSV Original');
+
+        await EditCell(page, CellType.Text, 1, 2, 'CSV Saved');
+        await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+        await page.keyboard.down('Alt');
+        await page.keyboard.press('s');
+        await page.keyboard.up('Alt');
+        await WaitForFooter('Saved to Opened File');
+        expect(fs.readFileSync(CSV_PATH, 'utf8')).toContain('CSV Saved,keep');
+
+        fs.writeFileSync(CSV_PATH, 'reptext,Extra\r\nCSV Reloaded,keep\r\n', 'utf8');
+        await page.keyboard.down('Alt');
+        await page.keyboard.press('r');
+        await page.keyboard.up('Alt');
+        await page.waitForSelector('.import_excel_dialog h3::-p-text(Re-import CSV Data)', { timeout: 5000 });
+        await ConfirmExcelDialog();
+        await WaitForFooter('Re-imported CSV Data');
+        expect(await GetCell(page, CellType.Text, 1, 2)).toBe('CSV Reloaded');
+
+        await con.OpenMenu('File');
+        expect(await page.$('.c_menu button::-p-text(test-data.csv)')).toBeTruthy();
+        await (await page.$('.c_menu_bg'))!.tap();
+    });
+
     test('should do nothing when the file dialog is cancelled', async () => {
         await StubOpenFileDialog(null);
-        await BarMenuAction('File', 'Import Excel Data');
+        await BarMenuAction('File', 'Import File');
 
         await new Promise(r => setTimeout(r, 800));
         expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
@@ -1388,16 +1478,16 @@ test.describe('Excel Import', async () => {
 
     test('should report an error when the selected file does not exist', async () => {
         await StubOpenFileDialog(path.join(EXCEL_DIR, 'does-not-exist.xlsx'));
-        await BarMenuAction('File', 'Import Excel Data');
+        await BarMenuAction('File', 'Import File');
 
-        const body = await DismissMessageModal('Excel Import Error');
-        expect(body, 'error explains the problem').toContain('relative path');
+        const body = await DismissMessageModal('Import Error');
+        expect(body, 'error explains the problem').toContain('path');
         expect(await page.$('.import_excel_dialog'), 'no import dialog shown').toBeNull();
     });
 
     test('should open the import dialog on the first sheet', async () => {
         await StubOpenFileDialog(EXCEL_PATH);
-        await BarMenuAction('File', 'Import Excel Data');
+        await BarMenuAction('File', 'Import File');
 
         const title = await page.waitForSelector('.import_excel_dialog h3', { timeout: 5000 });
         expect(await title!.evaluate(el => el.textContent?.trim()), 'dialog title').toBe('Import Excel Data');
@@ -1430,7 +1520,7 @@ test.describe('Excel Import', async () => {
         }
         expect(by_prop['RepText'].col, 'RepText matched case-insensitively to "reptext"').toBe('reptext');
         expect(by_prop['RepSlider'].status, 'RepSlider has no matching header').toBe('Unmapped');
-        expect(by_prop['RepSlider'].col, 'unmapped column shows "Do not import"').toBe('Do not import');
+        expect(by_prop['RepSlider'].col, 'unmapped column shows "Do Not Import"').toBe('Do Not Import');
     });
 
     test('should allow mapping a column manually', async () => {
@@ -1483,7 +1573,8 @@ test.describe('Excel Import', async () => {
 
     test('should remember the import for the template', async () => {
         const tmpl = await GetSelectedTemplate();
-        const saved = tmpl.import_file_lasts.excel;
+        const saved = tmpl.import_file_lasts.active_source;
+        expect(saved.type, 'stored source type').toBe('excel');
 
         expect(saved.path, 'stored path points at the workbook').toContain('test-data.xlsx');
         expect(saved.path.startsWith('/') || /^[a-zA-Z]:/.test(saved.path), 'stored path is relative to the project').toBe(false);
@@ -1494,7 +1585,9 @@ test.describe('Excel Import', async () => {
         const bar_btn = await page.$('nav button::-p-text(File)');
         await bar_btn!.tap();
         const menu = await page.waitForSelector('.c_menu', { timeout: 2000 });
-        expect(await menu!.$eval('.c_subtitle', el => el.textContent?.trim()), 'menu shows the last file').toBe('test-data.xlsx');
+        expect(await menu!.$eval('.c_filename', el => el.textContent?.trim()), 'menu shows the last file').toBe('test-data.xlsx');
+        expect(path.normalize(await menu!.$eval('.c_filename', el => el.getAttribute('title') ?? '')), 'hover shows the source path').toBe(path.normalize(EXCEL_PATH));
+        expect(await menu!.$eval('button::-p-text(Save Updates)', el => el.nextElementSibling?.classList.contains('c_divider')), 'separator follows Save Updates').toBe(true);
         expect(await menu!.$('button::-p-text(Re-import)'), 'has Re-import').toBeTruthy();
         expect(await menu!.$('button::-p-text(Save Updates)'), 'has Save Updates').toBeTruthy();
         await (await page.$('.c_menu_bg'))!.tap();
@@ -1509,7 +1602,7 @@ test.describe('Excel Import', async () => {
         await WaitForFooter('Saved to Opened File');
 
         // One formula cell must not be overwritten, which the user is told about
-        const body = await DismissMessageModal('Excel Save Warnings');
+        const body = await DismissMessageModal('Save Updates Warnings');
         expect(body, 'warns about protected formula cells').toContain('1 formula cells were not overwritten');
 
         const wb = XLSX.read(fs.readFileSync(EXCEL_PATH), { type: 'buffer' });
@@ -1696,7 +1789,7 @@ test.describe('Multi-Select Rows', async () => {
         await ClickHeaderCheckbox();
         expect(await GetRowFlags(), 'all rows unchecked').toEqual([false, false, false, false, false, false]);
 
-        const results_rows = () => page.$$eval('table.render_results tbody tr', trs => trs.length);
+        const results_rows = () => page.$$eval('.render_results .result_row', rows => rows.length);
 
         await con.GoToTab('Output');
         const before = await results_rows();
@@ -1739,25 +1832,36 @@ test.describe('Multi-Select Rows', async () => {
         const renderBtn = await page.waitForSelector('.out_actions_cont .out_actions button', { timeout: 3000 });
         await renderBtn!.tap();
 
-        // The results table of the earlier render may still be showing, so wait until it lists row 3's paths
+        // Wait until Results lists paths for the new render.
         await page.waitForFunction(() => {
-            const paths = [...document.querySelectorAll('table.render_results tbody tr td:nth-child(3)')]
-                .map(td => td.textContent?.trim() ?? '');
-            return paths.length > 0 && paths.every(p => /-2$/.test(p));
+            const paths = [...document.querySelectorAll('.render_results .result_path_text')]
+                .map(path => path.textContent?.trim() ?? '');
+            return paths.length > 0 && paths.every(p => /-2(?:\.mov)?$/.test(p));
         }, { timeout: 30_000 });
+        expect(await page.$$eval('.render_results details', rows => rows.map(row => row.hasAttribute('open')))).toEqual([false]);
+        const summary = await page.$('.render_results summary');
+        expect(await summary!.evaluate(el => el.textContent)).toContain('Row 3');
+        await summary!.tap();
         const queued = await page.$$eval(
-            'table.render_results tbody tr td:nth-child(3)',
-            tds => tds.map(td => td.textContent?.trim()).filter(Boolean) as string[]
+            '.render_results details[open] .result_path_text',
+            paths => paths.map(path => ({
+                text: path.textContent?.trim(),
+                tooltip: path.getAttribute('title'),
+            }))
         );
         console.log('Queued paths for the single checked row:', queued);
 
         // Two exports are configured, one row is checked
         expect(queued.length, 'one render per export for the checked row').toBe(2);
-        for (const p of queued) {
-            expect(p, 'queued render belongs to row 3 (row_number is 0-based)').toMatch(/-2$/);
+        for (const { text, tooltip } of queued) {
+            expect(text, 'queued render belongs to row 3 (row_number is 0-based)').toMatch(/-2(?:\.mov)?$/);
+            expect(tooltip, 'hovering over a result shows its full path').toBe(text);
         }
 
         await WaitForRenderQueue(200_000);
+        await page.waitForFunction(() =>
+            document.querySelector('.render_results details[open] .result_row_status')?.textContent === 'Completed',
+        );
 
         const produced = fs.readdirSync(rendersFolder).filter(f => f.endsWith('.mov'));
         console.log('Rendered files:', produced);
@@ -1833,19 +1937,20 @@ async function GetProjectFilePath(): Promise<string> {
 }
 
 /**
- * Polls the AE render queue status via ExtendScript until it finishes.
- * RQStatus enum: STOPPED=1, NEEDS_OUTPUT=2, RENDERING=3, DONE=4, ERR_STOPPED=5
+ * Waits for the UI-owned batch, not a momentarily idle queue between rows.
  */
 async function WaitForRenderQueue(timeoutMs = 120_000): Promise<void> {
     const pollInterval = 2_000;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
-        const status = await con.CsaEval('app.project.renderQueue.rendering');
-        console.log('Current render queue status:', status);
-
-        if (status === 'false') {
-            return; // Render queue is not rendering, which means it has finished
+        const progress = await page.evaluate(() => JSON.parse(localStorage.getItem('easybatch.renderProgress') ?? 'null'));
+        if (progress?.state === 'completed') {
+            expect(progress.results.every((item: {status: string}) => item.status === 'rendered'), 'all outputs rendered').toBe(true);
+            return;
+        }
+        if (progress && ['error', 'stopped'].includes(progress.state)) {
+            throw new Error(`Batch ${progress.state}`);
         }
 
         await new Promise(r => setTimeout(r, pollInterval));
@@ -2003,4 +2108,3 @@ async function GetCell(page: Page, cellType: CellType, row: number, col: number)
             throw new Error(`Unsupported cell type ${cellType}`);
     }
 }
-

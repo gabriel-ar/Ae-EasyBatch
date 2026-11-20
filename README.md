@@ -54,7 +54,11 @@ This is the ExtendScript side of our app. ExtendScript is based on ECMAScript 3 
 
 ## Testing
 
-The extension uses Playwright for end-to-end testing by connecting to the live After Effects CEF instance.
+Run `npm run test:unit` for source-file and browser-based import tests without After Effects. The browser test uses Playwright Chromium, or a Chrome executable specified by the `CHROME_PATH` environment variable.
+
+The Google Sheets import needs local credentials that are not part of the repository. Copy `.env.example` to `.env.local` (ignored by git) and fill it in; without it, the feature reports a configuration error. Never commit `.env.local`.
+
+The extension also uses Playwright for end-to-end testing by connecting to the live After Effects CEF instance.
 
 ### Quick Start
 
@@ -89,4 +93,3 @@ See `tests/README.md` for complete documentation.
 - `startup.spec.ts` - Extension loading and initialization
 
 **Note:** These are manual QA tests, not automated CI/CD tests. They require After Effects running with the extension loaded.
-

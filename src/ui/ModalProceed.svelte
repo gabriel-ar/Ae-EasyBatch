@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { l } from "./States.svelte.ts";
   import AESP from "aescripts-cep-license";
 
   let { proceed = $bindable(true) } = $props();
@@ -37,7 +36,9 @@
     }
   }
 
- export function OpenLicense() {
+  export function ShouldProceed() {}
+
+  export function OpenLicense() {
     aesp.openDialogOnPage('license');
   }
 

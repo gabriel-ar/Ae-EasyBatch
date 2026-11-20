@@ -29,5 +29,10 @@
    * Use global.d.ts instead of compilerOptions.types
    * to avoid limiting type declarations.
    */
-  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
+  /**
+   * src/host is ExtendScript (ES3) that runs inside After Effects, not in the browser,
+   * so it is not checked against the web and Node typings.
+   */
+  "exclude": ["src/host"]
 }

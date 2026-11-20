@@ -1,11 +1,10 @@
 <script lang="ts">
-    import { l, s} from "./States.svelte.ts";
+    import { l, s} from "../lib/States.svelte.ts";
     import { DragHandleDots2, EyeOpen, EyeClosed } from "radix-icons-svelte";
 
     type OnCloseFunc = (table_cols: number[]) => void;
 
     let show = $state(false);
-    let tmpl = $derived(s.proj.tmpls[s.proj.sel_tmpl]);
     let onclose = $state<OnCloseFunc>();
 
     // Local state for managing the view
@@ -16,20 +15,20 @@
     export function Open(
         on_close_callback: OnCloseFunc,
     ) {
-        l.debug("[ModalEditView] Open called with template:", tmpl);
+        l.debug("[ModalEditView] Open called with template:", s.tmpl);
         onclose = on_close_callback;
 
         // Initialize viewColumns based on current table_cols
         viewColumns = [];
         
         // First, add all visible columns in their current order
-        for (let col_i of tmpl.view_cols) {
+        for (let col_i of s.tmpl.view_cols) {
             viewColumns.push({ col_index: col_i, visible: true });
         }
 
         // Then, add all hidden columns at the end
-        for (let i = 0; i < tmpl.columns.length; i++) {
-            if (!tmpl.view_cols.includes(i)) {
+        for (let i = 0; i < s.tmpl.columns.length; i++) {
+            if (!s.tmpl.view_cols.includes(i)) {
                 viewColumns.push({ col_index: i, visible: false });
             }
         }
@@ -134,7 +133,7 @@
                         </button>
 
                         <span class="column-name">
-                            {tmpl.columns[viewCol.col_index].cont_name}
+                            {s.tmpl.columns[viewCol.col_index].cont_name}
                         </span>
 
                         <button

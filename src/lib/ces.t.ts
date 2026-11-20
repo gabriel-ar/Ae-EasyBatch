@@ -28,5 +28,13 @@
                 initialPath?: string,
                 fileTypes?: string[]
             ): OpenDialogResult;
+
+            /**
+             * Gets information about a file or folder.
+             *
+             * @param path - The full path of the file or folder.
+             * @returns `err` is 0 when the path exists.
+             */
+            function stat(path: string): { err: number };
         }
     }

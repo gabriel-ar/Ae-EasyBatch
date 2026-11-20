@@ -11,7 +11,7 @@
 
 /**
  * JSON is available in After Effects via the bundled json2.js include.
- * Not declared in types-for-adobe — defined here so host.jsx gets type checking.
+ * Not declared in types-for-adobe - defined here so host.jsx gets type checking.
  */
 interface JSON {
   parse(text: string): any;

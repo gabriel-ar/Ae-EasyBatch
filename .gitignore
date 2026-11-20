@@ -3,6 +3,7 @@ node_modules/
 
 # Build and packaging output
 dist/
+dist-check/
 dist-ssr/
 pkg/
 site/
