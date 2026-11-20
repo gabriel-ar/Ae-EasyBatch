@@ -1,23 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const source = fileURLToPath(new URL("../src/native/", import.meta.url));
-
-/**
- * Builds the native secret store for the current OS. Windows builds both x64 and ARM64 libraries,
- * because After Effects 26+ runs natively on Windows ARM and cannot load x64 libraries.
- * Pass `all_architectures: false` to build only this machine's architecture.
- */
-export function BuildNativeStore(output, { all_architectures = true } = {}) {
-  if (process.platform === "darwin") BuildMacStore(output);
-  else if (process.platform === "win32") BuildWindowsStore(output, all_architectures);
-}
+const prebuilt = fileURLToPath(new URL("../prebuilt/", import.meta.url));
+const windows_libraries = ["EasyBatchSecretStore.x64.dll", "EasyBatchSecretStore.arm64.dll"];
+const mac_bundle = "EasyBatchSecretStore.bundle";
 
 function BuildMacStore(output) {
-  const bundle = resolve(output, "native/EasyBatchSecretStore.bundle");
+  const bundle = resolve(output, mac_bundle);
   mkdirSync(resolve(bundle, "Contents/MacOS"), { recursive: true });
   copyFileSync(resolve(source, "Info.plist"), resolve(bundle, "Contents/Info.plist"));
   execFileSync("/usr/bin/xcrun", [
@@ -33,19 +26,13 @@ function BuildMacStore(output) {
   ], { stdio: "inherit" });
 }
 
-function BuildWindowsStore(output, all_architectures) {
+function BuildWindowsStore(output) {
   const host = process.arch === "arm64" ? "arm64" : "x64";
-  const directory = resolve(output, "native");
-  mkdirSync(directory, { recursive: true });
   const work = mkdtempSync(resolve(tmpdir(), "easybatch-native-"));
 
   try {
-    for (const target of all_architectures ? ["x64", "arm64"] : [host]) {
-      const library = resolve(directory, `EasyBatchSecretStore.${target}.dll`);
-      //After Effects keeps a library mapped until it quits, so an unchanged one is reused rather than relinked
-      if (!all_architectures && IsUpToDate(library)) continue;
-      AssertWritable(library);
-
+    for (const target of ["x64", "arm64"]) {
+      const library = resolve(output, `EasyBatchSecretStore.${target}.dll`);
       const environment = MsvcEnvironment(host, target);
       execFileSync(FindOnPath(environment, "cl.exe"), [
         "/nologo", "/std:c11", "/O2", "/MT", "/W4", "/WX", "/GS", "/guard:cf", "/LD",
@@ -58,23 +45,6 @@ function BuildWindowsStore(output, all_architectures) {
     }
   } finally {
     rmSync(work, { recursive: true, force: true });
-  }
-}
-
-function IsUpToDate(library) {
-  if (!existsSync(library)) return false;
-  const built = statSync(library).mtimeMs;
-  return [resolve(source, "SecretStore.win.c"), fileURLToPath(import.meta.url)]
-    .every((input) => statSync(input).mtimeMs <= built);
-}
-
-/**Windows cannot overwrite a library that After Effects has loaded, so say so instead of failing in the linker.*/
-function AssertWritable(library) {
-  if (!existsSync(library)) return;
-  try {
-    closeSync(openSync(library, "r+"));
-  } catch (error) {
-    throw new Error(`${library} is in use (${error.code}). Quit After Effects, then rebuild the native secret store.`);
   }
 }
 
@@ -116,4 +86,28 @@ function FindOnPath(environment, name) {
   const found = (environment[path_key] ?? "").split(delimiter).map((directory) => resolve(directory, name)).find(existsSync);
   if (!found) throw new Error(`${name} was not found in the MSVC environment.`);
   return found;
+}
+
+if (process.platform !== "darwin" && process.platform !== "win32") {
+  throw new Error("Native components must be built on Windows or macOS.");
+}
+
+const temporary = mkdtempSync(resolve(tmpdir(), "easybatch-release-native-"));
+try {
+  if (process.platform === "darwin") BuildMacStore(temporary);
+  else BuildWindowsStore(temporary);
+
+  mkdirSync(prebuilt, { recursive: true });
+  if (process.platform === "darwin") {
+    const destination = resolve(prebuilt, mac_bundle);
+    rmSync(destination, { recursive: true, force: true });
+    cpSync(resolve(temporary, mac_bundle), destination, { recursive: true });
+  } else {
+    for (const library of windows_libraries) {
+      copyFileSync(resolve(temporary, library), resolve(prebuilt, library));
+    }
+  }
+  console.log("Built native components in prebuilt.");
+} finally {
+  rmSync(temporary, { recursive: true, force: true });
 }
