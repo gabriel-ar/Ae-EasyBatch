@@ -381,10 +381,11 @@
 
     <div class="out_actions_cont">
       <div class="out_actions">
-        <button class="setting" onclick={() => BatchRender()}
+        <button disabled={out.dep_busy || out.dep_running} class="setting" onclick={() => BatchRender()}
           ><Play size={18} />Start Batch Render</button>
 
         <button
+          disabled={out.dep_busy || out.dep_running}
           class="setting"
           onclick={() => BatchRender(-1, false)}
           data-tooltip="Useful if you want to send the queue to Media Encoder."
@@ -602,7 +603,7 @@
           <div role="status">
             {progress_labels[dep_progress.state]}
             {#if dep_progress.state === "completed" && failed_count} with errors{/if}
-            - {rendered_count}/{out.dep_row_results.length} outputs rendered
+            - {rendered_count}/{out.dep_row_results.length} Outputs Rendered
             {#if failed_count} · {failed_count} failed{/if}
           </div>
           <progress aria-label="Rendered outputs" value={rendered_count} max={out.dep_row_results.length || 1}></progress>

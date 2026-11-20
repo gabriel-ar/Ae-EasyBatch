@@ -5,15 +5,261 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import * as XLSX from "xlsx";
 import { createServer } from "vite";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 const server = await createServer({
   configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, logLevel: "error",
+  cacheDir: "node_modules/.vite-source-files-test",
+  plugins: [svelte()], define: { _VERSION_: JSON.stringify("test") },
   optimizeDeps: { noDiscovery: true, include: [] },
 });
 after(() => server.close());
 const { ParseCSVSource, SaveMappedCSVValues } = await server.ssrLoadModule("/src/lib/CSVSource.ts");
 const { CreateTemplateWorkbook, SaveMappedTemplateValuesToSheet, ValidateSheetName } = await server.ssrLoadModule("/src/lib/ExcelWorkbookWriter.ts");
 const { LocalSettings } = await server.ssrLoadModule("/src/lib/LocalSettings.ts");
+globalThis.cep_node = { require: createRequire(import.meta.url) };
+const { RunBatchPreflight } = await server.ssrLoadModule("/src/lib/BatchPreflight.ts");
+const { FormatBatchPreflightMessage } = await server.ssrLoadModule("/src/ui/BatchPreflightMessage.ts");
+const { ColumnHelper, TemplateHelper } = await server.ssrLoadModule("/src/lib/Settings.svelte.ts");
+
+const presets = { success: true, render_templs: ["Best"], output_modules_templs: ["Video"] };
+const render_settings = { render_setts_templ: "Best", render_out_module_templ: "Video" };
+
+test("duplicate path messages show one line per composition and keep gaps between checked rows", () => {
+  const html = FormatBatchPreflightMessage([{
+    code: "duplicate_output",
+    path: "Render/A&B",
+    outputs: [
+      ...[8, 0, 1, 5, 6, 7, 2].map((row) => ({ row, comp_id: 1, comp_name: "GoalTakeover_16:9" })),
+      { row: 0, comp_id: 2, comp_name: "Tall <Draft>" },
+    ],
+  }], [0, 1, 2, 5, 6, 7, 8]);
+  assert.match(html, /<strong>Multiple outputs use the same path<\/strong><br><code>Render\/A&amp;B<\/code>/);
+  assert.match(html, /<li>Rows 1&ndash;3, 6&ndash;9 &middot; GoalTakeover_16:9<\/li>/);
+  assert.match(html, /<li>Row 1 &middot; Tall &lt;Draft&gt;<\/li>/);
+  assert.equal(html.split("GoalTakeover_16:9").length - 1, 1);
+});
+
+test("preflight summarizes only replaceable columns missing files in every checked row", () => {
+  const missing = (row, column_index, path) => ({
+    code: "missing_media", media: { row, column_index, column: "Photo <Draft>" }, path,
+  });
+  const full_column = [missing(3, 0), missing(0, 0, "media/A&B.jpg")];
+  const html = FormatBatchPreflightMessage([...full_column, missing(0, 1, "manual.jpg")], [0, 3]);
+  assert.equal(html.split("Missing files in all 2 checked rows").length - 1, 1);
+  assert.match(html, /Photo &lt;Draft&gt;: Missing files in all 2 checked rows/);
+  assert.match(html, /File Path Pattern and Base Folder/);
+  assert.match(html, /<details><summary>Show Paths by Row<\/summary><ul><li>Row 1 &middot; <code>media\/A&amp;B\.jpg<\/code><\/li><li>Row 4 &middot; No file path was set\./);
+  assert.match(html, /<strong>Missing replacement file<\/strong><br>Row 1 .*<code>manual\.jpg<\/code>/);
+  assert.match(FormatBatchPreflightMessage(full_column, [0, 3]), /Fix the issue below/);
+  assert.doesNotMatch(FormatBatchPreflightMessage([full_column[0]], [3]), /Missing files in all/);
+});
+
+test("One Per Row preflight checks only checked rows, preserving original indices and replacement overrides", async () => {
+  const tmpl = TemplateHelper.DefaultTemplate("Campaign", "Master", [
+    ColumnHelper.DefaultColumn("Title", [" same ", "same", "other", "same"]),
+    { ...ColumnHelper.DefaultColumn("Photo", ["", "<b>ignored.jpg</b>", "<b>manual.jpg</b>", "<b>manual.jpg</b>"]),
+      type: ColumnHelper.PropertyValueType.SRC_ALTERNATE, alt_src_pattern: "{base_folder}/{increment:0012}.jpg", alt_src_base: "media" },
+    { ...ColumnHelper.DefaultColumn("Unconfigured", ["", "", "", ""]),
+      type: ColumnHelper.PropertyValueType.SRC_ALTERNATE },
+  ]);
+  Object.assign(tmpl, render_settings, {
+    comp_id: 1, row_enabled: [true, false, true, true], save_pattern: "out/{Title}", save_paths: ["stale"],
+  });
+  const original = structuredClone(tmpl);
+  const { template: render_template, ...result } = await RunBatchPreflight(tmpl, presets, async (paths) => {
+    assert.deepEqual(paths, ["media/0012.jpg", "<b>manual.jpg</b>"]);
+    return { success: true, missing: [{ index: 1, path: "manual.jpg" }] };
+  });
+  assert.deepEqual(render_template.save_paths, ["out/same", "out/other", "out/same"]);
+  assert.deepEqual(result, {
+    rows: [0, 2, 3],
+    findings: [
+      { code: "duplicate_output", path: "out/same", outputs: [
+        { row: 0, comp_id: 1, comp_name: "Master" }, { row: 3, comp_id: 1, comp_name: "Master" },
+      ] },
+      { code: "missing_media", path: "manual.jpg", media: { row: 2, column: "Photo", column_index: 1 } },
+      { code: "missing_media", path: "manual.jpg", media: { row: 3, column: "Photo", column_index: 1 } },
+    ],
+  });
+  assert.deepEqual(tmpl, original);
+});
+
+test("Multi-Output preflight resolves media before output patterns and ignores disabled outputs", async () => {
+  const tmpl = TemplateHelper.DefaultTemplate("Campaign", "Master", [
+    { ...ColumnHelper.DefaultColumn("Photo", ["stale", "stale"]),
+      type: ColumnHelper.PropertyValueType.SRC_ALTERNATE, alt_src_pattern: "{row_number}" },
+  ]);
+  tmpl.out_mode = "dependant";
+  tmpl.row_enabled = [false, true];
+  const configs = [{ id: 2, name: "Wide" }, { id: 3, name: "Tall" }, { id: 4, name: "Disabled" }];
+  tmpl.dep_comps = configs;
+  tmpl.dep_config = configs.map((comp) => ({
+    ...comp, ...render_settings, enabled: comp.id !== 4, save_pattern: "out/{Photo}", save_paths: [],
+    render_out_module_templ: comp.id === 4 ? "" : "Video",
+  }));
+  const original = structuredClone(tmpl);
+  const { template: render_template, ...result } = await RunBatchPreflight(tmpl, presets, async (paths) => {
+    assert.deepEqual(paths, ["1"]);
+    return { success: true, missing: [] };
+  });
+  assert.deepEqual(render_template.dep_config[0].save_paths, ["out/0", "out/1"]);
+  assert.deepEqual(result, {
+    rows: [1], findings: [{ code: "duplicate_output", path: "out/1", outputs: [
+      { row: 1, comp_id: 2, comp_name: "Wide" }, { row: 1, comp_id: 3, comp_name: "Tall" },
+    ] }],
+  });
+  assert.deepEqual(tmpl, original);
+});
+
+test("preflight gives explicit feedback when no rows or outputs can be checked or media inspection fails", async () => {
+  const tmpl = TemplateHelper.DefaultTemplate("Campaign", "Master", [
+    { ...ColumnHelper.DefaultColumn("Photo", ["<b>photo.jpg</b>"]),
+      type: ColumnHelper.PropertyValueType.SRC_ALTERNATE },
+  ]);
+  let probes = 0;
+  const failed_probe = async () => {
+    probes++;
+    return { success: false, error_obj: { message: "Media check unavailable" } };
+  };
+  tmpl.row_enabled = [false];
+  const no_rows = await RunBatchPreflight(tmpl, presets, failed_probe);
+  assert.deepEqual(no_rows.rows, []);
+  assert.ok(no_rows.findings.some(({ code }) => code === "no_rows"));
+  tmpl.row_enabled = [true];
+  tmpl.out_mode = "dependant";
+  const no_outputs = await RunBatchPreflight(tmpl, presets, failed_probe);
+  assert.deepEqual(no_outputs.rows, [0]);
+  assert.deepEqual(no_outputs.findings, [{ code: "no_outputs" }]);
+  assert.equal(probes, 0);
+  tmpl.out_mode = "render";
+  const result = await RunBatchPreflight(tmpl, presets, failed_probe);
+  assert.deepEqual(result.findings, [
+    { code: "invalid_presets", comp_name: "Master" },
+    { code: "media_check_failed", message: "Error: Media check unavailable" },
+  ]);
+  assert.equal(probes, 1);
+});
+
+test("the render shortcut checks the explicit row while keeping each mode's existing row token semantics", async () => {
+  const tmpl = TemplateHelper.DefaultTemplate("Campaign", "Master", [
+    { ...ColumnHelper.DefaultColumn("Photo", ["", ""]), type: ColumnHelper.PropertyValueType.SRC_ALTERNATE,
+      alt_src_pattern: "{row_number}.jpg" },
+  ]);
+  tmpl.row_enabled = [true, false];
+  Object.assign(tmpl, render_settings, { save_pattern: "out/{row_number}" });
+  const result = await RunBatchPreflight(tmpl, presets, async (paths) => {
+    assert.deepEqual(paths, ["0.jpg"]);
+    return { success: true, missing: [{ index: 0, path: "0.jpg" }] };
+  }, 1);
+  assert.deepEqual(result.rows, [1]);
+  assert.deepEqual(result.template.save_paths, ["out/0"]);
+  assert.equal(result.findings[0].media.row, 1);
+  tmpl.out_mode = "dependant";
+  tmpl.dep_config = [{ id: 2, name: "Wide", enabled: true, ...render_settings, save_pattern: "out/{row_number}" }];
+  const multi = await RunBatchPreflight(tmpl, presets, async (paths) => {
+    assert.deepEqual(paths, ["1.jpg"]);
+    return { success: true, missing: [] };
+  }, 1);
+  assert.deepEqual(multi.rows, [1]);
+  assert.deepEqual(multi.template.dep_config[0].save_paths, ["out/0", "out/1"]);
+  assert.deepEqual(multi.findings, []);
+});
+
+test("render actions report all blocking issues together and only submit a batch if preflight passes", async () => {
+  const { default: Logger } = await server.ssrLoadModule("/src/lib/Logger.ts");
+  Logger.cleanup_scheduled = true;
+  const previous_window = globalThis.window;
+  globalThis.window = { __adobe_cep__: { getSystemPath: () => "/test" } };
+  try {
+    const { csa, s } = await server.ssrLoadModule("/src/lib/States.svelte.ts");
+    const { BatchRender, BatchOneToMany, output_hooks, out } = await server.ssrLoadModule("/src/lib/Output.svelte.ts");
+    const tmpl = TemplateHelper.DefaultTemplate("Campaign", "Master", [
+      { ...ColumnHelper.DefaultColumn("Photo", ["", "", ""]), type: ColumnHelper.PropertyValueType.SRC_ALTERNATE,
+        alt_src_pattern: "{row_number}.jpg" },
+    ]);
+    tmpl.row_enabled = [true, false, true];
+    tmpl.save_pattern = "out/shared";
+    s.proj.tmpls = [tmpl];
+    s.proj.sel_tmpl = 0;
+    s.render_setts_templs = presets;
+    const calls = [];
+    const reports = [];
+    let missing = [{ index: 1, path: "2.jpg" }];
+    csa.Exec = async (method, ...args) => {
+      calls.push([method, ...args]);
+      switch (method) {
+        case "CheckReplacementFiles": return { success: true, missing };
+        case "GetRenderQueueStatus": return { success: true, rendering: true, items: [] };
+        case "BatchRender": return { success: true, row_results: [{ row: 1, status: "success" }] };
+        default: assert.fail(`Unexpected host call: ${method}`);
+      }
+    };
+    output_hooks.PreflightIssues = (findings) => reports.push(findings.map(({ code }) => code));
+
+    await BatchRender();
+    assert.deepEqual(reports, [["invalid_presets", "duplicate_output", "missing_media"]]);
+    assert.deepEqual(calls.splice(0), [["CheckReplacementFiles", '["0.jpg","2.jpg"]']]);
+
+    Object.assign(s.tmpl, render_settings, { save_pattern: "out/{row_number}" });
+    missing = [];
+    await BatchRender();
+    assert.equal(reports.length, 1, "no modal on success");
+    assert.deepEqual(calls.map(([method]) => method), ["CheckReplacementFiles", "BatchRender"]);
+    assert.deepEqual(JSON.parse(calls[1][1]).save_paths, ["out/0", "out/2"]);
+    assert.equal(calls[1][3], true, "starts the queue");
+    assert.equal(out.render_results[0].row, 2);
+
+    calls.length = 0;
+    s.tmpl.out_mode = "dependant";
+    s.tmpl.dep_config = [{ id: 2, name: "Wide", enabled: true, ...render_settings, save_pattern: "out/{row_number}" }];
+    missing = [{ index: 1, path: "2.jpg" }];
+    await BatchOneToMany();
+    assert.deepEqual(reports.at(-1), ["missing_media", "queue_active"]);
+    assert.deepEqual(calls.map(([method]) => method), ["CheckReplacementFiles", "GetRenderQueueStatus"]);
+    assert.equal(out.dep_progress, null);
+  } finally {
+    if (previous_window === undefined) delete globalThis.window;
+    else globalThis.window = previous_window;
+  }
+});
+
+test("host media inspection checks disk and reusable footage without changing the project or queue", () => {
+  const checked = [];
+  function Folder(path) { this.path = path; }
+  function FootageItem(path, missing) {
+    this.file = { fullName: path };
+    this.footageMissing = missing;
+  }
+  const footage = [new FootageItem("media/linked.jpg", false), new FootageItem("media/missing %.jpg", true)];
+  const project = {
+    file: { path: "project" },
+    numItems: footage.length,
+    item: (i) => footage[i - 1],
+    get renderQueue() { assert.fail("must not access the render queue"); },
+    get items() { assert.fail("must not access project items"); },
+    importFile() { assert.fail("must not import footage"); },
+  };
+  const context = vm.createContext({
+    app: { project }, Folder, FootageItem,
+    File: function (path) {
+      checked.push([Folder.current.path, path]);
+      if (path === "unreadable") throw new Error("Cannot inspect path");
+      this.exists = path === "media/found.jpg";
+      this.fullName = path;
+    },
+  });
+  vm.runInContext(readFileSync(new URL("../../src/host/host.jsx", import.meta.url), "utf8"), context);
+  const previous = Folder.current = new Folder("previous");
+  const inspect = (paths) => JSON.parse(context.CheckReplacementFiles(encodeURIComponent(JSON.stringify(paths))));
+  assert.deepEqual(inspect(["<b>media\\\\found.jpg</b>", "media/missing %.jpg", "<b></b>", "media/linked.jpg"]), {
+    success: true, missing: [{ index: 1, path: "media/missing %.jpg" }, { index: 2, path: "" }],
+  });
+  assert.deepEqual(checked, [["project", "media/found.jpg"], ["project", "media/missing %.jpg"], ["project", "media/linked.jpg"]]);
+  assert.equal(Folder.current, previous);
+  assert.equal(inspect(["unreadable"]).success, false);
+  assert.equal(Folder.current, previous);
+});
 
 test("render progress persists row position, selection and results without changing other settings", () => {
   const store = new Map([["other", "keep"]]);

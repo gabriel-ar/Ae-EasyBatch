@@ -358,6 +358,12 @@ export class TemplateHelper {
     }
   }
 
+  static ResolveBatchPaths(tmpl: TemplateData, mode: "render" | "dependant") {
+    if (mode === "render") this.ResolveSavePaths(tmpl);
+    this.ResolveAltSrcPaths(tmpl);
+    if (mode === "dependant") this.ResolveSavePathDeps(tmpl);
+  }
+
   static ResolveSavePathFirstDeps(tmpl: TemplateData, index: number) {
     console.log("Resolving sample save path for dependant comps", index);
 
@@ -384,46 +390,6 @@ export class TemplateHelper {
         dep_setts.save_paths.push(this.ResolveSavePath(tmpl, dep_setts.save_pattern, row_i, dep_setts.name));
       }
     }
-  }
-
-  /**
-   * Checks for duplicate save paths for the given render mode.
-   * - "render": checks the main template's `save_paths` only.
-   * - "dependant": checks each dependent comp's `save_paths` only.
-   * Returns an array of conflicts, each with the duplicated path, the row indices involved,
-   * and (for dep comps) the comp name.
-   */
-  static CheckDuplicateSavePaths(tmpl: TemplateData, mode: "render" | "dependant"): { path: string; rows: number[]; comp_name?: string }[] {
-    const conflicts: { path: string; rows: number[]; comp_name?: string }[] = [];
-
-    if (mode === "render") {
-      // Check main template save paths
-      const main_map = new Map<string, number[]>();
-      for (let i = 0; i < tmpl.save_paths.length; i++) {
-        const path = tmpl.save_paths[i];
-        if (!main_map.has(path)) main_map.set(path, []);
-        main_map.get(path)!.push(i);
-      }
-      for (const [path, rows] of main_map) {
-        if (rows.length > 1) conflicts.push({ path, rows });
-      }
-    } else if (mode === "dependant") {
-      // Check each dependent comp's save paths
-      for (const dep of tmpl.dep_config) {
-        if (!dep.save_paths || dep.save_paths.length === 0) continue;
-        const dep_map = new Map<string, number[]>();
-        for (let i = 0; i < dep.save_paths.length; i++) {
-          const path = dep.save_paths[i];
-          if (!dep_map.has(path)) dep_map.set(path, []);
-          dep_map.get(path)!.push(i);
-        }
-        for (const [path, rows] of dep_map) {
-          if (rows.length > 1) conflicts.push({ path, rows, comp_name: dep.name });
-        }
-      }
-    }
-
-    return conflicts;
   }
 
   static ResolveCompName(tmpl: TemplateData, pattern: string, index: number): string {

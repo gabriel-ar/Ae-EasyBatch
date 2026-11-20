@@ -56,6 +56,7 @@
   import ActionCoordinator from "./lib/ActionCoordinator.ts";
   import {l, s, csa} from "./lib/States.svelte.ts";
   import { output_hooks, GetAllComps, RenderRow, out, RestoreDepRender, StopDepPolling } from "./lib/Output.svelte.ts";
+  import { EscapeHTML, FormatBatchPreflightMessage } from "./ui/BatchPreflightMessage";
   import ModalProceed from "./ui/ModalProceed.svelte";
   import DataImport, { type ImportResult, type ImportSaveResult } from "./ui/DataImport.svelte";
   import DataExport, { type ExportResult } from "./ui/DataExport.svelte";
@@ -161,6 +162,9 @@
     SetupShortcuts();
 
     output_hooks.Message = (msg, title) => m_message?.Open(msg, title);
+    output_hooks.PreflightIssues = (findings, rows) => m_message?.Open(
+      FormatBatchPreflightMessage(findings, rows), "Render Issues Found",
+    );
     output_hooks.Footer = UpdateStatusFooter;
     output_hooks.CanProceed = () => proceed;
     output_hooks.ContinueAfterError = (message) => new Promise((resolve) => {
@@ -1120,13 +1124,6 @@
       return;
     }
     UpdateStatusFooter(result.title);
-  }
-
-  function EscapeHTML(text: string): string {
-    const escaped: Record<string, string> = {
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    };
-    return text.replace(/[&<>"']/g, (character) => escaped[character]);
   }
 
   function UpdateStatusFooter(txt: string, long_msg = "") {

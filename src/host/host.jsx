@@ -642,13 +642,18 @@ function _ResolveFootageItem(path, proj_folder) {
     folder = app.project.items.addFolder(proj_folder);
   }
 
-  //Check if the footage item exists in the project
-  //Replace the <b> tag used to indicate the file was manually selected
-  // Note: split/join used instead of replaceAll - ExtendScript targets ES3
-  var clean_path = path.split("\\\\").join("/").split("<b>").join("").split("</b>").join("");
-  var import_file = new File(clean_path);
+  var import_file = new File(_CleanReplacementPath(path));
+  var existing = _FindReplacementFootage(import_file);
+  if (existing) return existing;
 
-  var repl_f_item;
+  var import_opt = new ImportOptions(import_file);
+  var replacement = /** @type {FootageItem} */ (app.project.importFile(import_opt));
+  replacement.parentFolder = folder;
+  return replacement;
+}
+
+/** @param {File} import_file */
+function _FindReplacementFootage(import_file) {
   for (var i_items = 1; i_items <= app.project.numItems; i_items++) {
     var proj_item = app.project.item(i_items);
     if (proj_item instanceof FootageItem
@@ -659,15 +664,7 @@ function _ResolveFootageItem(path, proj_folder) {
     }
   }
 
-  if (repl_f_item === undefined) {
-    //Import the file
-
-    var import_opt = new ImportOptions(import_file);
-    repl_f_item = /** @type {FootageItem} */ (app.project.importFile(import_opt));
-    repl_f_item.parentFolder = folder;
-  }
-
-  return /** @type {FootageItem} */ (repl_f_item);
+  return null;
 }
 
 /**
@@ -1375,6 +1372,35 @@ function PickColorFromPreview(startValue) {
 function _SetGlobalCurrentPath() {
   if (app.project.file !== null) {
     Folder.current = new Folder(app.project.file.path);
+  }
+}
+
+/** @param {string} path */
+function _CleanReplacementPath(path) {
+  return path.split("\\\\").join("/").split("<b>").join("").split("</b>").join("");
+}
+
+/** @param {string} paths_json JSON array of resolved replacement paths */
+function CheckReplacementFiles(paths_json) {
+  _EscapeArgs(arguments);
+  var previous_folder = Folder.current;
+  try {
+    _SetGlobalCurrentPath();
+    /** @type {string[]} */
+    var paths = JSON.parse(paths_json);
+    var missing = [];
+    for (var i = 0; i < paths.length; i++) {
+      var path = _CleanReplacementPath(paths[i]);
+      var file = /\S/.test(path) ? new File(path) : null;
+      if (!file || (!file.exists && !_FindReplacementFootage(file))) missing.push({ index: i, path: path });
+    }
+    return JSON.stringify({ success: true, missing: missing });
+  } catch (error) {
+    return JSON.stringify({ success: false, error_obj: {
+      message: error.message, source: "host.jsx @ CheckReplacementFiles"
+    } });
+  } finally {
+    Folder.current = previous_folder;
   }
 }
 

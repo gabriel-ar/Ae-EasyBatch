@@ -3,6 +3,7 @@ import { TemplateHelper, type TemplateData, type Comp } from "./Settings.svelte.
 import type {
   BatchRenderResult,
   BatchGenerateResult,
+  CheckReplacementFilesResult,
   GetAllCompsResult,
   RowRenderResult,
   RenderProgress,
@@ -10,10 +11,12 @@ import type {
   Result,
 } from "./Messaging";
 import { LocalSettings } from "./LocalSettings";
+import { RunBatchPreflight, type BatchPreflightResult, type PreflightFinding } from "./BatchPreflight";
 
 /**Callbacks the app registers so output actions can open modals and update the status footer.*/
 export const output_hooks = {
   Message: (msg: string, title: string): void => {},
+  PreflightIssues: (findings: PreflightFinding[], rows: number[]): void => {},
   Footer: (txt: string, long_msg = ""): void => {},
   CanProceed: (): boolean => true,
   ContinueAfterError: async (message: string): Promise<boolean> => false,
@@ -70,78 +73,55 @@ function FilterEnabledRows(tmpl: TemplateData, rows = TemplateHelper.EnabledRows
   return copy;
 }
 
-export function BatchRender(row_i: number = -1, start_queue: boolean = true) {
-  l.log("BatchRender called");
+async function PrepareBatch(mode: "render" | "dependant", row_i: number): Promise<BatchPreflightResult | null> {
+  const template = s.tmpl;
+  if (template?.out_mode !== mode || out.dep_running || out.dep_busy || !output_hooks.CanProceed()) return null;
+  const project_path = out.project_path;
+  const IsCurrent = () => s.tmpl === template && template.out_mode === mode &&
+    out.project_path === project_path && output_hooks.CanProceed();
 
-  //check if we should 'proceed'
-  if (out.dep_running || out.dep_busy || !output_hooks.CanProceed()) {
-    return;
-  }
-
-  if (
-    !s.render_setts_templs.render_templs?.includes(
-      s.tmpl.render_setts_templ,
-    ) ||
-    !s.render_setts_templs.output_modules_templs?.includes(
-      s.tmpl.render_out_module_templ,
-    )
-  ) {
-    output_hooks.Message(
-      "Select valid Render Settings and Output Module templates in the Output tab before rendering.",
-      "Render Settings Missing",
-    );
-    return;
-  }
-
-  let send_templ;
-  //If just rendering a single row, clone the template and trim it down to that row
-  if (row_i !== undefined && row_i !== -1) {
-    send_templ = structuredClone($state.snapshot(s.tmpl));
-
-    for (let col of send_templ.columns) {
-      col.values = [col.values[row_i]];
+  out.dep_busy = true;
+  try {
+    const result = await RunBatchPreflight($state.snapshot(template), s.render_setts_templs,
+      (paths) => csa.Exec<CheckReplacementFilesResult>("CheckReplacementFiles", JSON.stringify(paths)), row_i);
+    if (!IsCurrent()) return null;
+    if (mode === "dependant") {
+      if (HasUnfinishedDepRender()) result.findings.push({ code: "batch_in_progress" });
+      if (result.rows.length) {
+        try {
+          // AE can report paused items even after the queue stops.
+          if ((await QueueStatus()).rendering) result.findings.push({ code: "queue_active" });
+        } catch (error) {
+          result.findings.push({ code: "preflight_failed", message: `Could not check the render queue. ${error}` });
+        }
+      }
     }
-  } else {
-    send_templ = s.tmpl;
+    if (!IsCurrent()) return null;
+    if (result.findings.length) {
+      output_hooks.PreflightIssues(result.findings, result.rows);
+      return null;
+    }
+    return result;
+  } catch (error) {
+    if (IsCurrent()) output_hooks.PreflightIssues([{ code: "preflight_failed", message: String(error) }], []);
+    return null;
+  } finally {
+    out.dep_busy = false;
   }
+}
 
-  TemplateHelper.ResolveCompsNames(send_templ);
-  TemplateHelper.ResolveSavePaths(send_templ);
-  TemplateHelper.ResolveAltSrcPaths(send_templ);
-
-  const rows = row_i === -1 ? TemplateHelper.EnabledRows(send_templ) : [row_i];
-  if (row_i === -1) {
-    const filtered = FilterEnabledRows(send_templ, rows);
-    if (!filtered) return;
-    send_templ = filtered;
-  }
-
-  //checks for dupliate save paths
-  const path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
-    send_templ,
-    "render",
-  );
-  if (path_conflicts.length > 0) {
-    const details = path_conflicts
-      .map(
-        (c) =>
-          `Rows ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`,
-      )
-      .join("<br>");
-
-    output_hooks.Message(
-      `Two or more rows will render files with the same output path. After Effects will not start the queue until this is fixed.<br><br>${details}`,
-      "Duplicate Output Paths Detected",
-    );
-    return;
-  }
+export async function BatchRender(row_i: number = -1, start_queue: boolean = true) {
+  l.log("BatchRender called");
+  const batch = await PrepareBatch("render", row_i);
+  if (!batch) return;
+  const { rows, template: send_templ } = batch;
 
   out.render_results = [];
 
   let string_templt = JSON.stringify(send_templ);
   l.debug("String sent to csa:", string_templt);
 
-  csa
+  await csa
     .Exec<BatchRenderResult>(
       "BatchRender",
       string_templt,
@@ -220,83 +200,9 @@ export function BatchGenerate() {
 
 export async function BatchOneToMany(row_i: number = -1, queue_ame: boolean = false) {
   l.log("BatchOneToMany called");
-
-  if (out.dep_running || out.dep_busy || !output_hooks.CanProceed()) {
-    return;
-  }
-  if (HasUnfinishedDepRender()) {
-    output_hooks.Message("Continue or stop the unfinished batch before starting another.", "Batch In Progress");
-    return;
-  }
-
-  const conf_issues = s.tmpl.dep_config.filter((dc) => {
-    return (
-      dc.enabled &&
-      (!s.render_setts_templs.render_templs?.includes(dc.render_setts_templ) ||
-        !s.render_setts_templs.output_modules_templs?.includes(
-          dc.render_out_module_templ,
-        ))
-    );
-  });
-  if (conf_issues.length > 0) {
-    l.warn("Configuration issues detected:", conf_issues);
-    let issues_s = "";
-    for (let issue of conf_issues) {
-      issues_s += `<li>${issue.name ?? "Unknown"}</li>`;
-    }
-
-    output_hooks.Message(
-      `Select a Render Settings template and an Output Module template for every enabled composition before rendering. Issues detected in:<br><ul>${issues_s}</ul>`,
-      "Render Settings Missing",
-    );
-    return;
-  }
-
-  const rows = row_i === -1 ? TemplateHelper.EnabledRows(s.tmpl) : [row_i];
-  if (!rows.length) {
-    output_hooks.Message("Check at least one row to render.", "No Rows Selected");
-    return;
-  }
-  const send_templ = PrepareDepTemplate();
-  const selected_templ = structuredClone(send_templ);
-  TemplateHelper.KeepRows(selected_templ, rows);
-
-  //checks for dupliate save paths
-  const dep_path_conflicts = TemplateHelper.CheckDuplicateSavePaths(
-    selected_templ,
-    "dependant",
-  );
-  if (dep_path_conflicts.length > 0) {
-    const details = dep_path_conflicts
-      .map((c) => {
-        const comp_label = c.comp_name ? `${c.comp_name}` : "";
-        return `<b>${comp_label}</b> Rows with the same output: ${c.rows.map((r) => r + 1).join(", ")} (<code>${c.path}</code>)`;
-      })
-      .join("<br>");
-    output_hooks.Message(
-      `Two or more rows resolve to the same output file path. Your files will be overwritten.<br><br>${details}`,
-      "Duplicate Output Paths Detected",
-    );
-    return;
-  }
-
-  if (!send_templ.dep_config.some((config) => config.enabled)) {
-    output_hooks.Message("Go to Compositions to Render and use button to add at least one composition.", "No Compositions to Render");
-    return;
-  }
-  out.dep_busy = true;
-  try {
-    const queue = await QueueStatus();
-    //After Effects can report paused items after the queue stops.
-    if (queue.rendering) {
-      output_hooks.Message("Finish or stop the active render in the After Effects Render Queue before starting a new batch.", "Render Queue Active");
-      return;
-    }
-  } catch (error) {
-    l.error("Could not start Multi Output rendering", error);
-    output_hooks.Message(String(error), "Could Not Start Render");
-    return;
-  } finally { out.dep_busy = false; }
+  const batch = await PrepareBatch("dependant", row_i);
+  if (!batch) return;
+  const { rows, template: send_templ } = batch;
   out.dep_progress = {
     project_path: out.project_path, comp_id: send_templ.comp_id,
     row_count: TemplateHelper.RowCount(send_templ), rows, current: 0, state: "rendering",
@@ -313,8 +219,7 @@ function PrepareDepTemplate(): TemplateData {
   const tmpl = structuredClone($state.snapshot(s.tmpl));
   TemplateHelper.UpdateRows(tmpl);
   TemplateHelper.ResolveCompsNames(tmpl);
-  TemplateHelper.ResolveAltSrcPaths(tmpl);
-  TemplateHelper.ResolveSavePathDeps(tmpl);
+  TemplateHelper.ResolveBatchPaths(tmpl, "dependant");
   return tmpl;
 }
 
@@ -323,7 +228,7 @@ function SaveDepProgress() {
   out.dep_row_results = out.dep_progress.results;
   LocalSettings.SaveRenderProgress($state.snapshot(out.dep_progress));
   const rendered = out.dep_row_results.filter((item) => item.status === "rendered").length;
-  output_hooks.Footer(`${rendered}/${out.dep_row_results.length} outputs rendered - ${out.dep_progress.state}`);
+  output_hooks.Footer(`${rendered}/${out.dep_row_results.length} Outputs Rendered - ${out.dep_progress.state}`);
 }
 
 export function HasUnfinishedDepRender(): boolean {

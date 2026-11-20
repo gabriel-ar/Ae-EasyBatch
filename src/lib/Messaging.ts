@@ -130,6 +130,10 @@ export interface RenderSettsResults extends Result {
   default_output_module_templ?: number;
 }
 
+export interface CheckReplacementFilesResult extends Result {
+  missing?: { index: number; path: string }[];
+}
+
 export type RowRenderResult ={
   /** Row number */
   row: number;
